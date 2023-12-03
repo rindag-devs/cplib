@@ -344,8 +344,8 @@ class Mat : public Var<std::vector<std::vector<typename T::Var::inner_type>>> {
   size_t len0, len1;
   StrictString spec0, spec1;
 
-  explicit Mat(T element, size_t len1, size_t len2);
-  explicit Mat(T element, size_t len1, size_t len2, std::string spec1, std::string spec2);
+  explicit Mat(T element, size_t len0, size_t len1);
+  explicit Mat(T element, size_t len0, size_t len1, std::string spec0, std::string spec1);
 
  protected:
   auto read_from(Reader& in) const
