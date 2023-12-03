@@ -408,12 +408,8 @@ using i16 = Int<int16_t>;
 using u16 = Int<uint16_t>;
 using i32 = Int<int32_t>;
 using u32 = Int<uint32_t>;
-using i64 = Int<int32_t>;
-using u64 = Int<uint32_t>;
-#ifdef __SIZEOF_INT128__
-using i128 = Int<__int128>;
-using u128 = Int<unsigned __int128>;
-#endif
+using i64 = Int<int64_t>;
+using u64 = Int<uint64_t>;
 using f32 = Float<float>;
 using f64 = Float<double>;
 using fext = Float<long double>;
