@@ -662,7 +662,7 @@ inline auto InStream::read_line() -> std::string {
   return line;
 }
 
-inline CPLIB_NORETURN auto InStream::fail(std::string_view message) -> void {
+CPLIB_NORETURN inline auto InStream::fail(std::string_view message) -> void {
   fail_func_(message);
   exit(EXIT_FAILURE);  // Usually unnecessary, but in special cases to prevent problems.
 }
@@ -679,8 +679,17 @@ inline Reader::Reader(std::shared_ptr<io::InStream> inner, std::shared_ptr<Trace
 inline auto Reader::inner() -> std::shared_ptr<io::InStream> { return inner_; }
 
 CPLIB_NORETURN inline auto Reader::fail(std::string_view message) -> void {
-  inner_->fail(format("%s:%zu:%zu: %s: %s", trace_->stream_name.c_str(), trace_->line_num,
-                      trace_->col_num, trace_->var_name.c_str(), message.data()));
+  using namespace std::string_literals;
+  std::string result = "read error: "s + std::string(message);
+  auto p = trace_;
+  size_t depth = 0;
+  while (p != nullptr) {
+    result += format("\n  #%zu: %s @ %s:%zu:%zu", depth, p->var_name.c_str(),
+                     p->stream_name.c_str(), p->line_num, p->col_num);
+    p = p->parent;
+    ++depth;
+  }
+  inner_->fail(result);
 }
 
 template <class T>
@@ -777,6 +786,7 @@ inline Float<T>::Float(std::optional<T> min, std::optional<T> max, std::string n
 template <class T>
 inline auto Float<T>::read_from(Reader& in) const -> T {
   auto token = in.inner()->read_token();
+
   // `Float<T>` usually uses with non-strict streams, so it should support both fixed format and
   // scientific.
   T result{};
@@ -1174,20 +1184,20 @@ inline auto State::set_args(int argc, char** argv) -> void {
                                                    [](std::string_view msg) { panic(msg); }));
 }
 
-inline CPLIB_NORETURN auto State::quit(Report report) -> void {
+CPLIB_NORETURN inline auto State::quit(Report report) -> void {
   std::clog << report.to_json() << '\n';
   std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
 }
 
-inline CPLIB_NORETURN auto State::quit_ac() -> void {
+CPLIB_NORETURN inline auto State::quit_ac() -> void {
   quit(Report(Report::Status::ACCEPTED, 1.0, ""));
 }
 
-inline CPLIB_NORETURN auto State::quit_wa(std::string_view message) -> void {
+CPLIB_NORETURN inline auto State::quit_wa(std::string_view message) -> void {
   quit(Report(Report::Status::WRONG_ANSWER, 1.0, std::string(message)));
 }
 
-inline CPLIB_NORETURN auto State::quit_pc(double points, std::string_view message) -> void {
+CPLIB_NORETURN inline auto State::quit_pc(double points, std::string_view message) -> void {
   quit(Report(Report::Status::PARTIALLY_CORRECT, points, std::string(message)));
 }
 
