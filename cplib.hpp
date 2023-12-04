@@ -1204,16 +1204,58 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
       "<input_file> <output_file> <answer_file> [--output-format={auto|json|text}]";
 
   if (argc > 1 && !std::strcmp("--help", argv[1])) {
-    panic(format("cplib (CPLib) " CPLIB_VERSION "\n"
-                 "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
-                 "\n"
-                 "Usage:\n"
-                 "%s %s",
-                 argv[0], ARGS_USAGE.data()));
+    std::string msg =
+        format("cplib (CPLib) " CPLIB_VERSION
+               "\n"
+               "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
+               "\n"
+               "Usage:\n"
+               "  %s %s",
+               argv[0], ARGS_USAGE.data());
+    std::clog << msg << '\n';
+    exit(0);
   }
+
+  auto detect_formatter = [&]() {
+    if (!CPLIB_ISATTY(2))
+      state.formatter = json_formatter;
+    else if (detail::has_colors())
+      state.formatter = colored_text_formatter;
+    else
+      state.formatter = plain_text_formatter;
+  };
+
+  detect_formatter();
 
   if (argc < 4)
     panic("Program must be run with the following arguments:\n  " + std::string(ARGS_USAGE));
+
+  bool need_detect_formatter = true;
+
+  for (int i = 4; i < argc; ++i) {
+    auto arg = std::string_view(argv[i]);
+    if (arg.rfind("--output-format=", 0) == 0) {
+      arg.remove_prefix(std::string_view("--output-format=").size());
+      if (arg == "auto") {
+        need_detect_formatter = true;
+      } else if (arg == "json") {
+        state.formatter = json_formatter;
+        need_detect_formatter = false;
+      } else if (arg == "text") {
+        if (detail::has_colors())
+          state.formatter = colored_text_formatter;
+        else
+          state.formatter = plain_text_formatter;
+        need_detect_formatter = false;
+      } else {
+        panic(format("Unknown --output-format option: %s", arg.data()));
+      }
+    } else {
+      panic(format("Unknown option: %s", arg.data()));
+    }
+  }
+
+  if (need_detect_formatter) detect_formatter();
 
   auto inf_buf = std::make_unique<std::filebuf>();
   if (!inf_buf->open(argv[1], std::ios::binary | std::ios::in)) panic("Can't open input file");
@@ -1229,45 +1271,10 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
   if (!ans_buf->open(argv[3], std::ios::binary | std::ios::in)) panic("Can't open answer file");
   state.ans = var::Reader(std::make_shared<io::InStream>(std::move(ans_buf), "ans", false,
                                                          [](std::string_view msg) { panic(msg); }));
-
-  bool auto_detect_formatter = true;
-
-  for (int i = 4; i < argc; ++i) {
-    auto arg = std::string_view(argv[i]);
-    if (arg.rfind("--output-format=", 0) == 0) {
-      arg.remove_prefix(std::string_view("--output-format=").size());
-      if (arg == "auto") {
-        auto_detect_formatter = true;
-      } else if (arg == "json") {
-        state.formatter = json_formatter;
-        auto_detect_formatter = false;
-      } else if (arg == "text") {
-        if (detail::has_colors())
-          state.formatter = colored_text_formatter;
-        else
-          state.formatter = plain_text_formatter;
-        auto_detect_formatter = false;
-      } else {
-        panic(format("Unknown --output-format option: %s", arg.data()));
-      }
-    } else {
-      panic(format("Unknown option: %s", arg.data()));
-    }
-  }
-
-  if (auto_detect_formatter) {
-    if (!CPLIB_ISATTY(2))
-      state.formatter = json_formatter;
-    else if (detail::has_colors())
-      state.formatter = colored_text_formatter;
-    else
-      state.formatter = plain_text_formatter;
-  }
 }
 // /Impl default_initializer }}}
 
 // Impl formatters {{{
-
 namespace detail {
 inline auto encode_json_string(std::string_view s) -> std::string {
   std::string result;
@@ -1344,7 +1351,6 @@ inline auto colored_text_formatter(const Report& report) -> std::string {
                 detail::status_to_colored_title_string(report.status).c_str(), report.score * 100.0,
                 report.message.c_str());
 }
-
 // /Impl formatters }}}
 
 }  // namespace checker
