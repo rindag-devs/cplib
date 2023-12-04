@@ -1,10 +1,14 @@
 /**
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
  * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ *
+ * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
  */
 
 #ifndef CPLIB_HPP_
 #define CPLIB_HPP_
+
+#define CPLIB_VERSION "0.0.1-SNAPSHOT"
 
 #include <regex.h>
 
@@ -15,6 +19,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -29,6 +34,31 @@
 #include <tuple>
 #include <variant>
 #include <vector>
+
+#if (_WIN32 || __WIN32__ || __WIN32 || _WIN64 || __WIN64__ || __WIN64 || WINNT || __WINNT || \
+     __WINNT__ || __CYGWIN__)
+#if !defined(_MSC_VER) || _MSC_VER > 1400
+#define NOMINMAX 1
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+#include <io.h>
+#define ON_WINDOWS
+#if defined(_MSC_VER) && _MSC_VER > 1400
+#pragma warning(disable : 4127)
+#pragma warning(disable : 4146)
+#pragma warning(disable : 4458)
+#endif
+#else
+#include <unistd.h>
+#endif
+
+#if defined(ON_WINDOWS) && !defined(isatty)
+#define CPLIB_ISATTY _isatty
+#else
+#define CPLIB_ISATTY isatty
+#endif
 
 #if __STDC_VERSION__ >= 201112L
 #define NORETURN _Noreturn
@@ -448,12 +478,6 @@ struct Report {
   std::string message;
 
   Report(Status status, double score, std::string message);
-
-  auto to_json() const -> std::string;
-};
-
-enum class CompatibleConf : uint64_t {
-  NONE,
 };
 
 class State {
@@ -462,10 +486,13 @@ class State {
   var::Reader ouf;
   var::Reader ans;
 
-  State(CompatibleConf conf);
+  // Initializer is a function parsing command line arguments and initializing [`checker::State`]
+  std::function<void(State& state, int argc, char** argv)> initializer;
 
-  // Set command line arguments
-  auto set_args(int argc, char** argv) -> void;
+  // Formatter is a function formating given [`checker::Report`] to string
+  std::function<std::string(const Report& report)> formatter;
+
+  State(std::function<void(State& state, int argc, char** argv)> initializer);
 
   // Quit checker with status
   CPLIB_NORETURN auto quit(Report report) -> void;
@@ -480,15 +507,26 @@ class State {
   CPLIB_NORETURN auto quit_pc(double points, std::string_view message) -> void;
 };
 
+auto default_initializer(State& state, int argc, char** argv) -> void;
+
+auto json_formatter(const Report& report) -> std::string;
+
+auto plain_text_formatter(const Report& report) -> std::string;
+
+auto colored_text_formatter(const Report& report) -> std::string;
+
 // Macro to register checker
-#define CPLIB_REGISTER_CHECKER(var, compatible_conf) \
-  cplib::checker::State var(compatible_conf);        \
-  signed main(signed argc, char** argv) {            \
-    var.set_args(argc, argv);                        \
-    auto checker_main(void)->void;                   \
-    checker_main();                                  \
-    return 0;                                        \
+#define CPLIB_REGISTER_CHECKER_OPT(var_, initializer_) \
+  ::cplib::checker::State var_(initializer_);          \
+  signed main(signed argc, char** argv) {              \
+    var_.initializer(var_, argc, argv);                \
+    auto checker_main(void)->void;                     \
+    checker_main();                                    \
+    return 0;                                          \
   }
+
+#define CPLIB_REGISTER_CHECKER(var) \
+  CPLIB_REGISTER_CHECKER_OPT(var, ::cplib::checker::default_initializer)
 
 }  // namespace checker
 };  // namespace cplib
@@ -1101,7 +1139,134 @@ inline auto get_work_mode() -> WorkMode { return detail::work_mode; }
 
 namespace checker {
 
-// Impl Report {{{
+inline auto Report::status_to_string(Report::Status status) -> std::string {
+  switch (status) {
+    case Status::INTERNAL_ERROR:
+      return "internal_error";
+    case Status::ACCEPTED:
+      return "accepted";
+    case Status::WRONG_ANSWER:
+      return "wrong_answer";
+    case Status::PARTIALLY_CORRECT:
+      return "partially_correct";
+    default:
+      panic(format("Unknown checker report status: %d", static_cast<int>(status)));
+      return "unknown";
+  }
+}
+
+inline Report::Report(Report::Status status, double score, std::string message)
+    : status(std::move(status)), score(std::move(score)), message(std::move(message)) {}
+
+// Impl State {{{
+inline State::State(std::function<void(State& state, int argc, char** argv)> initializer)
+    : inf(var::Reader(nullptr)),
+      ouf(var::Reader(nullptr)),
+      ans(var::Reader(nullptr)),
+      initializer(std::move(initializer)),
+      formatter(json_formatter) {
+  cplib::detail::panic_impl = [this](std::string_view msg) {
+    quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
+  };
+  cplib::detail::work_mode = WorkMode::CHECKER;
+}
+
+CPLIB_NORETURN inline auto State::quit(Report report) -> void {
+  std::clog << formatter(report) << '\n';
+  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
+}
+
+CPLIB_NORETURN inline auto State::quit_ac() -> void {
+  quit(Report(Report::Status::ACCEPTED, 1.0, ""));
+}
+
+CPLIB_NORETURN inline auto State::quit_wa(std::string_view message) -> void {
+  quit(Report(Report::Status::WRONG_ANSWER, 0.0, std::string(message)));
+}
+
+CPLIB_NORETURN inline auto State::quit_pc(double points, std::string_view message) -> void {
+  quit(Report(Report::Status::PARTIALLY_CORRECT, points, std::string(message)));
+}
+// /Impl State }}}
+
+// Impl default_initializer {{{
+namespace detail {
+inline auto has_colors() -> bool {
+  // https://bixense.com/clicolors/
+  if (std::getenv("NOCOLOR") != nullptr) return false;
+  if (std::getenv("CLICOLOR_FORCE") != nullptr) return true;
+  return CPLIB_ISATTY(2);
+}
+}  // namespace detail
+
+inline auto default_initializer(State& state, int argc, char** argv) -> void {
+  constexpr std::string_view ARGS_USAGE =
+      "<input_file> <output_file> <answer_file> [--output-format={auto|json|text}]";
+
+  if (argc > 1 && !std::strcmp("--help", argv[1])) {
+    panic(format("cplib (CPLib) " CPLIB_VERSION "\n"
+                 "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
+                 "\n"
+                 "Usage:\n"
+                 "%s %s",
+                 argv[0], ARGS_USAGE.data()));
+  }
+
+  if (argc < 4)
+    panic("Program must be run with the following arguments:\n  " + std::string(ARGS_USAGE));
+
+  auto inf_buf = std::make_unique<std::filebuf>();
+  if (!inf_buf->open(argv[1], std::ios::binary | std::ios::in)) panic("Can't open input file");
+  state.inf = var::Reader(std::make_shared<io::InStream>(std::move(inf_buf), "inf", false,
+                                                         [](std::string_view msg) { panic(msg); }));
+
+  auto ouf_buf = std::make_unique<std::filebuf>();
+  if (!ouf_buf->open(argv[2], std::ios::binary | std::ios::in)) panic("Can't open output file");
+  state.ouf = var::Reader(std::make_shared<io::InStream>(
+      std::move(ouf_buf), "ouf", false, [&state](std::string_view msg) { state.quit_wa(msg); }));
+
+  auto ans_buf = std::make_unique<std::filebuf>();
+  if (!ans_buf->open(argv[3], std::ios::binary | std::ios::in)) panic("Can't open answer file");
+  state.ans = var::Reader(std::make_shared<io::InStream>(std::move(ans_buf), "ans", false,
+                                                         [](std::string_view msg) { panic(msg); }));
+
+  bool auto_detect_formatter = true;
+
+  for (int i = 4; i < argc; ++i) {
+    auto arg = std::string_view(argv[i]);
+    if (arg.rfind("--output-format=", 0) == 0) {
+      arg.remove_prefix(std::string_view("--output-format=").size());
+      if (arg == "auto") {
+        auto_detect_formatter = true;
+      } else if (arg == "json") {
+        state.formatter = json_formatter;
+        auto_detect_formatter = false;
+      } else if (arg == "text") {
+        if (detail::has_colors())
+          state.formatter = colored_text_formatter;
+        else
+          state.formatter = plain_text_formatter;
+        auto_detect_formatter = false;
+      } else {
+        panic(format("Unknown --output-format option: %s", arg.data()));
+      }
+    } else {
+      panic(format("Unknown option: %s", arg.data()));
+    }
+  }
+
+  if (auto_detect_formatter) {
+    if (!CPLIB_ISATTY(2))
+      state.formatter = json_formatter;
+    else if (detail::has_colors())
+      state.formatter = colored_text_formatter;
+    else
+      state.formatter = plain_text_formatter;
+  }
+}
+// /Impl default_initializer }}}
+
+// Impl formatters {{{
 
 namespace detail {
 inline auto encode_json_string(std::string_view s) -> std::string {
@@ -1128,85 +1293,59 @@ inline auto encode_json_string(std::string_view s) -> std::string {
   }
   return result;
 }
-}  // namespace detail
 
-inline auto Report::status_to_string(Report::Status status) -> std::string {
+inline auto status_to_title_string(Report::Status status) -> std::string {
   switch (status) {
-    case Status::INTERNAL_ERROR:
-      return "internal_error";
-    case Status::ACCEPTED:
-      return "accepted";
-    case Status::WRONG_ANSWER:
-      return "wrong_answer";
-    case Status::PARTIALLY_CORRECT:
-      return "partially_correct";
+    case Report::Status::INTERNAL_ERROR:
+      return "Internal Error";
+    case Report::Status::ACCEPTED:
+      return "Accepted";
+    case Report::Status::WRONG_ANSWER:
+      return "Wrong Answer";
+    case Report::Status::PARTIALLY_CORRECT:
+      return "Partially Correct";
     default:
       panic(format("Unknown checker report status: %d", static_cast<int>(status)));
-      return "unknown";
+      return "Unknown";
   }
 }
 
-inline Report::Report(Report::Status status, double score, std::string message)
-    : status(std::move(status)), score(std::move(score)), message(std::move(message)) {}
+inline auto status_to_colored_title_string(Report::Status status) -> std::string {
+  switch (status) {
+    case Report::Status::INTERNAL_ERROR:
+      return "\x1b[0;35mInternal Error\x1b[0m";
+    case Report::Status::ACCEPTED:
+      return "\x1b[0;32mAccepted\x1b[0m";
+    case Report::Status::WRONG_ANSWER:
+      return "\x1b[0;31mWrong Answer\x1b[0m";
+    case Report::Status::PARTIALLY_CORRECT:
+      return "\x1b[0;36mPartially Correct\x1b[0m";
+    default:
+      panic(format("Unknown checker report status: %d", static_cast<int>(status)));
+      return "Unknown";
+  }
+}
+}  // namespace detail
 
-inline auto Report::to_json() const -> std::string {
+inline auto json_formatter(const Report& report) -> std::string {
   return format("{\"status\": \"%s\", \"score\": %.3f, \"message\": \"%s\"}",
-                status_to_string(status).c_str(), score,
-                detail::encode_json_string(message).c_str());
+                Report::status_to_string(report.status).c_str(), report.score,
+                detail::encode_json_string(report.message).c_str());
 }
 
-// /Impl Report }}}
-
-// Impl State {{{
-
-inline State::State(CompatibleConf conf)
-    : inf(var::Reader(nullptr)), ouf(var::Reader(nullptr)), ans(var::Reader(nullptr)) {
-  cplib::detail::panic_impl = [this](std::string_view msg) {
-    quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
-  };
-  cplib::detail::work_mode = WorkMode::CHECKER;
+inline auto plain_text_formatter(const Report& report) -> std::string {
+  return format("%s, scores %.1f of 100.\n%s",
+                detail::status_to_title_string(report.status).c_str(), report.score * 100.0,
+                report.message.c_str());
 }
 
-inline auto State::set_args(int argc, char** argv) -> void {
-  if (argc != 4)
-    panic(
-        "Program must be run with the following arguments:\n"
-        "<input_file> <output_file> <answer_file>");
-
-  auto inf_buf = std::make_unique<std::filebuf>();
-  if (!inf_buf->open(argv[1], std::ios::binary | std::ios::in)) panic("Can't open input file");
-  inf = var::Reader(std::make_shared<io::InStream>(std::move(inf_buf), "inf", false,
-                                                   [](std::string_view msg) { panic(msg); }));
-
-  auto ouf_buf = std::make_unique<std::filebuf>();
-  if (!ouf_buf->open(argv[1], std::ios::binary | std::ios::in)) panic("Can't open output file");
-  ouf = var::Reader(std::make_shared<io::InStream>(std::move(ouf_buf), "ouf", false,
-                                                   [this](std::string_view msg) { quit_wa(msg); }));
-
-  auto ans_buf = std::make_unique<std::filebuf>();
-  if (!ans_buf->open(argv[1], std::ios::binary | std::ios::in)) panic("Can't open answer file");
-  ans = var::Reader(std::make_shared<io::InStream>(std::move(ans_buf), "ans", false,
-                                                   [](std::string_view msg) { panic(msg); }));
+inline auto colored_text_formatter(const Report& report) -> std::string {
+  return format("%s, scores \x1b[0;33m%.1f\x1b[0m of 100.\n%s",
+                detail::status_to_colored_title_string(report.status).c_str(), report.score * 100.0,
+                report.message.c_str());
 }
 
-CPLIB_NORETURN inline auto State::quit(Report report) -> void {
-  std::clog << report.to_json() << '\n';
-  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
-}
-
-CPLIB_NORETURN inline auto State::quit_ac() -> void {
-  quit(Report(Report::Status::ACCEPTED, 1.0, ""));
-}
-
-CPLIB_NORETURN inline auto State::quit_wa(std::string_view message) -> void {
-  quit(Report(Report::Status::WRONG_ANSWER, 0.0, std::string(message)));
-}
-
-CPLIB_NORETURN inline auto State::quit_pc(double points, std::string_view message) -> void {
-  quit(Report(Report::Status::PARTIALLY_CORRECT, points, std::string(message)));
-}
-
-// /Impl State }}}
+// /Impl formatters }}}
 
 }  // namespace checker
 
