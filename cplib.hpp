@@ -1199,7 +1199,7 @@ CPLIB_NORETURN inline auto State::quit_ac() -> void {
 }
 
 CPLIB_NORETURN inline auto State::quit_wa(std::string_view message) -> void {
-  quit(Report(Report::Status::WRONG_ANSWER, 1.0, std::string(message)));
+  quit(Report(Report::Status::WRONG_ANSWER, 0.0, std::string(message)));
 }
 
 CPLIB_NORETURN inline auto State::quit_pc(double points, std::string_view message) -> void {
