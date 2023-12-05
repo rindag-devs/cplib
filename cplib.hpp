@@ -80,7 +80,7 @@ namespace cplib {
 
 CPLIB_NORETURN auto panic(std::string_view message) -> void;
 
-// Format string using printf-like syntax.
+// Format string using printf-like syntax
 CPLIB_PRINTF_LIKE(1, 2) auto format(const char* fmt, ...) -> std::string;
 
 /**
@@ -1193,7 +1193,7 @@ CPLIB_NORETURN inline auto State::quit_pc(double points, std::string_view messag
 namespace detail {
 inline auto has_colors() -> bool {
   // https://bixense.com/clicolors/
-  if (std::getenv("NOCOLOR") != nullptr) return false;
+  if (std::getenv("NO_COLOR") != nullptr) return false;
   if (std::getenv("CLICOLOR_FORCE") != nullptr) return true;
   return CPLIB_ISATTY(2);
 }
