@@ -8,6 +8,7 @@
 #ifndef CPLIB_HPP_
 #define CPLIB_HPP_
 
+#include <cmath>
 #define CPLIB_VERSION "0.0.1-SNAPSHOT"
 
 #include <regex.h>
@@ -82,6 +83,31 @@ CPLIB_NORETURN auto panic(std::string_view message) -> void;
 
 // Format string using printf-like syntax
 CPLIB_PRINTF_LIKE(1, 2) auto format(const char* fmt, ...) -> std::string;
+
+// Determine whether the two floating-point values are equals within the accuracy range
+template <class T>
+auto float_equals(T expected, T result, T max_err) -> bool;
+
+// Calculate the minimum relative and absolute error between two floating-point values
+template <class T>
+auto float_delta(T expected, T result) -> T;
+
+// Compress string to at most 64 bytes
+auto compress(std::string_view s) -> std::string;
+
+// Trim spaces at beginning and end of string
+auto trim(std::string_view s) -> std::string;
+
+// Concatenate the values between [first,last) into a string through seperator
+template <class It>
+auto join(It first, It last, char seperator) -> std::string;
+
+// Splits string s by character separators returning exactly k+1 items, where k is the number of
+// separator occurences. Split the string into a list of strings using seperator
+auto split(std::string_view s, char separator) -> std::vector<std::string>;
+
+// Similar to `split`, but ignores the empty string
+auto tokenize(std::string_view s, char separator) -> std::vector<std::string>;
 
 /**
  * Regex pattern in POSIX-Extended style. Used for matching strings.
@@ -577,13 +603,102 @@ CPLIB_PRINTF_LIKE(1, 2) inline auto format(const char* fmt, ...) -> std::string 
 }
 // /Impl format }}}
 
+template <class T>
+inline auto float_equals(T expected, T result, T max_err) -> bool {
+  if (bool x_nan = std::isnan(expected), y_nan = std::isnan(result); x_nan || y_nan)
+    return x_nan && y_nan;
+  if (bool x_inf = std::isinf(expected), y_inf = std::isinf(result); x_inf || y_inf)
+    return x_inf && y_inf && (expected > 0) == (result > 0);
+
+  max_err += 1e-15;
+
+  if (std::abs(expected - result) <= max_err) return true;
+
+  T min_v = std::min<T>(expected * (1.0 - max_err), expected * (1.0 + max_err));
+  T max_v = std::max<T>(expected * (1.0 - max_err), expected * (1.0 + max_err));
+  return result >= min_v && result <= max_v;
+}
+
+template <class T>
+inline auto float_delta(T expected, T result) -> T {
+  T absolute = std::abs(expected - result);
+
+  if (std::abs(expected) > 1E-9) {
+    double relative = std::abs(absolute / expected);
+    return std::min(absolute, relative);
+  }
+
+  return absolute;
+}
+
+inline auto compress(std::string_view s) -> std::string {
+  if (s.size() <= 64)
+    return std::string(s);
+  else
+    return std::string(s.substr(0, 30)) + "..." + std::string(s.substr(s.size() - 31, 31));
+}
+
+inline auto trim(std::string_view s) -> std::string {
+  if (s.empty()) return std::string(s);
+
+  ssize_t left = 0;
+  while (left < ssize_t(s.size()) && std::isspace(s[left])) left++;
+  if (left >= ssize_t(s.size())) return "";
+
+  ssize_t right = ssize_t(s.size()) - 1;
+  while (right >= 0 && std::isspace(s[right])) right--;
+  if (right < 0) return "";
+
+  return std::string(s.substr(left, right - left + 1));
+}
+
+template <typename It>
+inline auto join(It first, It last, char separator) -> std::string {
+  std::string result;
+  bool repeated = false;
+  for (It i = first; i != last; ++i) {
+    if (repeated)
+      result.push_back(separator);
+    else
+      repeated = true;
+    result += *i;
+  }
+  return result;
+}
+
+inline auto split(std::string_view s, char separator) -> std::vector<std::string> {
+  std::vector<std::string> result;
+  std::string item;
+  for (size_t i = 0; i < s.size(); i++)
+    if (s[i] == separator) {
+      result.push_back(item);
+      item.clear();
+    } else
+      item.push_back(s[i]);
+  result.push_back(item);
+  return result;
+}
+
+inline auto tokenize(std::string_view s, char separator) -> std::vector<std::string> {
+  std::vector<std::string> result;
+  std::string item;
+  for (size_t i = 0; i < s.size(); i++)
+    if (s[i] == separator) {
+      if (!item.empty()) result.push_back(item);
+      item.clear();
+    } else
+      item.push_back(s[i]);
+  if (!item.empty()) result.push_back(item);
+  return result;
+}
+
 // Impl pattern {{{
 
 namespace detail {
 inline auto get_regex_err_msg(int err_code, regex_t* re) -> std::string {
-  size_t length = regerror(err_code, re, NULL, 0);
-  std::string buf(length, 0);
-  regerror(err_code, re, buf.data(), length);
+  size_t len = regerror(err_code, re, NULL, 0);
+  std::string buf(len, 0);
+  regerror(err_code, re, buf.data(), len);
   return buf;
 }
 }  // namespace detail
