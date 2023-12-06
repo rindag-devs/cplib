@@ -951,7 +951,7 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
   auto [ptr, ec] = std::from_chars(token.c_str(), token.c_str() + token.size(), result,
                                    std::chars_format::general);
 
-  if (ec != std::errc() || ptr != token.c_str() + token.size()) {
+  if (ec != std::errc() || ptr != token.c_str() + token.size() || !std::isfinite(result)) {
     in.fail(format("Expected a float, got `%s`", token.c_str()));
   }
 
