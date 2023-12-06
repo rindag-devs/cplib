@@ -633,12 +633,42 @@ inline auto float_delta(T expected, T result) -> T {
   return absolute;
 }
 
-inline auto compress(std::string_view s) -> std::string {
-  if (s.size() <= 64)
-    return std::string(s);
+// Impl compress {{{
+namespace detail {
+inline auto hex_encode(char c) -> std::string {
+  if (c == '\\')
+    return "\\\\";
+  else if (c == '\b')
+    return "\\b";
+  else if (c == '\f')
+    return "\\f";
+  else if (c == '\n')
+    return "\\n";
+  else if (c == '\r')
+    return "\\r";
+  else if (c == '\t')
+    return "\\t";
+  else if (!isprint(c))
+    return format("\\x%02x", static_cast<int>(c));
   else
-    return std::string(s.substr(0, 30)) + "..." + std::string(s.substr(s.size() - 31, 31));
+    return std::string{c};
 }
+
+inline auto hex_encode(std::string_view s) -> std::string {
+  std::string result;
+  for (auto c : s) result += hex_encode(c);
+  return result;
+}
+}  // namespace detail
+
+inline auto compress(std::string_view s) -> std::string {
+  auto t = detail::hex_encode(s);
+  if (t.size() <= 64)
+    return std::string(t);
+  else
+    return std::string(t.substr(0, 30)) + "..." + std::string(t.substr(t.size() - 31, 31));
+}
+// /Impl compress }}}
 
 inline auto trim(std::string_view s) -> std::string {
   if (s.empty()) return std::string(s);
@@ -911,24 +941,25 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
     if (in.inner()->eof())
       in.fail("Expected an integer, got EOF");
     else
-      in.fail(format("Expected an integer, got whitespace (ASCII %d)", in.inner()->seek()));
+      in.fail(format("Expected an integer, got whitespace `%s`",
+                     cplib::detail::hex_encode(in.inner()->seek()).c_str()));
   }
 
   T result{};
   auto [ptr, ec] = std::from_chars(token.c_str(), token.c_str() + token.size(), result);
 
   if (ec != std::errc() || ptr != token.c_str() + token.size()) {
-    in.fail(format("Expected an integer, got `%s`", token.c_str()));
+    in.fail(format("Expected an integer, got `%s`", compress(token).c_str()));
   }
 
   if (min.has_value() && result < *min) {
-    in.fail(
-        format("Expected an integer >= %s, got `%s`", std::to_string(*min).c_str(), token.c_str()));
+    in.fail(format("Expected an integer >= %s, got `%s`", std::to_string(*min).c_str(),
+                   compress(token).c_str()));
   }
 
   if (max.has_value() && result > *max) {
-    in.fail(
-        format("Expected an integer <= %s, got `%s`", std::to_string(*max).c_str(), token.c_str()));
+    in.fail(format("Expected an integer <= %s, got `%s`", std::to_string(*max).c_str(),
+                   compress(token).c_str()));
   }
 
   return result;
@@ -957,7 +988,8 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
     if (in.inner()->eof())
       in.fail("Expected a float, got EOF");
     else
-      in.fail(format("Expected a float, got whitespace (ASCII %d)", in.inner()->seek()));
+      in.fail(format("Expected a float, got whitespace `%s`",
+                     cplib::detail::hex_encode(in.inner()->seek()).c_str()));
   }
 
   // `Float<T>` usually uses with non-strict streams, so it should support both fixed format and
@@ -967,17 +999,17 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
                                    std::chars_format::general);
 
   if (ec != std::errc() || ptr != token.c_str() + token.size() || !std::isfinite(result)) {
-    in.fail(format("Expected a float, got `%s`", token.c_str()));
+    in.fail(format("Expected a float, got `%s`", compress(token).c_str()));
   }
 
   if (min.has_value() && result < *min) {
-    in.fail(
-        format("Expected a float >= %s, got `%s`", std::to_string(*min).c_str(), token.c_str()));
+    in.fail(format("Expected a float >= %s, got `%s`", std::to_string(*min).c_str(),
+                   compress(token).c_str()));
   }
 
   if (max.has_value() && result > *max) {
-    in.fail(
-        format("Expected a float <= %s, got `%s`", std::to_string(*max).c_str(), token.c_str()));
+    in.fail(format("Expected a float <= %s, got `%s`", std::to_string(*max).c_str(),
+                   compress(token).c_str()));
   }
 
   return result;
@@ -1008,7 +1040,8 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
     if (in.inner()->eof())
       in.fail("Expected a strict float, got EOF");
     else
-      in.fail(format("Expected a strict float, got whitespace (ASCII %d)", in.inner()->seek()));
+      in.fail(format("Expected a strict float, got whitespace `%s`",
+                     cplib::detail::hex_encode(in.inner()->seek()).c_str()));
   }
 
   auto pat = Pattern(min_n_digit == 0
@@ -1016,7 +1049,7 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
                          : format("-?([1-9][0-9]*|0)\\.[0-9]{%zu,%zu}", min_n_digit, max_n_digit));
 
   if (!pat.match(token)) {
-    in.fail(format("Expected a strict float, got `%s`", token.c_str()));
+    in.fail(format("Expected a strict float, got `%s`", compress(token).c_str()));
   }
 
   // Different from `Float<T>`, only fixed format should be allowed.
@@ -1025,17 +1058,17 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
                                    std::chars_format::fixed);
 
   if (ec != std::errc() || ptr != token.c_str() + token.size()) {
-    in.fail(format("Expected a strict float, got `%s`", token.c_str()));
+    in.fail(format("Expected a strict float, got `%s`", compress(token).c_str()));
   }
 
   if (result < min) {
     in.fail(format("Expected a strict float >= %s, got `%s`", std::to_string(min).c_str(),
-                   token.c_str()));
+                   compress(token).c_str()));
   }
 
   if (result > max) {
     in.fail(format("Expected a strict float <= %s, got `%s`", std::to_string(max).c_str(),
-                   token.c_str()));
+                   compress(token).c_str()));
   }
 
   return result;
@@ -1058,11 +1091,13 @@ inline auto String::read_from(Reader& in) const -> std::string {
     if (in.inner()->eof())
       in.fail("Expected a string, got EOF");
     else
-      in.fail(format("Expected a string, got whitespace (ASCII %d)", in.inner()->seek()));
+      in.fail(format("Expected a string, got whitespace `%s`",
+                     cplib::detail::hex_encode(in.inner()->seek()).c_str()));
   }
 
   if (pat.has_value() && !pat->match(token)) {
-    in.fail(format("Expected a string matching `%s`, got `%s`", pat->src().data(), token.c_str()));
+    in.fail(format("Expected a string matching `%s`, got `%s`", compress(pat->src()).data(),
+                   compress(token).c_str()));
   }
 
   return token;
@@ -1092,7 +1127,8 @@ inline auto StrictString::read_from(Reader& in) const -> std::string {
     auto size = pat.size();
     auto str = in.inner()->read_n(size);
     if (str != pat)
-      in.fail(format("Expected a strict string matching `%s`, got `%s`", pat.data(), str.c_str()));
+      in.fail(format("Expected a strict string matching `%s`, got `%s`", compress(pat).data(),
+                     str.c_str()));
     return str;
   }
 
@@ -1101,6 +1137,7 @@ inline auto StrictString::read_from(Reader& in) const -> std::string {
   if (!std::isspace(pat.front())) detail::read_spaces(in, result);
 
   bool pat_last_blank = false;
+
   for (auto c : pat) {
     if (std::isspace(c) && pat_last_blank) continue;
 
@@ -1115,7 +1152,8 @@ inline auto StrictString::read_from(Reader& in) const -> std::string {
 
     int got = in.inner()->read();
     if (got != c)
-      in.fail(format("Expected charector `%c` while reading strict string, got `%c`", c, got));
+      in.fail(format("Expected charector `%s` while reading strict string, got `%s`",
+                     cplib::detail::hex_encode(c).c_str(), cplib::detail::hex_encode(got).c_str()));
     result.push_back(got);
     pat_last_blank = false;
   }
@@ -1141,7 +1179,8 @@ inline auto Line::read_from(Reader& in) const -> std::string {
   }
 
   if (pat.has_value() && pat->match(*line)) {
-    in.fail(format("Expected a line matching `%s`, got `%s`", pat->src().data(), line->c_str()));
+    in.fail(format("Expected a line matching `%s`, got `%s`", compress(pat->src()).data(),
+                   compress(*line).c_str()));
   }
 
   return *line;
@@ -1423,10 +1462,10 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
 
 // Impl formatters {{{
 namespace detail {
-inline auto encode_json_string(std::string_view s) -> std::string {
+inline auto json_string_encode(std::string_view s) -> std::string {
   std::string result;
   for (auto c : s) {
-    if (c == '\'')
+    if (c == '\"')
       result.push_back('\\'), result.push_back('\"');
     else if (c == '\\')
       result.push_back('\\'), result.push_back('\\');
@@ -1484,7 +1523,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 inline auto json_formatter(const Report& report) -> std::string {
   return format("{\"status\": \"%s\", \"score\": %.3f, \"message\": \"%s\"}",
                 Report::status_to_string(report.status).c_str(), report.score,
-                detail::encode_json_string(report.message).c_str());
+                detail::json_string_encode(report.message).c_str());
 }
 
 inline auto plain_text_formatter(const Report& report) -> std::string {
