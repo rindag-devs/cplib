@@ -192,12 +192,14 @@ class InStream {
   auto read_token() -> std::string;
 
   /**
-   * Reads line from the current position to EOLN or EOF. Moves stream pointer to
+   * If current position contains EOF, do nothing and returns `std::nullopt`.
+   *
+   * Otherwise, reads line from the current position to EOLN or EOF. Moves stream pointer to
    * the first character of the new line (if possible).
    *
    * The return value does not include the trailing \n.
    */
-  auto read_line() -> std::string;
+  auto read_line() -> std::optional<std::string>;
 
   // Quit program with an error
   CPLIB_NORETURN auto fail(std::string_view message) -> void;
@@ -693,7 +695,6 @@ inline auto tokenize(std::string_view s, char separator) -> std::vector<std::str
 }
 
 // Impl pattern {{{
-
 namespace detail {
 inline auto get_regex_err_msg(int err_code, regex_t* re) -> std::string {
   size_t len = regerror(err_code, re, NULL, 0);
@@ -733,7 +734,6 @@ inline auto Pattern::match(std::string_view s) const -> bool {
 }
 
 inline auto Pattern::src() const -> std::string_view { return src_; }
-
 // Impl pattern }}}
 
 namespace io {
@@ -810,9 +810,10 @@ inline auto InStream::read_token() -> std::string {
   return token;
 }
 
-inline auto InStream::read_line() -> std::string {
+inline auto InStream::read_line() -> std::optional<std::string> {
   std::string line;
-  while (!eof()) {
+  if (eof()) return std::nullopt;
+  while (true) {
     int c = read();
     if (c == EOF || c == '\n') break;
     line.push_back(static_cast<char>(c));
@@ -906,6 +907,13 @@ template <class T>
 inline auto Int<T>::read_from(Reader& in) const -> T {
   auto token = in.inner()->read_token();
 
+  if (token.empty()) {
+    if (in.inner()->eof())
+      in.fail("Expected an integer, got EOF");
+    else
+      in.fail(format("Expected an integer, got whitespace (ASCII %d)", in.inner()->seek()));
+  }
+
   T result{};
   auto [ptr, ec] = std::from_chars(token.c_str(), token.c_str() + token.size(), result);
 
@@ -913,14 +921,14 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
     in.fail(format("Expected an integer, got `%s`", token.c_str()));
   }
 
-  if (min.has_value() && result < min.value()) {
-    in.fail(format("Expected an integer >= %s, got `%s`", std::to_string(min.value()).c_str(),
-                   token.c_str()));
+  if (min.has_value() && result < *min) {
+    in.fail(
+        format("Expected an integer >= %s, got `%s`", std::to_string(*min).c_str(), token.c_str()));
   }
 
-  if (max.has_value() && result > max.value()) {
-    in.fail(format("Expected an integer <= %s, got `%s`", std::to_string(max.value()).c_str(),
-                   token.c_str()));
+  if (max.has_value() && result > *max) {
+    in.fail(
+        format("Expected an integer <= %s, got `%s`", std::to_string(*max).c_str(), token.c_str()));
   }
 
   return result;
@@ -945,6 +953,13 @@ template <class T>
 inline auto Float<T>::read_from(Reader& in) const -> T {
   auto token = in.inner()->read_token();
 
+  if (token.empty()) {
+    if (in.inner()->eof())
+      in.fail("Expected a float, got EOF");
+    else
+      in.fail(format("Expected a float, got whitespace (ASCII %d)", in.inner()->seek()));
+  }
+
   // `Float<T>` usually uses with non-strict streams, so it should support both fixed format and
   // scientific.
   T result{};
@@ -955,14 +970,14 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
     in.fail(format("Expected a float, got `%s`", token.c_str()));
   }
 
-  if (min.has_value() && result < min.value()) {
-    in.fail(format("Expected a float >= %s, got `%s`", std::to_string(min.value()).c_str(),
-                   token.c_str()));
+  if (min.has_value() && result < *min) {
+    in.fail(
+        format("Expected a float >= %s, got `%s`", std::to_string(*min).c_str(), token.c_str()));
   }
 
-  if (max.has_value() && result > max.value()) {
-    in.fail(format("Expected a float <= %s, got `%s`", std::to_string(max.value()).c_str(),
-                   token.c_str()));
+  if (max.has_value() && result > *max) {
+    in.fail(
+        format("Expected a float <= %s, got `%s`", std::to_string(*max).c_str(), token.c_str()));
   }
 
   return result;
@@ -988,6 +1003,13 @@ inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_
 template <class T>
 inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
   auto token = in.inner()->read_token();
+
+  if (token.empty()) {
+    if (in.inner()->eof())
+      in.fail("Expected a strict float, got EOF");
+    else
+      in.fail(format("Expected a strict float, got whitespace (ASCII %d)", in.inner()->seek()));
+  }
 
   auto pat = Pattern(min_n_digit == 0
                          ? format("-?([1-9][0-9]*|0)(\\.[0-9]{,%zu})?", max_n_digit)
@@ -1031,6 +1053,13 @@ inline String::String(Pattern pat, std::string name)
 
 inline auto String::read_from(Reader& in) const -> std::string {
   auto token = in.inner()->read_token();
+
+  if (token.empty()) {
+    if (in.inner()->eof())
+      in.fail("Expected a string, got EOF");
+    else
+      in.fail(format("Expected a string, got whitespace (ASCII %d)", in.inner()->seek()));
+  }
 
   if (pat.has_value() && !pat->match(token)) {
     in.fail(format("Expected a string matching `%s`, got `%s`", pat->src().data(), token.c_str()));
@@ -1105,13 +1134,17 @@ inline Line::Line(Pattern pat, std::string name)
     : Var<std::string>(std::move(name)), pat(std::move(pat)) {}
 
 inline auto Line::read_from(Reader& in) const -> std::string {
-  auto token = in.inner()->read_line();
+  auto line = in.inner()->read_line();
 
-  if (pat.has_value() && pat->match(token)) {
-    in.fail(format("Expected a string matching `%s`, got `%s`", pat->src().data(), token.c_str()));
+  if (!line.has_value()) {
+    in.fail("Expected a line, got EOF");
   }
 
-  return token;
+  if (pat.has_value() && pat->match(*line)) {
+    in.fail(format("Expected a line matching `%s`, got `%s`", pat->src().data(), line->c_str()));
+  }
+
+  return *line;
 }
 
 template <class T>
@@ -1249,7 +1282,6 @@ inline WorkMode work_mode = WorkMode::NONE;
 }
 
 inline auto get_work_mode() -> WorkMode { return detail::work_mode; }
-
 // /Impl get_work_mode }}}
 
 namespace checker {
