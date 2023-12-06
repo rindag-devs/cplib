@@ -1348,7 +1348,7 @@ inline auto has_colors() -> bool {
 
 inline auto default_initializer(State& state, int argc, char** argv) -> void {
   constexpr std::string_view ARGS_USAGE =
-      "<input_file> <output_file> <answer_file> [--output-format={auto|json|text}]";
+      "<input_file> <output_file> <answer_file> [--report-format={auto|json|text}]";
 
   if (argc > 1 && !std::strcmp("--help", argv[1])) {
     std::string msg =
@@ -1381,8 +1381,8 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
 
   for (int i = 4; i < argc; ++i) {
     auto arg = std::string_view(argv[i]);
-    if (arg.rfind("--output-format=", 0) == 0) {
-      arg.remove_prefix(std::string_view("--output-format=").size());
+    if (arg.rfind("--report-format=", 0) == 0) {
+      arg.remove_prefix(std::string_view("--report-format=").size());
       if (arg == "auto") {
         need_detect_formatter = true;
       } else if (arg == "json") {
@@ -1395,7 +1395,7 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
           state.formatter = plain_text_formatter;
         need_detect_formatter = false;
       } else {
-        panic(format("Unknown --output-format option: %s", arg.data()));
+        panic(format("Unknown --report-format option: %s", arg.data()));
       }
     } else {
       panic(format("Unknown option: %s", arg.data()));
