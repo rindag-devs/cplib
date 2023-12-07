@@ -138,7 +138,7 @@ namespace io {
 class InStream {
  public:
   explicit InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
-                    std::function<void(std::string_view)> fail_func);
+                    std::function<auto(std::string_view)->void> fail_func);
 
   // Get the name of stream
   auto name() const -> std::string_view;
@@ -211,8 +211,8 @@ class InStream {
   std::unique_ptr<std::streambuf> buf_;
   std::istream inner_;
   std::string name_;
-  bool strict_;                                      // In strict mode, blank-chars are not ignored
-  std::function<void(std::string_view)> fail_func_;  // Calls when fail
+  bool strict_;  // In strict mode, blank-chars are not ignored
+  std::function<auto(std::string_view)->void> fail_func_;  // Calls when fail
   size_t line_num_;
   size_t col_num_;
 };
@@ -518,12 +518,17 @@ class State {
   var::Reader ans;
 
   // Initializer is a function parsing command line arguments and initializing [`checker::State`]
-  std::function<void(State& state, int argc, char** argv)> initializer;
+  std::function<auto(State& state, int argc, char** argv)->void> initializer;
 
   // Formatter is a function formating given [`checker::Report`] to string
-  std::function<std::string(const Report& report)> formatter;
+  std::function<auto(const Report& report)->std::string> formatter;
 
-  State(std::function<void(State& state, int argc, char** argv)> initializer);
+  State(std::function<auto(State& state, int argc, char** argv)->void> initializer);
+
+  ~State();
+
+  // Disable the check for redundant content in the output file
+  auto disable_check_dirt() -> void;
 
   // Quit checker with status
   CPLIB_NORETURN auto quit(Report report) -> void;
@@ -536,6 +541,12 @@ class State {
 
   // Quit checker with [`report::status::PARTIALLY_CORRECT`]
   CPLIB_NORETURN auto quit_pc(double points, std::string_view message) -> void;
+
+ private:
+  bool exited_;
+
+  // Check if the output file has redundant content when reporting
+  bool check_dirt_;
 };
 
 auto default_initializer(State& state, int argc, char** argv) -> void;
@@ -570,7 +581,7 @@ namespace cplib {
 
 // Impl panic {{{
 namespace detail {
-inline std::function<void(std::string_view)> panic_impl = [](std::string_view s) {
+inline std::function<auto(std::string_view)->void> panic_impl = [](std::string_view s) {
   std::cerr << "unrecoverable error: " << s << '\n';
   exit(EXIT_FAILURE);
 };
@@ -772,7 +783,7 @@ inline auto Pattern::src() const -> std::string_view { return src_; }
 namespace io {
 
 inline InStream::InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
-                          std::function<void(std::string_view)> fail_func)
+                          std::function<auto(std::string_view)->void> fail_func)
     : buf_(std::move(buf)),
       inner_(std::istream(buf_.get())),
       name_(std::move(name)),
@@ -825,14 +836,14 @@ inline auto InStream::col_num() const -> size_t { return col_num_; }
 inline auto InStream::eof() -> bool { return seek() == EOF; }
 
 inline auto InStream::seek_eof() -> bool {
-  skip_blanks();
+  if (!strict_) skip_blanks();
   return eof();
 }
 
 inline auto InStream::eoln() -> bool { return seek() == '\n'; }
 
 inline auto InStream::seek_eoln() -> bool {
-  skip_blanks();
+  if (!strict_) skip_blanks();
   return eoln();
 }
 
@@ -1355,19 +1366,36 @@ inline Report::Report(Report::Status status, double score, std::string message)
     : status(std::move(status)), score(std::move(score)), message(std::move(message)) {}
 
 // Impl State {{{
-inline State::State(std::function<void(State& state, int argc, char** argv)> initializer)
+inline State::State(std::function<auto(State& state, int argc, char** argv)->void> initializer)
     : inf(var::Reader(nullptr)),
       ouf(var::Reader(nullptr)),
       ans(var::Reader(nullptr)),
       initializer(std::move(initializer)),
-      formatter(json_formatter) {
+      formatter(json_formatter),
+      exited_(false),
+      check_dirt_(true) {
   cplib::detail::panic_impl = [this](std::string_view msg) {
     quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
   };
   cplib::detail::work_mode = WorkMode::CHECKER;
 }
 
+inline State::~State() {
+  if (!exited_) panic("Checker must exit by calling method `State::quit*`");
+}
+
+inline auto State::disable_check_dirt() -> void { check_dirt_ = true; }
+
 CPLIB_NORETURN inline auto State::quit(Report report) -> void {
+  exited_ = true;
+
+  if (check_dirt_ &&
+      (report.status == Report::Status::ACCEPTED ||
+       report.status == Report::Status::PARTIALLY_CORRECT) &&
+      !ouf.inner()->seek_eof()) {
+    report = Report(Report::Status::WRONG_ANSWER, 0.0, "Extra content in the output file");
+  }
+
   std::clog << formatter(report) << '\n';
   std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
 }
