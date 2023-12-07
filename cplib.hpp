@@ -159,6 +159,9 @@ class InStream {
   // Check if stream is in strict mode
   auto is_strict() const -> bool;
 
+  // Set strict mode of stream
+  auto set_strict(bool b) -> void;
+
   // Get the current line number
   auto line_num() const -> size_t;
 
@@ -807,6 +810,13 @@ inline auto InStream::read_n(size_t n) -> std::string {
 }
 
 inline auto InStream::is_strict() const -> bool { return strict_; }
+
+inline auto InStream::set_strict(bool b) -> void {
+  if (line_num() != 1 || col_num() != 1)
+    panic(format("Can't set strict mode of `%s` when not at the beginning of the file",
+                 name().data()));
+  strict_ = b;
+}
 
 inline auto InStream::line_num() const -> size_t { return line_num_; }
 
