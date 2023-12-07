@@ -62,7 +62,7 @@
 #endif
 
 #if __STDC_VERSION__ >= 201112L
-#define NORETURN _Noreturn
+#define CPLIB_NORETURN _Noreturn
 #elif defined _MSC_VER
 #define CPLIB_NORETURN __declspec(noreturn)
 #elif defined __GNUC__
