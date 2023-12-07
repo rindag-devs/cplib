@@ -366,7 +366,7 @@ class StrictString : public Var<std::string> {
  public:
   std::string pat;
 
-  explicit StrictString(std::string pat);
+  StrictString(std::string pat);
   explicit StrictString(std::string pat, std::string name);
 
  protected:
