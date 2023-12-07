@@ -100,7 +100,7 @@ auto trim(std::string_view s) -> std::string;
 
 // Concatenate the values between [first,last) into a string through seperator
 template <class It>
-auto join(It first, It last, char seperator) -> std::string;
+auto join(It first, It last, char separator) -> std::string;
 
 // Splits string s by character separators returning exactly k+1 items, where k is the number of
 // separator occurences. Split the string into a list of strings using seperator
