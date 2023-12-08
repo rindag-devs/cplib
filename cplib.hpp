@@ -461,16 +461,29 @@ class Tuple : public Var<std::tuple<typename T::Var::result_type...>, Tuple<T...
 template <class F>
 class FnVar : public Var<typename std::function<F>::result_type, FnVar<F>> {
  public:
-  std::function<typename std::function<F>::result_type(Reader& in)> inner;
-
-  template <class... Args>
-  FnVar(std::function<F> f, Args... args);
+  std::function<auto(Reader& in)->typename std::function<F>::result_type> inner;
 
   template <class... Args>
   FnVar(std::string name, std::function<F> f, Args... args);
 
  protected:
   auto read_from(Reader& in) const -> typename std::function<F>::result_type override;
+};
+
+/**
+ * For a type `T` which has implemented `static auto T::read(var::Reader&, ...) -> T`,
+ * `ExtVar<T>` provides a variable template for creating `T` by calling `T::read`.
+ */
+template <class T>
+class ExtVar : public Var<T, ExtVar<T>> {
+ public:
+  std::function<auto(Reader& in)->T> inner;
+
+  template <class... Args>
+  ExtVar(std::string name, Args... args);
+
+ protected:
+  auto read_from(Reader& in) const -> T override;
 };
 
 using i8 = Int<int8_t>;
@@ -1334,11 +1347,6 @@ inline auto Tuple<T...>::read_from(Reader& in) const
 
 template <class F>
 template <class... Args>
-inline FnVar<F>::FnVar(std::function<F> f, Args... args)
-    : FnVar<F>(std::string(detail::VAR_DEFAULT_NAME), f, args...) {}
-
-template <class F>
-template <class... Args>
 inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args... args)
     : Var<typename std::function<F>::result_type, FnVar<F>>(std::move(name)),
       inner([f, args...](Reader& in) { return f(in, args...); }) {}
@@ -1348,6 +1356,16 @@ inline auto FnVar<F>::read_from(Reader& in) const -> typename std::function<F>::
   return inner(in);
 }
 
+template <class T>
+template <class... Args>
+inline ExtVar<T>::ExtVar(std::string name, Args... args)
+    : Var<T, ExtVar<T>>(std::move(name)),
+      inner([args...](Reader& in) { return T::read(in, args...); }) {}
+
+template <class T>
+inline auto ExtVar<T>::read_from(Reader& in) const -> T {
+  return inner(in);
+}
 }  // namespace var
 
 // Impl get_work_mode {{{
