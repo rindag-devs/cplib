@@ -221,7 +221,7 @@ class InStream {
 
 namespace var {
 
-template <class T>
+template <class T, class D>
 class Var;
 
 // Represents a traced input stream with line and column information
@@ -248,12 +248,12 @@ class Reader {
   CPLIB_NORETURN auto fail(std::string_view message) -> void;
 
   // Read a variable
-  template <class T>
-  auto read(const Var<T>& v) -> T;
+  template <class T, class D>
+  auto read(const Var<T, D>& v) -> T;
 
   // Read multiple variables and put them into a tuple
   template <class... T>
-  auto operator()(T... vars) -> std::tuple<typename T::Var::inner_type...>;
+  auto operator()(T... vars) -> std::tuple<typename T::Var::result_type...>;
 
  private:
   Reader(const Reader&) = delete;
@@ -265,21 +265,28 @@ class Reader {
   std::shared_ptr<Trace> trace_;
 };
 
-// Generic template class for variables
 template <class T>
+class Vec;
+
+// Generic template class for variables
+template <class T, class D>
 class Var {
  public:
-  using inner_type = T;
+  using result_type = T;
+  using derived_type = D;
 
   virtual ~Var() = 0;
 
   // Get the name of variable
   auto name() const -> std::string_view;
 
-  friend auto Reader::read(const Var<T>& v) -> T;
+  // Create a variable based on self with the given name
+  auto renamed(std::string_view name) const -> D;
 
-  template <class T1>
-  friend auto renamed(const T1& var, std::string_view name) -> T1;
+  // Creates a `var::Vec<D>` containing self of size `len`
+  auto operator*(size_t len) const -> Vec<D>;
+
+  friend auto Reader::read(const Var<T, D>& v) -> T;
 
  protected:
   explicit Var();
@@ -291,13 +298,9 @@ class Var {
   std::string name_;
 };
 
-// Create a variable based on self with the given name
-template <class T>
-auto renamed(const T& var, std::string_view name) -> T;
-
 // Integer
 template <class T>
-class Int : public Var<T> {
+class Int : public Var<T, Int<T>> {
  public:
   std::optional<T> min, max;
 
@@ -312,7 +315,7 @@ class Int : public Var<T> {
 
 // Floating-point number
 template <class T>
-class Float : public Var<T> {
+class Float : public Var<T, Float<T>> {
  public:
   std::optional<T> min, max;
 
@@ -327,7 +330,7 @@ class Float : public Var<T> {
 
 // Floating-point number with digit count restrictions
 template <class T>
-class StrictFloat : public Var<T> {
+class StrictFloat : public Var<T, StrictFloat<T>> {
  public:
   T min, max;
   size_t min_n_digit, max_n_digit;
@@ -340,7 +343,7 @@ class StrictFloat : public Var<T> {
 };
 
 // Blank-char separated string
-class String : public Var<std::string> {
+class String : public Var<std::string, String> {
  public:
   std::optional<Pattern> pat;
 
@@ -362,7 +365,7 @@ class String : public Var<std::string> {
  *   - Non-blank-chars matches exactly one corresponding character.
  *   - Longest continuously string of blank-chars match one or more number of blank-chars.
  */
-class StrictString : public Var<std::string> {
+class StrictString : public Var<std::string, StrictString> {
  public:
   std::string pat;
 
@@ -374,7 +377,7 @@ class StrictString : public Var<std::string> {
 };
 
 // Eoln separated string
-class Line : public Var<std::string> {
+class Line : public Var<std::string, Line> {
  public:
   std::optional<Pattern> pat;
 
@@ -389,7 +392,7 @@ class Line : public Var<std::string> {
 
 // Vector of variables
 template <class T>
-class Vec : public Var<std::vector<typename T::Var::inner_type>> {
+class Vec : public Var<std::vector<typename T::Var::result_type>, Vec<T>> {
  public:
   T element;
   size_t len;
@@ -399,12 +402,12 @@ class Vec : public Var<std::vector<typename T::Var::inner_type>> {
   explicit Vec(T element, size_t len, std::string spec);
 
  protected:
-  auto read_from(Reader& in) const -> std::vector<typename T::Var::inner_type> override;
+  auto read_from(Reader& in) const -> std::vector<typename T::Var::result_type> override;
 };
 
 // Matrix (2D vector) of variables
 template <class T>
-class Mat : public Var<std::vector<std::vector<typename T::Var::inner_type>>> {
+class Mat : public Var<std::vector<std::vector<typename T::Var::result_type>>, Mat<T>> {
  public:
   T element;
   size_t len0, len1;
@@ -415,12 +418,13 @@ class Mat : public Var<std::vector<std::vector<typename T::Var::inner_type>>> {
 
  protected:
   auto read_from(Reader& in) const
-      -> std::vector<std::vector<typename T::Var::inner_type>> override;
+      -> std::vector<std::vector<typename T::Var::result_type>> override;
 };
 
 // Pair of variables
 template <class F, class S>
-class Pair : public Var<std::pair<typename F::Var::inner_type, typename S::Var::inner_type>> {
+class Pair : public Var<std::pair<typename F::Var::result_type, typename S::Var::result_type>,
+                        Pair<F, S>> {
  public:
   F first;
   S second;
@@ -435,12 +439,12 @@ class Pair : public Var<std::pair<typename F::Var::inner_type, typename S::Var::
 
  protected:
   auto read_from(Reader& in) const
-      -> std::pair<typename F::Var::inner_type, typename S::Var::inner_type> override;
+      -> std::pair<typename F::Var::result_type, typename S::Var::result_type> override;
 };
 
 // Tuple of variables
 template <class... T>
-class Tuple : public Var<std::tuple<typename T::Var::inner_type...>> {
+class Tuple : public Var<std::tuple<typename T::Var::result_type...>, Tuple<T...>> {
  public:
   std::tuple<T...> elements;
   StrictString spec;
@@ -450,11 +454,12 @@ class Tuple : public Var<std::tuple<typename T::Var::inner_type...>> {
   explicit Tuple(std::tuple<T...> elements, std::string spec, std::string name);
 
  protected:
-  auto read_from(Reader& in) const -> std::tuple<typename T::Var::inner_type...> override;
+  auto read_from(Reader& in) const -> std::tuple<typename T::Var::result_type...> override;
 };
 
+// Wrapped function
 template <class F>
-class FnVar : public Var<typename std::function<F>::result_type> {
+class FnVar : public Var<typename std::function<F>::result_type, FnVar<F>> {
  public:
   std::function<typename std::function<F>::result_type(Reader& in)> inner;
 
@@ -902,8 +907,8 @@ CPLIB_NORETURN inline auto Reader::fail(std::string_view message) -> void {
   inner_->fail(result);
 }
 
-template <class T>
-inline auto Reader::read(const Var<T>& v) -> T {
+template <class T, class D>
+inline auto Reader::read(const Var<T, D>& v) -> T {
   auto trace = std::make_shared<Trace>(Trace{std::string(v.name()), std::string(inner_->name()),
                                              inner_->line_num(), inner_->col_num(), trace_});
   auto child = Reader(inner_, std::move(trace));
@@ -911,7 +916,7 @@ inline auto Reader::read(const Var<T>& v) -> T {
 }
 
 template <class... T>
-inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::inner_type...> {
+inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::result_type...> {
   return {read(vars)...};
 }
 
@@ -919,26 +924,31 @@ namespace detail {
 inline constexpr std::string_view VAR_DEFAULT_NAME("<unnamed>");
 }
 
-template <class T>
-inline Var<T>::~Var() {}
+template <class T, class D>
+inline Var<T, D>::~Var() {}
 
-template <class T>
-inline auto Var<T>::name() const -> std::string_view {
+template <class T, class D>
+inline auto Var<T, D>::name() const -> std::string_view {
   return name_;
 }
 
-template <class T>
-inline Var<T>::Var() : name_(std::string(detail::VAR_DEFAULT_NAME)) {}
-
-template <class T>
-inline auto renamed(const T& var, std::string_view name) -> T {
-  auto cloned = var;
-  cloned.name_ = std::string(name);
-  return cloned;
+template <class T, class D>
+inline auto Var<T, D>::renamed(std::string_view name) const -> D {
+  D clone = *static_cast<const D*>(this);
+  clone.name_ = name;
+  return clone;
 }
 
-template <class T>
-inline Var<T>::Var(std::string name) : name_(std::move(name)) {}
+template <class T, class D>
+inline auto Var<T, D>::operator*(size_t len) const -> Vec<D> {
+  return Vec<D>(*static_cast<const D*>(this), len);
+}
+
+template <class T, class D>
+inline Var<T, D>::Var() : name_(std::string(detail::VAR_DEFAULT_NAME)) {}
+
+template <class T, class D>
+inline Var<T, D>::Var(std::string name) : name_(std::move(name)) {}
 
 template <class T>
 inline Int<T>::Int() : Int<T>(std::nullopt, std::nullopt, std::string(detail::VAR_DEFAULT_NAME)) {}
@@ -952,7 +962,7 @@ inline Int<T>::Int(std::optional<T> min, std::optional<T> max)
 
 template <class T>
 inline Int<T>::Int(std::optional<T> min, std::optional<T> max, std::string name)
-    : Var<T>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
+    : Var<T, Int<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
 template <class T>
 inline auto Int<T>::read_from(Reader& in) const -> T {
@@ -999,7 +1009,7 @@ inline Float<T>::Float(std::optional<T> min, std::optional<T> max)
 
 template <class T>
 inline Float<T>::Float(std::optional<T> min, std::optional<T> max, std::string name)
-    : Var<T>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
+    : Var<T, Float<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
 template <class T>
 inline auto Float<T>::read_from(Reader& in) const -> T {
@@ -1043,7 +1053,7 @@ inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_
 template <class T>
 inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_n_digit,
                                    std::string name)
-    : Var<T>(std::move(name)),
+    : Var<T, StrictFloat<T>>(std::move(name)),
       min(std::move(min)),
       max(std::move(max)),
       min_n_digit(std::move(min_n_digit)),
@@ -1100,10 +1110,11 @@ inline String::String() : String(std::string(detail::VAR_DEFAULT_NAME)) {}
 inline String::String(Pattern pat)
     : String(std::move(pat), std::string(detail::VAR_DEFAULT_NAME)) {}
 
-inline String::String(std::string name) : Var<std::string>(std::move(name)), pat(std::nullopt) {}
+inline String::String(std::string name)
+    : Var<std::string, String>(std::move(name)), pat(std::nullopt) {}
 
 inline String::String(Pattern pat, std::string name)
-    : Var<std::string>(std::move(name)), pat(std::move(pat)) {}
+    : Var<std::string, String>(std::move(name)), pat(std::move(pat)) {}
 
 inline auto String::read_from(Reader& in) const -> std::string {
   auto token = in.inner()->read_token();
@@ -1139,7 +1150,7 @@ inline StrictString::StrictString(std::string pat)
     : StrictString(std::move(pat), std::string(detail::VAR_DEFAULT_NAME)) {}
 
 inline StrictString::StrictString(std::string pat, std::string name)
-    : Var<std::string>(std::move(name)), pat(std::move(pat)) {}
+    : Var<std::string, StrictString>(std::move(name)), pat(std::move(pat)) {}
 
 inline auto StrictString::read_from(Reader& in) const -> std::string {
   if (pat.empty()) return "";
@@ -1187,10 +1198,10 @@ inline Line::Line() : Line(std::string(detail::VAR_DEFAULT_NAME)) {}
 
 inline Line::Line(Pattern pat) : Line(std::move(pat), std::string(detail::VAR_DEFAULT_NAME)) {}
 
-inline Line::Line(std::string name) : Var<std::string>(std::move(name)), pat(std::nullopt) {}
+inline Line::Line(std::string name) : Var<std::string, Line>(std::move(name)), pat(std::nullopt) {}
 
 inline Line::Line(Pattern pat, std::string name)
-    : Var<std::string>(std::move(name)), pat(std::move(pat)) {}
+    : Var<std::string, Line>(std::move(name)), pat(std::move(pat)) {}
 
 inline auto Line::read_from(Reader& in) const -> std::string {
   auto line = in.inner()->read_line();
@@ -1212,17 +1223,17 @@ inline Vec<T>::Vec(T element, size_t len) : Vec<T>(element, len, " ") {}
 
 template <class T>
 inline Vec<T>::Vec(T element, size_t len, std::string spec)
-    : Var<std::vector<typename T::Var::inner_type>>(std::string(element.name())),
+    : Var<std::vector<typename T::Var::result_type>, Vec<T>>(std::string(element.name())),
       element(std::move(element)),
       len(std::move(len)),
       spec(StrictString(spec, "spec")) {}
 
 template <class T>
-inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::inner_type> {
-  std::vector<typename T::Var::inner_type> result(len);
+inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::result_type> {
+  std::vector<typename T::Var::result_type> result(len);
   for (size_t i = 0; i < len; ++i) {
-    if (i > 0) in.read(renamed(spec, format("spec_%zu", i)));
-    result[i] = in.read(renamed(element, std::to_string(i)));
+    if (i > 0) in.read(spec.renamed(format("spec_%zu", i)));
+    result[i] = in.read(element.renamed(std::to_string(i)));
   }
   return result;
 }
@@ -1232,7 +1243,8 @@ inline Mat<T>::Mat(T element, size_t len0, size_t len1) : Mat<T>(element, len0, 
 
 template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1, std::string spec0, std::string spec1)
-    : Var<std::vector<std::vector<typename T::Var::inner_type>>>(std::string(element.name())),
+    : Var<std::vector<std::vector<typename T::Var::result_type>>, Mat<T>>(
+          std::string(element.name())),
       element(std::move(element)),
       len0(std::move(len0)),
       len1(std::move(len1)),
@@ -1241,14 +1253,14 @@ inline Mat<T>::Mat(T element, size_t len0, size_t len1, std::string spec0, std::
 
 template <class T>
 inline auto Mat<T>::read_from(Reader& in) const
-    -> std::vector<std::vector<typename T::Var::inner_type>> {
-  std::vector<std::vector<typename T::Var::inner_type>> result(
-      len0, std::vector<typename T::Var::inner_type>(len1));
+    -> std::vector<std::vector<typename T::Var::result_type>> {
+  std::vector<std::vector<typename T::Var::result_type>> result(
+      len0, std::vector<typename T::Var::result_type>(len1));
   for (size_t i = 0; i < len0; ++i) {
-    if (i > 1) in.read(renamed(spec0, format("spec_%zu", i)));
+    if (i > 1) in.read(spec0.renamed(format("spec_%zu", i)));
     for (size_t j = 0; j < len1; ++i) {
-      if (j > 1) in.read(renamed(spec1, format("spec_%zu_%zu", i, j)));
-      result[i][j] = in.read(renamed(element, format("%zu_%zu", i, j)));
+      if (j > 1) in.read(spec1.renamed(format("spec_%zu_%zu", i, j)));
+      result[i][j] = in.read(element.renamed(format("%zu_%zu", i, j)));
     }
   }
   return result;
@@ -1265,7 +1277,8 @@ inline Pair<F, S>::Pair(F first, S second, std::string spec)
 
 template <class F, class S>
 inline Pair<F, S>::Pair(F first, S second, std::string spec, std::string name)
-    : Var<std::pair<typename F::Var::inner_type, typename S::Var::inner_type>>(std::move(name)),
+    : Var<std::pair<typename F::Var::result_type, typename S::Var::result_type>, Pair<F, S>>(
+          std::move(name)),
       first(std::move(first)),
       second(std::move(second)),
       spec(std::move(spec)) {}
@@ -1286,10 +1299,10 @@ inline Pair<F, S>::Pair(std::pair<F, S> pr, std::string spec, std::string name)
 
 template <class F, class S>
 inline auto Pair<F, S>::read_from(Reader& in) const
-    -> std::pair<typename F::Var::inner_type, typename S::Var::inner_type> {
-  auto result_first = in.read(renamed(first, "first"));
+    -> std::pair<typename F::Var::result_type, typename S::Var::result_type> {
+  auto result_first = in.read(first.renamed("first"));
   in.read(spec);
-  auto result_second = in.read(renamed(second, "second"));
+  auto result_second = in.read(second.renamed("second"));
   return {result_first, result_second};
 }
 
@@ -1303,16 +1316,17 @@ inline Tuple<T...>::Tuple(std::tuple<T...> elements, std::string spec)
 
 template <class... T>
 inline Tuple<T...>::Tuple(std::tuple<T...> elements, std::string spec, std::string name)
-    : Var<std::tuple<typename T::Var::inner_type...>>(std::move(name)),
+    : Var<std::tuple<typename T::Var::result_type...>, Tuple<T...>>(std::move(name)),
       elements(std::move(elements)),
       spec(std::move(spec)) {}
 
 template <class... T>
-inline auto Tuple<T...>::read_from(Reader& in) const -> std::tuple<typename T::Var::inner_type...> {
+inline auto Tuple<T...>::read_from(Reader& in) const
+    -> std::tuple<typename T::Var::result_type...> {
   return std::apply(
       [&in](const auto&... args) {
         size_t cnt = 0;
-        auto renamed_inc = [&cnt](auto var) { return renamed(var, std::to_string(cnt++)); };
+        auto renamed_inc = [&cnt](auto var) { return var.renamed(std::to_string(cnt++)); };
         return std::tuple{in.read(renamed_inc(args))...};
       },
       elements);
@@ -1326,7 +1340,7 @@ inline FnVar<F>::FnVar(std::function<F> f, Args... args)
 template <class F>
 template <class... Args>
 inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args... args)
-    : Var<typename std::function<F>::result_type>(std::move(name)),
+    : Var<typename std::function<F>::result_type, FnVar<F>>(std::move(name)),
       inner([f, args...](Reader& in) { return f(in, args...); }) {}
 
 template <class F>
