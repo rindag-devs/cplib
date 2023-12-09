@@ -98,12 +98,12 @@ auto compress(std::string_view s) -> std::string;
 // Trim spaces at beginning and end of string
 auto trim(std::string_view s) -> std::string;
 
-// Concatenate the values between [first,last) into a string through seperator
+// Concatenate the values between [first,last) into a string through separator
 template <class It>
-auto join(It first, It last, char seperator) -> std::string;
+auto join(It first, It last, char separator) -> std::string;
 
 // Splits string s by character separators returning exactly k+1 items, where k is the number of
-// separator occurences. Split the string into a list of strings using seperator
+// separator occurences. Split the string into a list of strings using separator
 auto split(std::string_view s, char separator) -> std::vector<std::string>;
 
 // Similar to `split`, but ignores the empty string
@@ -171,7 +171,7 @@ class InStream {
   // Check if current position is EOF. If not it doesn't move stream pointer
   auto eof() -> bool;
 
-  // Move pointer to the first non-white-space character and calls [`eof()`]
+  // Move pointer to the first non-whitespace character and calls [`eof()`]
   auto seek_eof() -> bool;
 
   /**
@@ -189,7 +189,7 @@ class InStream {
   auto next_line() -> void;
 
   /**
-   * Read a new token. Ignores white-spaces into the non-strict mode
+   * Read a new token. Ignores whitespaces into the non-strict mode
    * (strict mode is used in validators usually).
    */
   auto read_token() -> std::string;
@@ -211,7 +211,7 @@ class InStream {
   std::unique_ptr<std::streambuf> buf_;
   std::istream inner_;
   std::string name_;
-  bool strict_;  // In strict mode, blank-chars are not ignored
+  bool strict_;  // In strict mode, whitespace characters are not ignored
   std::function<auto(std::string_view)->void> fail_func_;  // Calls when fail
   size_t line_num_;
   size_t col_num_;
@@ -342,7 +342,7 @@ class StrictFloat : public Var<T, StrictFloat<T>> {
   auto read_from(Reader& in) const -> T override;
 };
 
-// Blank-char separated string
+// Whitespace separated string
 class String : public Var<std::string, String> {
  public:
   std::optional<Pattern> pat;
@@ -357,23 +357,21 @@ class String : public Var<std::string, String> {
 };
 
 /**
- * Strict string
+ * Separator
  *
- * - In strict mode, read exact pat.size() characters and determine whether they are equal to pat.
- * - Otherwise, a minimum number of characters will be matched as follows:
- *   - Match zero or more blank-chars (' ', '\n', '\t', ...) at the beginning of the string.
- *   - Non-blank-chars matches exactly one corresponding character.
- *   - Longest continuously string of blank-chars match one or more number of blank-chars.
+ * - If it is in strict mode, read exact one character determine whether it is same as `sep`.
+ * - Otherwise, if `std::isspace(sep)`, read the next consecutive whitespaces.
+ * - Otherwise, try skipping blanks and read exact one character `sep`.
  */
-class StrictString : public Var<std::string, StrictString> {
+class Separator : public Var<std::nullopt_t, Separator> {
  public:
-  std::string pat;
+  char sep;
 
-  explicit StrictString(std::string pat);
-  explicit StrictString(std::string pat, std::string name);
+  Separator(char sep);
+  explicit Separator(char sep, std::string name);
 
  protected:
-  auto read_from(Reader& in) const -> std::string override;
+  auto read_from(Reader& in) const -> std::nullopt_t override;
 };
 
 // Eoln separated string
@@ -396,10 +394,10 @@ class Vec : public Var<std::vector<typename T::Var::result_type>, Vec<T>> {
  public:
   T element;
   size_t len;
-  StrictString spec;
+  Separator sep;
 
   explicit Vec(T element, size_t len);
-  explicit Vec(T element, size_t len, std::string spec);
+  explicit Vec(T element, size_t len, Separator sep);
 
  protected:
   auto read_from(Reader& in) const -> std::vector<typename T::Var::result_type> override;
@@ -411,10 +409,10 @@ class Mat : public Var<std::vector<std::vector<typename T::Var::result_type>>, M
  public:
   T element;
   size_t len0, len1;
-  StrictString spec0, spec1;
+  Separator sep0, sep1;
 
   explicit Mat(T element, size_t len0, size_t len1);
-  explicit Mat(T element, size_t len0, size_t len1, std::string spec0, std::string spec1);
+  explicit Mat(T element, size_t len0, size_t len1, Separator sep0, Separator sep1);
 
  protected:
   auto read_from(Reader& in) const
@@ -428,14 +426,14 @@ class Pair : public Var<std::pair<typename F::Var::result_type, typename S::Var:
  public:
   F first;
   S second;
-  StrictString spec;
+  Separator sep;
 
   explicit Pair(F first, S second);
-  explicit Pair(F first, S second, std::string spec);
-  explicit Pair(F first, S second, std::string spec, std::string name);
+  explicit Pair(F first, S second, Separator sep);
+  explicit Pair(F first, S second, Separator sep, std::string name);
   explicit Pair(std::pair<F, S> pr);
-  explicit Pair(std::pair<F, S> pr, std::string spec);
-  explicit Pair(std::pair<F, S> pr, std::string spec, std::string name);
+  explicit Pair(std::pair<F, S> pr, Separator sep);
+  explicit Pair(std::pair<F, S> pr, Separator sep, std::string name);
 
  protected:
   auto read_from(Reader& in) const
@@ -447,11 +445,11 @@ template <class... T>
 class Tuple : public Var<std::tuple<typename T::Var::result_type...>, Tuple<T...>> {
  public:
   std::tuple<T...> elements;
-  StrictString spec;
+  Separator sep;
 
   explicit Tuple(std::tuple<T...> elements);
-  explicit Tuple(std::tuple<T...> elements, std::string spec);
-  explicit Tuple(std::tuple<T...> elements, std::string spec, std::string name);
+  explicit Tuple(std::tuple<T...> elements, Separator sep);
+  explicit Tuple(std::tuple<T...> elements, Separator sep, std::string name);
 
  protected:
   auto read_from(Reader& in) const -> std::tuple<typename T::Var::result_type...> override;
@@ -607,7 +605,7 @@ inline std::function<auto(std::string_view)->void> panic_impl = [](std::string_v
 
 CPLIB_NORETURN inline auto panic(std::string_view message) -> void {
   detail::panic_impl(message);
-  exit(-1);  // Usually unnecessary, but in special cases to prevent problems.
+  exit(EXIT_FAILURE);  // Usually unnecessary, but in special cases to prevent problems.
 }
 // /Impl panic }}}
 
@@ -892,7 +890,7 @@ inline auto InStream::read_line() -> std::optional<std::string> {
 
 CPLIB_NORETURN inline auto InStream::fail(std::string_view message) -> void {
   fail_func_(message);
-  exit(EXIT_FAILURE);  // Usually unnecessary, but in special cases to prevent problems.
+  exit(EXIT_FAILURE);  // Usually unnecessary, but in sepial cases to prevent problems.
 }
 
 }  // namespace io
@@ -1148,7 +1146,7 @@ inline auto String::read_from(Reader& in) const -> std::string {
   return token;
 }
 
-// Impl StrictString {{{
+// Impl Separator {{{
 namespace detail {
 inline auto read_spaces(Reader& in, std::string& result) -> bool {
   if (in.inner()->eof() || !std::isspace(in.inner()->seek())) return false;
@@ -1159,53 +1157,37 @@ inline auto read_spaces(Reader& in, std::string& result) -> bool {
 }
 }  // namespace detail
 
-inline StrictString::StrictString(std::string pat)
-    : StrictString(std::move(pat), std::string(detail::VAR_DEFAULT_NAME)) {}
+inline Separator::Separator(char sep)
+    : Separator(std::move(sep), std::string(detail::VAR_DEFAULT_NAME)) {}
 
-inline StrictString::StrictString(std::string pat, std::string name)
-    : Var<std::string, StrictString>(std::move(name)), pat(std::move(pat)) {}
+inline Separator::Separator(char sep, std::string name)
+    : Var<std::nullopt_t, Separator>(std::move(name)), sep(std::move(sep)) {}
 
-inline auto StrictString::read_from(Reader& in) const -> std::string {
-  if (pat.empty()) return "";
+inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
+  if (in.inner()->eof())
+    in.fail(format("Expected a separator `%s`, got EOF", cplib::detail::hex_encode(sep).c_str()));
 
   if (in.inner()->is_strict()) {
-    auto size = pat.size();
-    auto str = in.inner()->read_n(size);
-    if (str != pat)
-      in.fail(format("Expected a strict string matching `%s`, got `%s`", compress(pat).data(),
-                     str.c_str()));
-    return str;
+    auto got = in.inner()->read();
+    if (got != sep)
+      in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
+                     cplib::detail::hex_encode(got).c_str()));
+  } else if (std::isspace(sep)) {
+    auto got = in.inner()->read();
+    if (!std::isspace(got))
+      in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
+                     cplib::detail::hex_encode(got).c_str()));
+  } else {
+    in.inner()->skip_blanks();
+    auto got = in.inner()->read();
+    if (got != sep)
+      in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
+                     cplib::detail::hex_encode(got).c_str()));
   }
 
-  std::string result;
-
-  if (!std::isspace(pat.front())) detail::read_spaces(in, result);
-
-  bool pat_last_blank = false;
-
-  for (auto c : pat) {
-    if (std::isspace(c) && pat_last_blank) continue;
-
-    if (std::isspace(c)) {
-      auto has_space = detail::read_spaces(in, result);
-      if (!has_space) in.fail("Expected whitespace while reading strict string");
-      pat_last_blank = true;
-      continue;
-    }
-
-    if (in.inner()->eof()) in.fail("Unexpected EOF while reading strict string");
-
-    int got = in.inner()->read();
-    if (got != c)
-      in.fail(format("Expected charector `%s` while reading strict string, got `%s`",
-                     cplib::detail::hex_encode(c).c_str(), cplib::detail::hex_encode(got).c_str()));
-    result.push_back(got);
-    pat_last_blank = false;
-  }
-
-  return result;
+  return std::nullopt;
 }
-// /Impl StrictString }}}
+// /Impl Separator }}}
 
 inline Line::Line() : Line(std::string(detail::VAR_DEFAULT_NAME)) {}
 
@@ -1232,37 +1214,37 @@ inline auto Line::read_from(Reader& in) const -> std::string {
 }
 
 template <class T>
-inline Vec<T>::Vec(T element, size_t len) : Vec<T>(element, len, " ") {}
+inline Vec<T>::Vec(T element, size_t len) : Vec<T>(element, len, ' ') {}
 
 template <class T>
-inline Vec<T>::Vec(T element, size_t len, std::string spec)
+inline Vec<T>::Vec(T element, size_t len, Separator sep)
     : Var<std::vector<typename T::Var::result_type>, Vec<T>>(std::string(element.name())),
       element(std::move(element)),
       len(std::move(len)),
-      spec(StrictString(spec, "spec")) {}
+      sep(std::move(sep)) {}
 
 template <class T>
 inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::result_type> {
   std::vector<typename T::Var::result_type> result(len);
   for (size_t i = 0; i < len; ++i) {
-    if (i > 0) in.read(spec.renamed(format("spec_%zu", i)));
+    if (i > 0) in.read(sep);
     result[i] = in.read(element.renamed(std::to_string(i)));
   }
   return result;
 }
 
 template <class T>
-inline Mat<T>::Mat(T element, size_t len0, size_t len1) : Mat<T>(element, len0, len1, " ", "\n") {}
+inline Mat<T>::Mat(T element, size_t len0, size_t len1) : Mat<T>(element, len0, len1, ' ', '\n') {}
 
 template <class T>
-inline Mat<T>::Mat(T element, size_t len0, size_t len1, std::string spec0, std::string spec1)
+inline Mat<T>::Mat(T element, size_t len0, size_t len1, Separator sep0, Separator sep1)
     : Var<std::vector<std::vector<typename T::Var::result_type>>, Mat<T>>(
           std::string(element.name())),
       element(std::move(element)),
       len0(std::move(len0)),
       len1(std::move(len1)),
-      spec0(StrictString(spec0, "spec0")),
-      spec1(StrictString(spec1, "spec1")) {}
+      sep0(std::move(sep0)),
+      sep1(std::move(sep1)) {}
 
 template <class T>
 inline auto Mat<T>::read_from(Reader& in) const
@@ -1270,10 +1252,11 @@ inline auto Mat<T>::read_from(Reader& in) const
   std::vector<std::vector<typename T::Var::result_type>> result(
       len0, std::vector<typename T::Var::result_type>(len1));
   for (size_t i = 0; i < len0; ++i) {
-    if (i > 1) in.read(spec0.renamed(format("spec_%zu", i)));
+    if (i > 0) in.read(sep0);
+    auto name_prefix = std::to_string(i) + "_";
     for (size_t j = 0; j < len1; ++i) {
-      if (j > 1) in.read(spec1.renamed(format("spec_%zu_%zu", i, j)));
-      result[i][j] = in.read(element.renamed(format("%zu_%zu", i, j)));
+      if (j > 0) in.read(sep1);
+      result[i][j] = in.read(element.renamed(name_prefix + std::to_string(j)));
     }
   }
   return result;
@@ -1284,17 +1267,17 @@ inline Pair<F, S>::Pair(F first, S second)
     : Pair<F, S>(std::move(first), std::move(second), " ", std::string(detail::VAR_DEFAULT_NAME)) {}
 
 template <class F, class S>
-inline Pair<F, S>::Pair(F first, S second, std::string spec)
-    : Pair<F, S>(std::move(first), std::move(second), std::move(StrictString(spec, "spec")),
+inline Pair<F, S>::Pair(F first, S second, Separator sep)
+    : Pair<F, S>(std::move(first), std::move(second), std::move(sep),
                  std::string(detail::VAR_DEFAULT_NAME)) {}
 
 template <class F, class S>
-inline Pair<F, S>::Pair(F first, S second, std::string spec, std::string name)
+inline Pair<F, S>::Pair(F first, S second, Separator sep, std::string name)
     : Var<std::pair<typename F::Var::result_type, typename S::Var::result_type>, Pair<F, S>>(
           std::move(name)),
       first(std::move(first)),
       second(std::move(second)),
-      spec(std::move(spec)) {}
+      sep(std::move(sep)) {}
 
 template <class F, class S>
 inline Pair<F, S>::Pair(std::pair<F, S> pr)
@@ -1302,19 +1285,19 @@ inline Pair<F, S>::Pair(std::pair<F, S> pr)
                  std::string(detail::VAR_DEFAULT_NAME)) {}
 
 template <class F, class S>
-inline Pair<F, S>::Pair(std::pair<F, S> pr, std::string spec)
-    : Pair<F, S>(std::move(pr.first), std::move(pr.second), std::move(spec),
+inline Pair<F, S>::Pair(std::pair<F, S> pr, Separator sep)
+    : Pair<F, S>(std::move(pr.first), std::move(pr.second), std::move(sep),
                  std::string(detail::VAR_DEFAULT_NAME)) {}
 
 template <class F, class S>
-inline Pair<F, S>::Pair(std::pair<F, S> pr, std::string spec, std::string name)
-    : Pair<F, S>(std::move(pr.first), std::move(pr.second), std::move(spec), std::move(name)) {}
+inline Pair<F, S>::Pair(std::pair<F, S> pr, Separator sep, std::string name)
+    : Pair<F, S>(std::move(pr.first), std::move(pr.second), std::move(sep), std::move(name)) {}
 
 template <class F, class S>
 inline auto Pair<F, S>::read_from(Reader& in) const
     -> std::pair<typename F::Var::result_type, typename S::Var::result_type> {
   auto result_first = in.read(first.renamed("first"));
-  in.read(spec);
+  in.read(sep);
   auto result_second = in.read(second.renamed("second"));
   return {result_first, result_second};
 }
@@ -1324,14 +1307,14 @@ inline Tuple<T...>::Tuple(std::tuple<T...> elements)
     : Tuple<T...>(std::move(elements), " ", std::string(detail::VAR_DEFAULT_NAME)) {}
 
 template <class... T>
-inline Tuple<T...>::Tuple(std::tuple<T...> elements, std::string spec)
-    : Tuple<T...>(std::move(elements), std::move(spec), std::string(detail::VAR_DEFAULT_NAME)) {}
+inline Tuple<T...>::Tuple(std::tuple<T...> elements, Separator sep)
+    : Tuple<T...>(std::move(elements), std::move(sep), std::string(detail::VAR_DEFAULT_NAME)) {}
 
 template <class... T>
-inline Tuple<T...>::Tuple(std::tuple<T...> elements, std::string spec, std::string name)
+inline Tuple<T...>::Tuple(std::tuple<T...> elements, Separator sep, std::string name)
     : Var<std::tuple<typename T::Var::result_type...>, Tuple<T...>>(std::move(name)),
       elements(std::move(elements)),
-      spec(std::move(spec)) {}
+      sep(std::move(sep)) {}
 
 template <class... T>
 inline auto Tuple<T...>::read_from(Reader& in) const
