@@ -8,14 +8,12 @@
 #ifndef CPLIB_HPP_
 #define CPLIB_HPP_
 
-#include <cmath>
-#define CPLIB_VERSION "0.0.1-SNAPSHOT"
-
 #include <regex.h>
 
 #include <algorithm>
 #include <cctype>
 #include <charconv>
+#include <cmath>
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
@@ -35,6 +33,8 @@
 #include <tuple>
 #include <variant>
 #include <vector>
+
+#define CPLIB_VERSION "0.0.1-SNAPSHOT"
 
 #if (_WIN32 || __WIN32__ || __WIN32 || _WIN64 || __WIN64__ || __WIN64 || WINNT || __WINNT || \
      __WINNT__ || __CYGWIN__)
@@ -209,7 +209,6 @@ class InStream {
 
  private:
   std::unique_ptr<std::streambuf> buf_;
-  std::istream inner_;
   std::string name_;
   bool strict_;  // In strict mode, whitespace characters are not ignored
   std::function<auto(std::string_view)->void> fail_func_;  // Calls when fail
@@ -229,20 +228,18 @@ class Reader {
  public:
   struct Trace {
     std::string var_name;
-    std::string stream_name;
     size_t line_num;
     size_t col_num;
-    std::shared_ptr<Trace> parent;
   };
 
   // Create a root reader of input stream
-  explicit Reader(std::shared_ptr<io::InStream> inner);
+  explicit Reader(std::unique_ptr<io::InStream> inner);
 
   explicit Reader(Reader&&) = default;
   Reader& operator=(Reader&&) = default;
 
   // Get the inner wrapped input stream
-  auto inner() -> std::shared_ptr<io::InStream>;
+  auto inner() -> io::InStream&;
 
   // Call [`Instream::fail`] of the wrapped input stream
   CPLIB_NORETURN auto fail(std::string_view message) -> void;
@@ -259,10 +256,8 @@ class Reader {
   Reader(const Reader&) = delete;
   Reader& operator=(const Reader&) = delete;
 
-  explicit Reader(std::shared_ptr<io::InStream> inner, std::shared_ptr<Trace> trace);
-
-  std::shared_ptr<io::InStream> inner_;
-  std::shared_ptr<Trace> trace_;
+  std::unique_ptr<io::InStream> inner_;
+  std::vector<Trace> traces_;
 };
 
 template <class T>
@@ -801,7 +796,6 @@ namespace io {
 inline InStream::InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
                           std::function<auto(std::string_view)->void> fail_func)
     : buf_(std::move(buf)),
-      inner_(std::istream(buf_.get())),
       name_(std::move(name)),
       strict_(std::move(strict)),
       fail_func_(std::move(fail_func)),
@@ -811,13 +805,16 @@ inline InStream::InStream(std::unique_ptr<std::streambuf> buf, std::string name,
 inline auto InStream::name() const -> std::string_view { return name_; }
 
 inline auto InStream::skip_blanks() -> void {
-  while (!eof() && std::isspace(seek())) read();
+  while (true) {
+    if (int c = seek(); c == EOF || !std::isspace(c)) break;
+    read();
+  }
 }
 
-inline auto InStream::seek() -> int { return inner_.peek(); }
+inline auto InStream::seek() -> int { return buf_->sgetc(); }
 
 inline auto InStream::read() -> int {
-  int c = inner_.get();
+  int c = buf_->sbumpc();
   if (c == EOF) return EOF;
   if (c == '\n')
     ++line_num_, col_num_ = 1;
@@ -873,7 +870,10 @@ inline auto InStream::read_token() -> std::string {
   if (!strict_) skip_blanks();
 
   std::string token;
-  while (!eof() && !std::isspace(seek())) token.push_back(read());
+  while (true) {
+    if (int c = seek(); c == EOF || std::isspace(c)) break;
+    token.push_back(read());
+  }
   return token;
 }
 
@@ -897,22 +897,18 @@ CPLIB_NORETURN inline auto InStream::fail(std::string_view message) -> void {
 
 namespace var {
 
-inline Reader::Reader(std::shared_ptr<io::InStream> inner) : Reader(inner, nullptr) {}
+inline Reader::Reader(std::unique_ptr<io::InStream> inner)
+    : inner_(std::move(inner)), traces_({}) {}
 
-inline Reader::Reader(std::shared_ptr<io::InStream> inner, std::shared_ptr<Trace> trace)
-    : inner_(inner), trace_(trace) {}
-
-inline auto Reader::inner() -> std::shared_ptr<io::InStream> { return inner_; }
+inline auto Reader::inner() -> io::InStream& { return *inner_; }
 
 CPLIB_NORETURN inline auto Reader::fail(std::string_view message) -> void {
   using namespace std::string_literals;
   std::string result = "read error: "s + std::string(message);
-  auto p = trace_;
   size_t depth = 0;
-  while (p != nullptr) {
-    result += format("\n  #%zu: %s @ %s:%zu:%zu", depth, p->var_name.c_str(),
-                     p->stream_name.c_str(), p->line_num, p->col_num);
-    p = p->parent;
+  for (auto it = traces_.rbegin(); it != traces_.rend(); ++it) {
+    result += format("\n  #%zu: %s @ %s:%zu:%zu", depth, it->var_name.c_str(),
+                     inner().name().data(), it->line_num, it->col_num);
     ++depth;
   }
   inner_->fail(result);
@@ -920,10 +916,10 @@ CPLIB_NORETURN inline auto Reader::fail(std::string_view message) -> void {
 
 template <class T, class D>
 inline auto Reader::read(const Var<T, D>& v) -> T {
-  auto trace = std::make_shared<Trace>(Trace{std::string(v.name()), std::string(inner_->name()),
-                                             inner_->line_num(), inner_->col_num(), trace_});
-  auto child = Reader(inner_, std::move(trace));
-  return v.read_from(child);
+  traces_.emplace_back(Trace{std::string(v.name()), inner_->line_num(), inner_->col_num()});
+  auto result = v.read_from(*this);
+  traces_.pop_back();
+  return result;
 }
 
 template <class... T>
@@ -977,14 +973,14 @@ inline Int<T>::Int(std::optional<T> min, std::optional<T> max, std::string name)
 
 template <class T>
 inline auto Int<T>::read_from(Reader& in) const -> T {
-  auto token = in.inner()->read_token();
+  auto token = in.inner().read_token();
 
   if (token.empty()) {
-    if (in.inner()->eof())
+    if (in.inner().eof())
       in.fail("Expected an integer, got EOF");
     else
       in.fail(format("Expected an integer, got whitespace `%s`",
-                     cplib::detail::hex_encode(in.inner()->seek()).c_str()));
+                     cplib::detail::hex_encode(in.inner().seek()).c_str()));
   }
 
   T result{};
@@ -1024,14 +1020,14 @@ inline Float<T>::Float(std::optional<T> min, std::optional<T> max, std::string n
 
 template <class T>
 inline auto Float<T>::read_from(Reader& in) const -> T {
-  auto token = in.inner()->read_token();
+  auto token = in.inner().read_token();
 
   if (token.empty()) {
-    if (in.inner()->eof())
+    if (in.inner().eof())
       in.fail("Expected a float, got EOF");
     else
       in.fail(format("Expected a float, got whitespace `%s`",
-                     cplib::detail::hex_encode(in.inner()->seek()).c_str()));
+                     cplib::detail::hex_encode(in.inner().seek()).c_str()));
   }
 
   // `Float<T>` usually uses with non-strict streams, so it should support both fixed format and
@@ -1076,14 +1072,14 @@ inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_
 
 template <class T>
 inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
-  auto token = in.inner()->read_token();
+  auto token = in.inner().read_token();
 
   if (token.empty()) {
-    if (in.inner()->eof())
+    if (in.inner().eof())
       in.fail("Expected a strict float, got EOF");
     else
       in.fail(format("Expected a strict float, got whitespace `%s`",
-                     cplib::detail::hex_encode(in.inner()->seek()).c_str()));
+                     cplib::detail::hex_encode(in.inner().seek()).c_str()));
   }
 
   auto pat = Pattern(min_n_digit == 0
@@ -1128,14 +1124,14 @@ inline String::String(Pattern pat, std::string name)
     : Var<std::string, String>(std::move(name)), pat(std::move(pat)) {}
 
 inline auto String::read_from(Reader& in) const -> std::string {
-  auto token = in.inner()->read_token();
+  auto token = in.inner().read_token();
 
   if (token.empty()) {
-    if (in.inner()->eof())
+    if (in.inner().eof())
       in.fail("Expected a string, got EOF");
     else
       in.fail(format("Expected a string, got whitespace `%s`",
-                     cplib::detail::hex_encode(in.inner()->seek()).c_str()));
+                     cplib::detail::hex_encode(in.inner().seek()).c_str()));
   }
 
   if (pat.has_value() && !pat->match(token)) {
@@ -1147,16 +1143,6 @@ inline auto String::read_from(Reader& in) const -> std::string {
 }
 
 // Impl Separator {{{
-namespace detail {
-inline auto read_spaces(Reader& in, std::string& result) -> bool {
-  if (in.inner()->eof() || !std::isspace(in.inner()->seek())) return false;
-  while (!in.inner()->eof() && std::isspace(in.inner()->seek())) {
-    result.push_back(static_cast<char>(in.inner()->read()));
-  }
-  return true;
-}
-}  // namespace detail
-
 inline Separator::Separator(char sep)
     : Separator(std::move(sep), std::string(detail::VAR_DEFAULT_NAME)) {}
 
@@ -1164,22 +1150,22 @@ inline Separator::Separator(char sep, std::string name)
     : Var<std::nullopt_t, Separator>(std::move(name)), sep(std::move(sep)) {}
 
 inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
-  if (in.inner()->eof())
+  if (in.inner().eof())
     in.fail(format("Expected a separator `%s`, got EOF", cplib::detail::hex_encode(sep).c_str()));
 
-  if (in.inner()->is_strict()) {
-    auto got = in.inner()->read();
+  if (in.inner().is_strict()) {
+    auto got = in.inner().read();
     if (got != sep)
       in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
                      cplib::detail::hex_encode(got).c_str()));
   } else if (std::isspace(sep)) {
-    auto got = in.inner()->read();
+    auto got = in.inner().read();
     if (!std::isspace(got))
       in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
                      cplib::detail::hex_encode(got).c_str()));
   } else {
-    in.inner()->skip_blanks();
-    auto got = in.inner()->read();
+    in.inner().skip_blanks();
+    auto got = in.inner().read();
     if (got != sep)
       in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
                      cplib::detail::hex_encode(got).c_str()));
@@ -1199,7 +1185,7 @@ inline Line::Line(Pattern pat, std::string name)
     : Var<std::string, Line>(std::move(name)), pat(std::move(pat)) {}
 
 inline auto Line::read_from(Reader& in) const -> std::string {
-  auto line = in.inner()->read_line();
+  auto line = in.inner().read_line();
 
   if (!line.has_value()) {
     in.fail("Expected a line, got EOF");
@@ -1407,7 +1393,7 @@ CPLIB_NORETURN inline auto State::quit(Report report) -> void {
   if (check_dirt_ &&
       (report.status == Report::Status::ACCEPTED ||
        report.status == Report::Status::PARTIALLY_CORRECT) &&
-      !ouf.inner()->seek_eof()) {
+      !ouf.inner().seek_eof()) {
     report = Report(Report::Status::WRONG_ANSWER, 0.0, "Extra content in the output file");
   }
 
@@ -1498,17 +1484,17 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
 
   auto inf_buf = std::make_unique<std::filebuf>();
   if (!inf_buf->open(argv[1], std::ios::binary | std::ios::in)) panic("Can't open input file");
-  state.inf = var::Reader(std::make_shared<io::InStream>(std::move(inf_buf), "inf", false,
+  state.inf = var::Reader(std::make_unique<io::InStream>(std::move(inf_buf), "inf", false,
                                                          [](std::string_view msg) { panic(msg); }));
 
   auto ouf_buf = std::make_unique<std::filebuf>();
   if (!ouf_buf->open(argv[2], std::ios::binary | std::ios::in)) panic("Can't open output file");
-  state.ouf = var::Reader(std::make_shared<io::InStream>(
+  state.ouf = var::Reader(std::make_unique<io::InStream>(
       std::move(ouf_buf), "ouf", false, [&state](std::string_view msg) { state.quit_wa(msg); }));
 
   auto ans_buf = std::make_unique<std::filebuf>();
   if (!ans_buf->open(argv[3], std::ios::binary | std::ios::in)) panic("Can't open answer file");
-  state.ans = var::Reader(std::make_shared<io::InStream>(std::move(ans_buf), "ans", false,
+  state.ans = var::Reader(std::make_unique<io::InStream>(std::move(ans_buf), "ans", false,
                                                          [](std::string_view msg) { panic(msg); }));
 }
 // /Impl default_initializer }}}
