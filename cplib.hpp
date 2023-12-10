@@ -27,6 +27,7 @@
 #include <memory>
 #include <optional>
 #include <random>
+#include <sstream>
 #include <streambuf>
 #include <string>
 #include <string_view>
@@ -277,6 +278,9 @@ class Var {
 
   // Create a variable based on self with the given name
   auto renamed(std::string_view name) const -> D;
+
+  // Parse string into variable
+  auto parse(std::string_view s) const -> T;
 
   // Creates a `var::Vec<D>` containing self of size `len`
   auto operator*(size_t len) const -> Vec<D>;
@@ -944,6 +948,18 @@ inline auto Var<T, D>::renamed(std::string_view name) const -> D {
   D clone = *static_cast<const D*>(this);
   clone.name_ = name;
   return clone;
+}
+
+template <class T, class D>
+inline auto Var<T, D>::parse(std::string_view s) const -> T {
+  auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
+  auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true,
+                                                      [&](std::string_view s) { panic(s); }));
+  T result = reader.read(*this);
+  if (!reader.inner().eof()) {
+    panic("Var::parse failed, extra characters in string");
+  }
+  return result;
 }
 
 template <class T, class D>
