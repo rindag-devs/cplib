@@ -1,3 +1,8 @@
+.tmp/
+tests/checker/*/chk
+tests/checker/*/gen
+tests/checker/*/std
+
 # Created by https://www.toptal.com/developers/gitignore/api/c,c++,visualstudiocode,clion,jetbrains
 # Edit at https://www.toptal.com/developers/gitignore?templates=c,c++,visualstudiocode,clion,jetbrains
 
