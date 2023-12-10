@@ -531,8 +531,8 @@ class State {
   // Initializer is a function parsing command line arguments and initializing [`checker::State`]
   std::function<auto(State& state, int argc, char** argv)->void> initializer;
 
-  // Formatter is a function formating given [`checker::Report`] to string
-  std::function<auto(const Report& report)->std::string> formatter;
+  // Reporter is a function that reports the given [`checker::Report`] and exits the program.
+  std::function<auto(const Report& report)->void> reporter;
 
   State(std::function<auto(State& state, int argc, char** argv)->void> initializer);
 
@@ -562,11 +562,11 @@ class State {
 
 auto default_initializer(State& state, int argc, char** argv) -> void;
 
-auto json_formatter(const Report& report) -> std::string;
+auto json_reporter(const Report& report) -> void;
 
-auto plain_text_formatter(const Report& report) -> std::string;
+auto plain_text_reporter(const Report& report) -> void;
 
-auto colored_text_formatter(const Report& report) -> std::string;
+auto colored_text_reporter(const Report& report) -> void;
 
 // Macro to register checker
 #define CPLIB_REGISTER_CHECKER_OPT(var_, initializer_) \
@@ -593,7 +593,7 @@ namespace cplib {
 // Impl panic {{{
 namespace detail {
 inline std::function<auto(std::string_view)->void> panic_impl = [](std::string_view s) {
-  std::cerr << "unrecoverable error: " << s << '\n';
+  std::cerr << "Unrecoverable error: " << s << '\n';
   exit(EXIT_FAILURE);
 };
 }  // namespace detail
@@ -1372,7 +1372,7 @@ inline State::State(std::function<auto(State& state, int argc, char** argv)->voi
       ouf(var::Reader(nullptr)),
       ans(var::Reader(nullptr)),
       initializer(std::move(initializer)),
-      formatter(json_formatter),
+      reporter(json_reporter),
       exited_(false),
       check_dirt_(true) {
   cplib::detail::panic_impl = [this](std::string_view msg) {
@@ -1397,8 +1397,10 @@ CPLIB_NORETURN inline auto State::quit(Report report) -> void {
     report = Report(Report::Status::WRONG_ANSWER, 0.0, "Extra content in the output file");
   }
 
-  std::clog << formatter(report) << '\n';
-  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
+  reporter(report);
+
+  std::cerr << "Unrecoverable error: Reporter didn't exit the program\n";
+  std::exit(EXIT_FAILURE);
 }
 
 CPLIB_NORETURN inline auto State::quit_ac() -> void {
@@ -1441,37 +1443,37 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
     exit(0);
   }
 
-  auto detect_formatter = [&]() {
+  auto detect_reporter = [&]() {
     if (!CPLIB_ISATTY(2))
-      state.formatter = json_formatter;
+      state.reporter = json_reporter;
     else if (detail::has_colors())
-      state.formatter = colored_text_formatter;
+      state.reporter = colored_text_reporter;
     else
-      state.formatter = plain_text_formatter;
+      state.reporter = plain_text_reporter;
   };
 
-  detect_formatter();
+  detect_reporter();
 
   if (argc < 4)
     panic("Program must be run with the following arguments:\n  " + std::string(ARGS_USAGE));
 
-  bool need_detect_formatter = true;
+  bool need_detect_reporter = true;
 
   for (int i = 4; i < argc; ++i) {
     auto arg = std::string_view(argv[i]);
     if (arg.rfind("--report-format=", 0) == 0) {
       arg.remove_prefix(std::string_view("--report-format=").size());
       if (arg == "auto") {
-        need_detect_formatter = true;
+        need_detect_reporter = true;
       } else if (arg == "json") {
-        state.formatter = json_formatter;
-        need_detect_formatter = false;
+        state.reporter = json_reporter;
+        need_detect_reporter = false;
       } else if (arg == "text") {
         if (detail::has_colors())
-          state.formatter = colored_text_formatter;
+          state.reporter = colored_text_reporter;
         else
-          state.formatter = plain_text_formatter;
-        need_detect_formatter = false;
+          state.reporter = plain_text_reporter;
+        need_detect_reporter = false;
       } else {
         panic(format("Unknown --report-format option: %s", arg.data()));
       }
@@ -1480,7 +1482,7 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
     }
   }
 
-  if (need_detect_formatter) detect_formatter();
+  if (need_detect_reporter) detect_reporter();
 
   auto inf_buf = std::make_unique<std::filebuf>();
   if (!inf_buf->open(argv[1], std::ios::binary | std::ios::in)) panic("Can't open input file");
@@ -1499,7 +1501,7 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
 }
 // /Impl default_initializer }}}
 
-// Impl formatters {{{
+// Impl reporters {{{
 namespace detail {
 inline auto json_string_encode(std::string_view s) -> std::string {
   std::string result;
@@ -1559,24 +1561,30 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto json_formatter(const Report& report) -> std::string {
-  return format("{\"status\": \"%s\", \"score\": %.3f, \"message\": \"%s\"}",
-                Report::status_to_string(report.status).c_str(), report.score,
-                detail::json_string_encode(report.message).c_str());
+inline auto json_reporter(const Report& report) -> void {
+  auto msg = format("{\"status\": \"%s\", \"score\": %.3f, \"message\": \"%s\"}",
+                    Report::status_to_string(report.status).c_str(), report.score,
+                    detail::json_string_encode(report.message).c_str());
+  std::clog << msg << '\n';
+  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
 }
 
-inline auto plain_text_formatter(const Report& report) -> std::string {
-  return format("%s, scores %.1f of 100.\n%s",
-                detail::status_to_title_string(report.status).c_str(), report.score * 100.0,
-                report.message.c_str());
+inline auto plain_text_reporter(const Report& report) -> void {
+  auto msg =
+      format("%s, scores %.1f of 100.\n%s", detail::status_to_title_string(report.status).c_str(),
+             report.score * 100.0, report.message.c_str());
+  std::clog << msg << '\n';
+  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
 }
 
-inline auto colored_text_formatter(const Report& report) -> std::string {
-  return format("%s, scores \x1b[0;33m%.1f\x1b[0m of 100.\n%s",
-                detail::status_to_colored_title_string(report.status).c_str(), report.score * 100.0,
-                report.message.c_str());
+inline auto colored_text_reporter(const Report& report) -> void {
+  auto msg = format("%s, scores \x1b[0;33m%.1f\x1b[0m of 100.\n%s",
+                    detail::status_to_colored_title_string(report.status).c_str(),
+                    report.score * 100.0, report.message.c_str());
+  std::clog << msg << '\n';
+  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
 }
-// /Impl formatters }}}
+// /Impl reporters }}}
 
 }  // namespace checker
 
