@@ -15,7 +15,7 @@ CPLib 是使用 C++ 编写的，用于算法竞赛的库．使用 CPLib 可以�
 
 CPLib 诞生的一大目的是为了接替 Testlib，而成为出题时的「通用工具」．
 
-本项目处于早期阶段，在功能性和稳定性上可能存在许多不足之处，敬请谅解．如果你有好的建议或发现了 bug，欢迎欢迎前往本项目的 [GitHub 仓库][github] 发表 issue 并顺便点一下 star．
+本项目处于早期阶段，在功能性和稳定性上可能存在许多不足之处，敬请谅解．如果你有好的建议或发现了 bug，欢迎前往本项目的 [GitHub 仓库][github] 发表 issue 并顺便点一下 star．
 
 [github]: https://github.com/rindag-devs/cplib
 
@@ -63,3 +63,9 @@ CPLib 的设计引导使用者将一道题目复杂的读入拆分为若干个�
 ## 高效性
 
 CPLib 在多项基准测试中，平均效率显著优于 Testlib，在优势最大的浮点数测试中速度更是来到 Testlib 的两倍，而在表现最差的测试中也不会比 CPLib 慢超过 5%．
+
+![benchmark_result](/img/benchmark_result.svg)
+
+上表中使用 AMD Ryzen 7 6800H @ 3.2GHz 进行测试，取十轮平均值后，记录 Testlib 效率为 100\%，并以此折算出 CPLib 对应的效率．
+
+测试使用的数据集可以在 [GitHub 仓库](https://github.com/rindag-devs/cplib/tree/main/benchmark) 中找到．
