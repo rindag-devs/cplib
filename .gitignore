@@ -1,11 +1,18 @@
 .tmp/
 
-tests/checker/*/chk
-tests/checker/*/gen
-tests/checker/*/std
+benchmark/*/chk_cplib
+benchmark/*/chk_testlib
+benchmark/*/gen
+benchmark/*/*.in
+benchmark/*/*.out
+benchmark/*/*.ans
 
 docs/node_modules/
 docs/.next/
+
+tests/checker/*/chk
+tests/checker/*/gen
+tests/checker/*/std
 
 # Created by https://www.toptal.com/developers/gitignore/api/c,c++,visualstudiocode,clion,jetbrains
 # Edit at https://www.toptal.com/developers/gitignore?templates=c,c++,visualstudiocode,clion,jetbrains
