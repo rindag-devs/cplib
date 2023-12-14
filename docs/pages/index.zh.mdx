@@ -1,0 +1,65 @@
+# CPLib
+
+{/* [![header][badge.header]][header] ![std][badge.std] [![license][badge.license]][license]
+
+[badge.header]: https://img.shields.io/badge/single%20header-main-blue.svg
+[badge.std]: https://img.shields.io/badge/min%20std-C%2B%2B%2017-blue.svg
+[badge.license]: https://img.shields.io/badge/license-MPL%202-blue.svg
+
+[header]: https://github.com/rindag-devs/cplib/blob/main/cplib.hpp
+[license]: https://github.com/rindag-devs/cplib/blob/main/LICENSE */}
+
+CPLib 是使用 C++ 编写的，用于算法竞赛的库．使用 CPLib 可以编写清晰且高效的 Checker、Interactor（WIP）、Validator（WIP）和 Generator（WIP)．
+
+相较于当前流行的定位相似的库（如 [Testlib](https://github.com/MikeMirzayanov/testlib)），CPLib 更具现代性、扩展性和高效性．
+
+CPLib 诞生的一大目的是为了接替 Testlib，而成为出题时的「通用工具」．
+
+本项目处于早期阶段，在功能性和稳定性上可能存在许多不足之处，敬请谅解．如果你有好的建议或发现了 bug，欢迎欢迎前往本项目的 [GitHub 仓库][github] 发表 issue 并顺便点一下 star．
+
+[github]: https://github.com/rindag-devs/cplib
+
+## 现代性
+
+经过对主流评测系统兼容的综合考虑，CPLib 的开发使用较新的 C++ 17 标准，并在代码中较多使用现代 C++ 新语法．现代 C++ 的标准库及特性为 CPLib 提供了众多语法糖和快速的实现．同时，CPLib 偏向于优先使用标准库而非令做实现，使得它可更好的与其他库进行兼容．
+
+CPLib 在一些功能细节的处理也更加现代化．例如，读入错误时，CPLib 会返回完整的读入栈 Trace；输出报告至文件时，采用更为流行的 JSON 格式而非 Testlib 使用的 XML 格式．
+
+## 扩展性
+
+CPLib 扩展性主要体现在两点：变量读入模板 `cplib::var::Var` 的设计，以及对用于各大评测平台的定制性．
+
+CPLib 的变量读入基于「变量读入模板」，而非 Testlib 风格的、适用于各种基本类型的 `readXYZ()` 系列函数．这使得 CPLib 可以更加方便地扩展与组合读入类型，从而使得程序更加模块化．
+
+下面是一个简单的示例，展示了通过将 `cplib::var::Var` 进行组合与扩展的方式，完成读取有向图的任务．
+
+```cpp
+struct Edge {
+  int32_t from, to;
+
+  static auto read(var::Reader &in, int32_t n) -> Edge {
+    auto [from, to] = in(var::i32(1, n, "from"), var::i32(1, n, "to"));
+    if (from == to) in.fail("Self-loops are not allowed");
+    return {from, to};
+  }
+};
+
+struct Graph {
+  int32_t n, m;
+  std::vector<Edge> edges;
+
+  static auto read(var::Reader &in) -> Graph {
+    auto [n, m] = in(var::i32("n"), var::i32("m"));
+    auto edges = in.read(var::ExtVar<Edge>("edge", n) * m);
+    return {n, m, edges};
+  }
+};
+```
+
+CPLib 的设计引导使用者将一道题目复杂的读入拆分为若干个实现了静态 `read` 函数的结构体，使程序更加简单易读．
+
+另一方面，CPLib 考虑到了各大评测平台部分接口的差异，允许使用 `initializer` 和 `reporter` 来定制程序的初始化与报告方式，不需要修改 CPLib 源代码就能做到与上层评测平台的兼容性．
+
+## 高效性
+
+CPLib 在多项基准测试中，平均效率显著优于 Testlib，在优势最大的浮点数测试中速度更是来到 Testlib 的两倍，而在表现最差的测试中也不会比 CPLib 慢超过 5%．

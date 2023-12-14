@@ -1,0 +1,12 @@
+body {
+  font-feature-settings: "rlig" 1,"calt" 1,"chws" 1;
+}
+
+blockquote.nx-italic  {
+  font-style: normal;
+}
+
+code, kbd, samp, pre {
+  font-family: "Fira Code", "SF Mono", "Consolas", monospace;
+  font-size: 1em;
+}
