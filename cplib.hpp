@@ -28,7 +28,9 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <queue>
 #include <random>
+#include <set>
 #include <sstream>
 #include <streambuf>
 #include <string>
@@ -634,8 +636,10 @@ struct Trait {
 
   std::string name;
   check_func_type check_func;
+  std::vector<std::string> dependencies;
 
   Trait(std::string name, check_func_type check_func);
+  Trait(std::string name, check_func_type check_func, std::vector<std::string> dependencies);
 };
 
 class State {
@@ -671,6 +675,7 @@ class State {
  private:
   bool exited_;
   std::vector<Trait> traits_;
+  std::vector<std::vector<size_t>> trait_edges_;
 };
 
 auto default_initializer(State& state, int argc, char** argv) -> void;
@@ -1746,15 +1751,119 @@ inline Report::Report(Report::Status status, std::string message)
     : status(std::move(status)), message(std::move(message)) {}
 
 inline Trait::Trait(std::string name, check_func_type check_func)
-    : name(std::move(name)), check_func(std::move(check_func)) {}
+    : Trait(std::move(name), std::move(check_func), {}) {}
+
+inline Trait::Trait(std::string name, check_func_type check_func,
+                    std::vector<std::string> dependencies)
+    : name(std::move(name)),
+      check_func(std::move(check_func)),
+      dependencies(std::move(dependencies)) {}
 
 // Impl State {{{
+namespace detail {
+/**
+ * In topological sorting, `callback` is called every time a new node is reached.
+ * If `fn` returns false, nodes reachable by the current node will no longer be visited.
+ */
+inline auto topo_sort(const std::vector<std::vector<size_t>>& edges,
+                      std::function<auto(size_t)->bool> callback) -> void {
+  std::vector<size_t> degree(edges.size(), 0);
+
+  for (size_t i = 0; i < edges.size(); ++i) {
+    for (auto to : edges[i]) ++degree[to];
+  }
+
+  std::queue<size_t> queue;
+
+  for (size_t i = 0; i < edges.size(); ++i) {
+    if (degree[i] == 0) queue.push(i);
+  }
+
+  while (!queue.empty()) {
+    auto front = queue.front();
+    queue.pop();
+    if (!callback(front)) continue;
+    for (auto to : edges[front]) {
+      --degree[to];
+      if (!degree[to]) queue.push(to);
+    }
+  }
+}
+
+inline auto build_edges(std::vector<Trait>& traits)
+    -> std::optional<std::vector<std::vector<size_t>>> {
+  // Check duplicate name
+  std::sort(traits.begin(), traits.end(),
+            [](const Trait& x, const Trait& y) { return x.name < y.name; });
+  if (std::unique(traits.begin(), traits.end(), [](const Trait& x, const Trait& y) {
+        return x.name == y.name;
+      }) != traits.end()) {
+    // Found duplicate name
+    return std::nullopt;
+  }
+
+  std::vector<std::vector<size_t>> edges(traits.size());
+
+  for (size_t i = 0; i < traits.size(); ++i) {
+    auto& trait = traits[i];
+    // Check duplicate dependencies
+    std::sort(trait.dependencies.begin(), trait.dependencies.end());
+    if (std::unique(trait.dependencies.begin(), trait.dependencies.end()) !=
+        trait.dependencies.end()) {
+      // Found duplicate dependencies
+      return std::nullopt;
+    }
+
+    for (const auto& dep : trait.dependencies) {
+      auto dep_id =
+          std::lower_bound(traits.begin(), traits.end(), dep,
+                           [](const Trait& x, const std::string& y) { return x.name < y; }) -
+          traits.begin();
+      edges[dep_id].push_back(i);
+    }
+  }
+
+  return edges;
+}
+
+inline auto have_loop(const std::vector<std::vector<size_t>>& edges) -> bool {
+  std::vector<uint8_t> visited(edges.size(), 0);  // Never use std::vector<bool>
+
+  topo_sort(edges, [&](size_t node) {
+    visited[node] = 1;
+    return true;
+  });
+
+  for (auto v : visited) {
+    if (!v) return true;
+  }
+  return false;
+}
+
+inline auto validate_traits(const std::vector<Trait>& traits,
+                            const std::vector<std::vector<size_t>>& edges)
+    -> std::map<std::string, bool> {
+  std::map<std::string, bool> results;
+  for (const auto& trait : traits) results[trait.name] = false;
+
+  topo_sort(edges, [&](size_t id) {
+    auto& node = traits[id];
+    auto result = node.check_func();
+    results.at(node.name) = result;
+    return result;
+  });
+
+  return results;
+}
+}  // namespace detail
+
 inline State::State(initializer_type initializer)
     : inf(var::Reader(nullptr)),
       initializer(std::move(initializer)),
       reporter(json_reporter),
       exited_(false),
-      traits_({}) {
+      traits_(),
+      trait_edges_() {
   cplib::detail::panic_impl = [this](std::string_view msg) {
     quit(Report(Report::Status::INTERNAL_ERROR, std::string(msg)));
   };
@@ -1765,7 +1874,16 @@ inline State::~State() {
   if (!exited_) panic("Validator must exit by calling method `State::quit*`");
 }
 
-inline auto State::traits(std::vector<Trait> traits) -> void { traits_ = std::move(traits); }
+inline auto State::traits(std::vector<Trait> traits) -> void {
+  traits_ = std::move(traits);
+
+  auto edges = detail::build_edges(traits_);
+  if (!edges.has_value()) panic("Traits do not form a simple graph");
+
+  if (detail::have_loop(*edges)) panic("Traits do not form a DAG");
+
+  trait_edges_ = *edges;
+}
 
 CPLIB_NORETURN inline auto State::quit(Report report) -> void {
   exited_ = true;
@@ -1774,11 +1892,7 @@ CPLIB_NORETURN inline auto State::quit(Report report) -> void {
     report = Report(Report::Status::INVALID, "Extra content in the input file");
   }
 
-  std::map<std::string, bool> trait_status;
-  if (report.status == Report::Status::VALID) {
-    for (const auto& trait : traits_) trait_status[trait.name] = trait.check_func();
-  }
-
+  auto trait_status = detail::validate_traits(traits_, trait_edges_);
   reporter(report, trait_status);
 
   std::cerr << "Unrecoverable error: Reporter didn't exit the program\n";
