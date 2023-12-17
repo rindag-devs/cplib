@@ -495,6 +495,10 @@ using fext = Float<long double>;
 using f32s = StrictFloat<float>;
 using f64s = StrictFloat<double>;
 using fexts = StrictFloat<long double>;
+
+const auto space = Separator(' ', "space");
+const auto tab = Separator('\t', "tab");
+const auto eoln = Separator('\n', "eoln");
 };  // namespace var
 
 enum class WorkMode {
@@ -1363,7 +1367,7 @@ inline auto Line::read_from(Reader& in) const -> std::string {
 }
 
 template <class T>
-inline Vec<T>::Vec(T element, size_t len) : Vec<T>(element, len, ' ') {}
+inline Vec<T>::Vec(T element, size_t len) : Vec<T>(element, len, var::space) {}
 
 template <class T>
 inline Vec<T>::Vec(T element, size_t len, Separator sep)
