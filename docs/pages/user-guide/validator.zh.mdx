@@ -1,0 +1,145 @@
+import { Callout } from "nextra-theme-docs";
+
+# Validator
+
+阅读本章之前，请保证你已阅读过 [Checker](/user-guide/checker) 章节以并掌握 `cplib::var::Var` 的基本用法．本章中将不再在对这一部分重复介绍．
+
+Validator，即「校验器」，通常用于检验测试点输入文件的有效性，以及这个输入文件符合什么「特性」（Trait）．
+
+Validator 与 Checker 主要体现于两点．其一是 Validator 只需要处理测试点输入文件（`inf`）一个文件，其二是 Validator 使用的输入流默认为「严格模式」．简要而言，在非严格模式下，`cplib::io::InStream` 和 `cplib::var::Reader` 在使用部分函数进行读入时会忽略空白字符之间的差异；而在该严格模式下，每个字节都将严格比对．
+
+让我们从一个实例开始介绍 Validator：
+
+> **目标**：给定一张 $n$（$2 \le n \le 1000$）个点 $m$（$1 \le m \le 1000$）条边的无向图，检验它是否有效．同时检验它是否是连通图以及是否是树．
+>
+> **输入格式**：第一行输入两个整数 $n$ 和 $m$．接下来 $m$ 行，每行两个整数 $u,v$，表示一条无向边．
+
+## 编写
+
+下面是一种 Validator 的参考实现：
+
+```cpp filename="val.cpp" copy showLineNumbers
+#include <cstdint>
+#include <numeric>
+#include <vector>
+
+#include "cplib.hpp"
+
+using namespace cplib;
+
+CPLIB_REGISTER_VALIDATOR(val);
+
+struct Edge {
+  int u, v;
+
+  static Edge read(var::Reader& in, int n) {
+    auto [u, _, v] = in(var::i32(1, n, "u"), var::space, var::i32(1, n, "v"));
+    return {u, v};
+  }
+};
+
+struct Input {
+  int n, m;
+  std::vector<Edge> edges;
+
+  static Input read(var::Reader& in) {
+    auto [n, _, m, __] = in(var::i32(2, 1000, "n"), var::space, var::i32(1, 1000, "m"), var::eoln);
+    auto edges = in.read(var::Vec(var::ExtVar<Edge>("edges", n), m, var::eoln));
+    in.read(var::eoln);
+    return {n, m, edges};
+  }
+};
+
+struct DSU {
+  std::vector<int> fa, size;
+
+  DSU(int n) {
+    fa.resize(n);
+    size.resize(n);
+    for (int i = 0; i < n; ++i) fa[i] = i, size[i] = 1;
+  }
+
+  int find(int x) {
+    while (x != fa[x]) x = (fa[x] = fa[fa[x]]);
+    return x;
+  }
+
+  void merge(int x, int y) {
+    x = find(x), y = find(y);
+    if (x == y) return;
+    if (size[x] < size[y]) std::swap(x, y);
+    size[x] += size[y];
+    fa[y] = x;
+  }
+};
+
+bool is_connected(const Input& input) {
+  DSU dsu(input.n);
+
+  for (auto [u, v] : input.edges) {
+    dsu.merge(u - 1, v - 1);
+  }
+
+  for (int i = 1; i < input.n; ++i) {
+    if (dsu.find(i) != dsu.find(0)) return false;
+  }
+  return true;
+}
+
+void validator_main() {
+  Input input;
+
+  val.traits({
+      {"g_is_connected", [&]() { return is_connected(input); }},
+      {"g_is_tree", [&]() { return input.n == input.m + 1; }, {"g_is_connected"}},
+  });
+
+  input = val.inf.read(var::ExtVar<Input>("input"));
+
+  val.quit_valid();
+}
+```
+
+可以看到，Validator 的大体结构与 Checker 大致相同．以下重点说明集合与 Checker 的不同点．
+
+```cpp
+CPLIB_REGISTER_VALIDATOR(val);
+```
+
+类似于 Checker，Validator 需要调用 `CPLIB_REGISTER_VALIDATOR` 宏将程序注册成一个 CPLib Checker，并将 Checker 的状态保存至全局变量，此处变量名为 `val`．
+
+```cpp
+    auto [u, _, v] = in(var::i32(1, n, "u"), var::space, var::i32(1, n, "v"));
+```
+
+在严格模式下，使用 `cplib::var::Reader` 读入变量时将不会自动忽略中间的空白字符，我们需要显式读入空格．`cplib::var::space` 是一个常量，等价于 `cplib::var::Separator(' ', "space")`．
+
+```cpp
+    auto edges = in.read(var::Vec(var::ExtVar<Edge>("edges", n), m, var::eoln));
+```
+
+与前一处代码同理，此处读入 `std::vector` 时也不能直接使用 `var::ExtVar<Edge>("edges", n) * m`．因为 `cplib::var::Var::operator*` 默认生成的读入模版以空格为分隔符，而此处以换行为分隔符．在严格模式下，不同的空白字符之间互不等价．
+
+```cpp
+  val.traits({
+      {"g_is_connected", [&]() { return is_connected(input); }},
+      {"g_is_tree", [&]() { return input.n == input.m + 1; }, {"g_is_connected"}},
+  });
+```
+
+Validator 除了用于检测输入的合法之外，还可以检查输入文件是否满足一些「特性」（Trait）．在此处，我们添加了「图是否连通」和「图是否是一棵树」两种特性．
+
+`cplib::validator::Trait` 的一般构造函数有两个重载版本：
+
+- `Trait(std::string name, std::function(auto()->bool) check_func);`
+- `Trait(std::string name, std::function(auto()->bool) check_func, std::vector<std::string> dependencies);`
+
+第二个版本可以为当前 trait 添加依赖．只有当全部依赖均为 `true` 时，才会进行对本 trait 的检查；否则，该 trait 将会被置为 `false`．
+
+<Callout type="warning">
+各 trait 之间的依赖关系必须形成一个有向无环图（DAG），否则会在调用 `val.traits` 时引发 panic 退出程序．
+</Callout>
+
+## 使用
+
+Validator 的使用与 Checker 大致相同．只不过调用 Validator 时只需传递一个文件参数 `<input-file>`．同时，为兼容 Testlib Validator 的使用习惯，`<input-file>` 参数可以省略，省略是自动使用标准输入流（stdin）作为输入文件．
