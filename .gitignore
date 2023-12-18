@@ -13,7 +13,7 @@ docs/.next/
 tests/checker/*/chk
 tests/checker/*/gen
 tests/checker/*/std
-tests/checker/*/val
+tests/validator/*/val
 
 # Created by https://www.toptal.com/developers/gitignore/api/c,c++,visualstudiocode,clion,jetbrains
 # Edit at https://www.toptal.com/developers/gitignore?templates=c,c++,visualstudiocode,clion,jetbrains
