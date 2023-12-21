@@ -77,7 +77,6 @@
 #endif                          /* __GNUC__ */
 
 namespace cplib {
-
 CPLIB_NORETURN auto panic(std::string_view message) -> void;
 
 // Format string using printf-like syntax
@@ -133,7 +132,6 @@ class Pattern {
 };
 
 namespace io {
-
 class InStream {
  public:
   explicit InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
@@ -214,11 +212,9 @@ class InStream {
   size_t line_num_;
   size_t col_num_;
 };
-
 }  // namespace io
 
 namespace var {
-
 template <class T, class D>
 class Var;
 
@@ -504,14 +500,15 @@ const auto eoln = Separator('\n', "eoln");
 enum class WorkMode {
   NONE,
   CHECKER,
+  INTERACTOR,
   VALIDATOR,
+  GENERATOR,
 };
 
 // Get current work mode of cplib.
 auto get_work_mode() -> WorkMode;
 
 namespace checker {
-
 struct Report {
   class Status {
    public:
@@ -603,8 +600,102 @@ auto colored_text_reporter(const Report& report) -> void;
 
 #define CPLIB_REGISTER_CHECKER(var) \
   CPLIB_REGISTER_CHECKER_OPT(var, ::cplib::checker::default_initializer)
-
 }  // namespace checker
+
+namespace interactor {
+struct Report {
+  class Status {
+   public:
+    enum Value {
+      INTERNAL_ERROR,
+      ACCEPTED,
+      WRONG_ANSWER,
+      PARTIALLY_CORRECT,
+    };
+
+    Status() = default;
+    constexpr Status(Value value);
+
+    constexpr operator Value() const;
+
+    explicit operator bool() const = delete;
+
+    constexpr auto to_string() const -> std::string_view;
+
+   private:
+    Value value_;
+  };
+
+  Status status;
+  double score;  // Full score is 1.0
+  std::string message;
+
+  Report(Status status, double score, std::string message);
+};
+
+class State {
+ public:
+  using initializer_type = std::function<auto(State& state, int argc, char** argv)->void>;
+  using reporter_type = std::function<auto(const Report& report)->void>;
+
+  var::Reader inf;
+  var::Reader from_user;
+  std::ostream to_user;
+  std::unique_ptr<std::streambuf> to_user_buf;
+
+  // Initializer is a function parsing command line arguments and initializing [`interactor::State`]
+  initializer_type initializer;
+
+  // Reporter is a function that reports the given [`interactor::Report`] and exits the program.
+  reporter_type reporter;
+
+  State(initializer_type initializer);
+
+  ~State();
+
+  // Disable the check for redundant content in the output file
+  auto disable_check_dirt() -> void;
+
+  // Quit interactor with status
+  CPLIB_NORETURN auto quit(Report report) -> void;
+
+  // Quit interactor with [`report::status::ACCEPTED`]
+  CPLIB_NORETURN auto quit_ac() -> void;
+
+  // Quit interactor with [`report::status::WRONG_ANSWER`]
+  CPLIB_NORETURN auto quit_wa(std::string_view message) -> void;
+
+  // Quit interactor with [`report::status::PARTIALLY_CORRECT`]
+  CPLIB_NORETURN auto quit_pc(double points, std::string_view message) -> void;
+
+ private:
+  bool exited_;
+
+  // Check if the output file has redundant content when reporting
+  bool check_dirt_;
+};
+
+auto default_initializer(State& state, int argc, char** argv) -> void;
+
+auto json_reporter(const Report& report) -> void;
+
+auto plain_text_reporter(const Report& report) -> void;
+
+auto colored_text_reporter(const Report& report) -> void;
+
+// Macro to register interactor
+#define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_) \
+  ::cplib::interactor::State var_(initializer_);          \
+  signed main(signed argc, char** argv) {                 \
+    var_.initializer(var_, argc, argv);                   \
+    auto interactor_main(void)->void;                     \
+    interactor_main();                                    \
+    return 0;                                             \
+  }
+
+#define CPLIB_REGISTER_INTERACTOR(var) \
+  CPLIB_REGISTER_INTERACTOR_OPT(var, ::cplib::interactor::default_initializer)
+}  // namespace interactor
 
 namespace validator {
 struct Report {
@@ -704,9 +795,7 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
 
 #define CPLIB_REGISTER_VALIDATOR(var) \
   CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::default_initializer)
-
 }  // namespace validator
-
 }  // namespace cplib
 
 #endif  // CPLIB_HPP_
@@ -714,7 +803,6 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
 // === Implementations ===
 
 namespace cplib {
-
 namespace detail {
 inline auto has_colors() -> bool {
   // https://bixense.com/clicolors/
@@ -777,7 +865,7 @@ inline auto hex_encode(std::string_view s) -> std::string {
 // Impl panic {{{
 namespace detail {
 inline std::function<auto(std::string_view)->void> panic_impl = [](std::string_view s) {
-  std::cerr << "Unrecoverable error: " << s << '\n';
+  std::clog << "Unrecoverable error: " << s << '\n';
   exit(EXIT_FAILURE);
 };
 }  // namespace detail
@@ -947,6 +1035,100 @@ inline auto Pattern::src() const -> std::string_view { return src_; }
 // Impl pattern }}}
 
 namespace io {
+namespace detail {
+// A stream buffer that writes on a file descriptor
+//
+// https://www.josuttis.com/cppcode/fdstream.html
+class FdOutBuf : public std::streambuf {
+ public:
+  FdOutBuf(int fd) : fd_(fd) {}
+
+ protected:
+  // Write one character
+  virtual int_type overflow(int_type c) {
+    if (c != EOF) {
+      char z = c;
+      if (write(fd_, &z, 1) != 1) {
+        return EOF;
+      }
+    }
+    return c;
+  }
+  // Write multiple characters
+  virtual std::streamsize xsputn(const char* s, std::streamsize num) { return write(fd_, s, num); }
+
+  int fd_;  // File descriptor
+};
+
+// A stream buffer that reads on a file descriptor
+//
+// https://www.josuttis.com/cppcode/fdstream.html
+class FdInBuf : public std::streambuf {
+ public:
+  /**
+   * Constructor
+   * - Initialize file descriptor
+   * - Initialize empty data buffer
+   * - No putback area
+   * => Force underflow()
+   */
+  explicit FdInBuf(int fd) : fd_(fd) {
+#ifdef ON_WINDOWS
+    _setmode(fd_, O_BINARY);  // Sets file mode to binary
+#endif
+    setg(buf_ + PB_SIZE,   // Beginning of putback area
+         buf_ + PB_SIZE,   // Read position
+         buf_ + PB_SIZE);  // End position
+  }
+
+ protected:
+  // Insert new characters into the buffer
+  virtual int_type underflow() {
+    // Is read position before end of buffer?
+    if (gptr() < egptr()) {
+      return traits_type::to_int_type(*gptr());
+    }
+
+    /*
+     * Process size of putback area
+     * - Use number of characters read
+     * - But at most size of putback area
+     */
+    int num_putback = gptr() - eback();
+    if (num_putback > PB_SIZE) {
+      num_putback = PB_SIZE;
+    }
+
+    // Copy up to PB_SIZE characters previously read into the putback area
+    std::memmove(buf_ + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
+
+    // Read at most bufSize new characters
+    int num = read(fd_, buf_ + PB_SIZE, BUF_SIZE);
+    if (num <= 0) {
+      // Error or EOF
+      return EOF;
+    }
+
+    // Reset buffer pointers
+    setg(buf_ + (PB_SIZE - num_putback),  // Beginning of putback area
+         buf_ + PB_SIZE,                  // Read position
+         buf_ + PB_SIZE + num);           // End of buffer
+
+    // Return next character
+    return traits_type::to_int_type(*gptr());
+  }
+
+  int fd_;
+  /**
+   * Data buffer:
+   * - At most, pbSize characters in putback area plus
+   * - At most, bufSize characters in ordinary read buffer
+   */
+  static constexpr int PB_SIZE = 4;       // Size of putback area
+  static constexpr int BUF_SIZE = 65536;  // Size of the data buffer
+  char buf_[BUF_SIZE + PB_SIZE];          // Data buffer
+};
+}  // namespace detail
 
 inline InStream::InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
                           std::function<auto(std::string_view)->void> fail_func)
@@ -1047,11 +1229,9 @@ CPLIB_NORETURN inline auto InStream::fail(std::string_view message) -> void {
   fail_func_(message);
   exit(EXIT_FAILURE);  // Usually unnecessary, but in sepial cases to prevent problems.
 }
-
 }  // namespace io
 
 namespace var {
-
 inline Reader::Reader(std::unique_ptr<io::InStream> inner)
     : inner_(std::move(inner)), traces_({}) {}
 
@@ -1513,7 +1693,6 @@ inline auto get_work_mode() -> WorkMode { return detail::work_mode; }
 // /Impl get_work_mode }}}
 
 namespace checker {
-
 inline constexpr Report::Status::Status(Value value) : value_(value) {}
 
 inline constexpr Report::Status::operator Value() const { return value_; }
@@ -1570,7 +1749,7 @@ CPLIB_NORETURN inline auto State::quit(Report report) -> void {
 
   reporter(report);
 
-  std::cerr << "Unrecoverable error: Reporter didn't exit the program\n";
+  std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
 }
 
@@ -1729,8 +1908,230 @@ inline auto colored_text_reporter(const Report& report) -> void {
   std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
 }
 // /Impl reporters }}}
-
 }  // namespace checker
+
+namespace interactor {
+inline constexpr Report::Status::Status(Value value) : value_(value) {}
+
+inline constexpr Report::Status::operator Value() const { return value_; }
+
+inline constexpr auto Report::Status::to_string() const -> std::string_view {
+  switch (value_) {
+    case INTERNAL_ERROR:
+      return "internal_error";
+    case ACCEPTED:
+      return "accepted";
+    case WRONG_ANSWER:
+      return "wrong_answer";
+    case PARTIALLY_CORRECT:
+      return "partially_correct";
+    default:
+      panic(format("Unknown interactor report status: %d", static_cast<int>(value_)));
+      return "unknown";
+  }
+}
+
+inline Report::Report(Report::Status status, double score, std::string message)
+    : status(std::move(status)), score(std::move(score)), message(std::move(message)) {}
+
+// Impl State {{{
+inline State::State(initializer_type initializer)
+    : inf(var::Reader(nullptr)),
+      from_user(var::Reader(nullptr)),
+      to_user(std::ostream(nullptr)),
+      to_user_buf(nullptr),
+      initializer(std::move(initializer)),
+      reporter(json_reporter),
+      exited_(false),
+      check_dirt_(true) {
+  cplib::detail::panic_impl = [this](std::string_view msg) {
+    quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
+  };
+  cplib::detail::work_mode = WorkMode::INTERACTOR;
+}
+
+inline State::~State() {
+  if (!exited_) panic("Interactor must exit by calling method `State::quit*`");
+}
+
+inline auto State::disable_check_dirt() -> void { check_dirt_ = true; }
+
+CPLIB_NORETURN inline auto State::quit(Report report) -> void {
+  exited_ = true;
+
+  if (check_dirt_ &&
+      (report.status == Report::Status::ACCEPTED ||
+       report.status == Report::Status::PARTIALLY_CORRECT) &&
+      !from_user.inner().seek_eof()) {
+    report = Report(Report::Status::WRONG_ANSWER, 0.0, "Extra content in the user output");
+  }
+
+  reporter(report);
+
+  std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
+  std::exit(EXIT_FAILURE);
+}
+
+CPLIB_NORETURN inline auto State::quit_ac() -> void {
+  quit(Report(Report::Status::ACCEPTED, 1.0, ""));
+}
+
+CPLIB_NORETURN inline auto State::quit_wa(std::string_view message) -> void {
+  quit(Report(Report::Status::WRONG_ANSWER, 0.0, std::string(message)));
+}
+
+CPLIB_NORETURN inline auto State::quit_pc(double points, std::string_view message) -> void {
+  quit(Report(Report::Status::PARTIALLY_CORRECT, points, std::string(message)));
+}
+// /Impl State }}}
+
+// Impl default_initializer {{{
+inline auto default_initializer(State& state, int argc, char** argv) -> void {
+  constexpr std::string_view ARGS_USAGE = "<input_file> [--report-format={auto|json|text}]";
+
+  if (argc > 1 && std::string_view("--help") == argv[1]) {
+    std::string msg =
+        format("cplib (CPLib) " CPLIB_VERSION
+               "\n"
+               "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
+               "\n"
+               "Usage:\n"
+               "  %s %s\n"
+               "\n"
+               "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+               "enable colors\n",
+               argv[0], ARGS_USAGE.data());
+    std::clog << msg << '\n';
+    exit(0);
+  }
+
+  auto detect_reporter = [&]() {
+    if (!isatty(fileno(stderr)))
+      state.reporter = json_reporter;
+    else if (cplib::detail::has_colors())
+      state.reporter = colored_text_reporter;
+    else
+      state.reporter = plain_text_reporter;
+  };
+
+  detect_reporter();
+
+  if (argc < 2)
+    panic("Program must be run with the following arguments:\n  " + std::string(ARGS_USAGE));
+
+  bool need_detect_reporter = true;
+
+  for (int i = 2; i < argc; ++i) {
+    auto arg = std::string_view(argv[i]);
+    if (arg.rfind("--report-format=", 0) == 0) {
+      arg.remove_prefix(std::string_view("--report-format=").size());
+      if (arg == "auto") {
+        need_detect_reporter = true;
+      } else if (arg == "json") {
+        state.reporter = json_reporter;
+        need_detect_reporter = false;
+      } else if (arg == "text") {
+        if (cplib::detail::has_colors())
+          state.reporter = colored_text_reporter;
+        else
+          state.reporter = plain_text_reporter;
+        need_detect_reporter = false;
+      } else {
+        panic(format("Unknown --report-format option: %s", arg.data()));
+      }
+    } else {
+      panic(format("Unknown option: %s", arg.data()));
+    }
+  }
+
+  if (need_detect_reporter) detect_reporter();
+
+  auto inf_buf = std::make_unique<std::filebuf>();
+  if (!inf_buf->open(argv[1], std::ios::binary | std::ios::in)) panic("Can't open input file");
+  state.inf = var::Reader(std::make_unique<io::InStream>(std::move(inf_buf), "inf", false,
+                                                         [](std::string_view msg) { panic(msg); }));
+
+  state.from_user = var::Reader(std::make_unique<io::InStream>(
+      std::make_unique<io::detail::FdInBuf>(fileno(stdin)), "ouf", false,
+      [&state](std::string_view msg) { state.quit_wa(msg); }));
+
+  state.to_user_buf = std::make_unique<io::detail::FdOutBuf>(fileno(stdout));
+  state.to_user.rdbuf(state.to_user_buf.get());
+
+  // Disable stdin & stdout
+  stdin = nullptr;
+  stdout = nullptr;
+  std::cin.rdbuf(nullptr);
+  std::cout.rdbuf(nullptr);
+  std::cin.tie(nullptr);
+  std::cerr.tie(nullptr);
+}
+// /Impl default_initializer }}}
+
+// Impl reporters {{{
+namespace detail {
+inline auto status_to_title_string(Report::Status status) -> std::string {
+  switch (status) {
+    case Report::Status::INTERNAL_ERROR:
+      return "Internal Error";
+    case Report::Status::ACCEPTED:
+      return "Accepted";
+    case Report::Status::WRONG_ANSWER:
+      return "Wrong Answer";
+    case Report::Status::PARTIALLY_CORRECT:
+      return "Partially Correct";
+    default:
+      panic(format("Unknown interactor report status: %d", static_cast<int>(status)));
+      return "Unknown";
+  }
+}
+
+inline auto status_to_colored_title_string(Report::Status status) -> std::string {
+  switch (status) {
+    case Report::Status::INTERNAL_ERROR:
+      return "\x1b[0;35mInternal Error\x1b[0m";
+    case Report::Status::ACCEPTED:
+      return "\x1b[0;32mAccepted\x1b[0m";
+    case Report::Status::WRONG_ANSWER:
+      return "\x1b[0;31mWrong Answer\x1b[0m";
+    case Report::Status::PARTIALLY_CORRECT:
+      return "\x1b[0;36mPartially Correct\x1b[0m";
+    default:
+      panic(format("Unknown interactor report status: %d", static_cast<int>(status)));
+      return "Unknown";
+  }
+}
+}  // namespace detail
+
+inline auto json_reporter(const Report& report) -> void {
+  auto msg = format("{\"status\": \"%s\", \"score\": %.3f, \"message\": \"%s\"}",
+                    report.status.to_string().data(), report.score,
+                    cplib::detail::json_string_encode(report.message).c_str());
+  std::clog << msg << '\n';
+  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
+}
+
+inline auto plain_text_reporter(const Report& report) -> void {
+  std::clog << std::fixed << std::setprecision(2)
+            << detail::status_to_title_string(report.status).c_str() << ", scores "
+            << report.score * 100.0 << " of 100.\n";
+  if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
+    std::clog << report.message << '\n';
+  }
+  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
+}
+
+inline auto colored_text_reporter(const Report& report) -> void {
+  std::clog << std::fixed << std::setprecision(2)
+            << detail::status_to_colored_title_string(report.status).c_str()
+            << ", scores \x1b[0;33m" << report.score * 100.0 << "\x1b[0m of 100.\n";
+  if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
+    std::clog << report.message << '\n';
+  }
+  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
+}
+// /Impl reporters }}}
+}  // namespace interactor
 
 namespace validator {
 inline constexpr Report::Status::Status(Value value) : value_(value) {}
@@ -1899,7 +2300,7 @@ CPLIB_NORETURN inline auto State::quit(Report report) -> void {
   auto trait_status = detail::validate_traits(traits_, trait_edges_);
   reporter(report, trait_status);
 
-  std::cerr << "Unrecoverable error: Reporter didn't exit the program\n";
+  std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
 }
 
@@ -1909,73 +2310,6 @@ CPLIB_NORETURN inline auto State::quit_invalid(std::string_view message) -> void
   quit(Report(Report::Status::INVALID, std::string(message)));
 }
 // /Impl State }}}
-
-// Impl default_initializer {{{
-// https://www.josuttis.com/cppcode/fdstream.html
-class FStdinBuf : public std::streambuf {
- public:
-  /**
-   * Constructor
-   * - Initialize file descriptor
-   * - Initialize empty data buffer
-   * - No putback area
-   * => Force underflow()
-   */
-  explicit FStdinBuf() : fd_(fileno(stdin)) {
-#ifdef ON_WINDOWS
-    _setmode(_fileno(stdin), O_BINARY);  // Sets stdin mode to binary
-#endif
-    setg(buf_ + PB_SIZE,   // Beginning of putback area
-         buf_ + PB_SIZE,   // Read position
-         buf_ + PB_SIZE);  // End position
-  }
-
- protected:
-  // Insert new characters into the buffer
-  virtual int_type underflow() {
-    // Is read position before end of buffer?
-    if (gptr() < egptr()) {
-      return traits_type::to_int_type(*gptr());
-    }
-
-    /*
-     * Process size of putback area
-     * - Use number of characters read
-     * - But at most size of putback area
-     */
-    int num_putback = gptr() - eback();
-    if (num_putback > PB_SIZE) {
-      num_putback = PB_SIZE;
-    }
-
-    // Copy up to PB_SIZE characters previously read into the putback area
-    std::memmove(buf_ + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
-
-    // Read at most bufSize new characters
-    int num = read(fd_, buf_ + PB_SIZE, BUF_SIZE);
-    if (num <= 0) {
-      // ERROR or EOF
-      return EOF;
-    }
-
-    // Reset buffer pointers
-    setg(buf_ + (PB_SIZE - num_putback),  // Beginning of putback area
-         buf_ + PB_SIZE,                  // Read position
-         buf_ + PB_SIZE + num);           // End of buffer
-
-    // Return next character
-    return traits_type::to_int_type(*gptr());
-  }
-
-  int fd_;
-  /* Data buffer:
-   * - At most, pbSize characters in putback area plus
-   * - At most, bufSize characters in ordinary read buffer
-   */
-  static constexpr int PB_SIZE = 4;       // Size of putback area
-  static constexpr int BUF_SIZE = 65536;  // Size of the data buffer
-  char buf_[BUF_SIZE + PB_SIZE];          // Data buffer
-};
 
 inline auto default_initializer(State& state, int argc, char** argv) -> void {
   constexpr std::string_view ARGS_USAGE = "[<input_file>] [--report-format={auto|json|text}]";
@@ -2046,7 +2380,10 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
   std::unique_ptr<std::streambuf> inf_buf = nullptr;
 
   if (use_stdin) {
-    inf_buf = std::make_unique<FStdinBuf>();
+    inf_buf = std::make_unique<io::detail::FdInBuf>(fileno(stdin));
+    stdin = nullptr;
+    std::cin.rdbuf(nullptr);
+    std::cin.tie(nullptr);
   } else {
     auto tmp_inf_buf = std::make_unique<std::filebuf>();
     if (!tmp_inf_buf->open(argv[1], std::ios::binary | std::ios::in))
@@ -2062,7 +2399,6 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
 
 // Impl reporters {{{
 namespace detail {
-
 inline auto status_to_title_string(Report::Status status) -> std::string {
   switch (status) {
     case Report::Status::INTERNAL_ERROR:
@@ -2072,7 +2408,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::INVALID:
       return "invalid";
     default:
-      panic(format("Unknown checker report status: %d", static_cast<int>(status)));
+      panic(format("Unknown validator report status: %d", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -2086,7 +2422,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::INVALID:
       return "\x1b[0;31mInvalid\x1b[0m";
     default:
-      panic(format("Unknown checker report status: %d", static_cast<int>(status)));
+      panic(format("Unknown validator report status: %d", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -2178,7 +2514,5 @@ inline auto colored_text_reporter(const Report& report,
   std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 // /Impl reporters }}}
-
 }  // namespace validator
-
 }  // namespace cplib
