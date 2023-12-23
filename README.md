@@ -10,7 +10,7 @@
 [license]: https://github.com/rindag-devs/cplib/blob/main/LICENSE
 [docs]: https://cplib.vercel.app/
 
-CPLib is a library written in C++ for Competitive Programming. By using CPLib, you can write clear and efficient checkers, interactors (WIP), validators, and generators (WIP).
+CPLib is a library written in C++ for Competitive Programming. By using CPLib, you can write clear and efficient checkers, interactors, validators, and generators.
 
 Compared to other popular libraries with similar functionalities, such as [Testlib](https://github.com/MikeMirzayanov/testlib), CPLib is more modern, extensible, and efficient.
 
