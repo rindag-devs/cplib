@@ -258,7 +258,7 @@ class Reader {
 template <class T>
 class Vec;
 
-// Generic template class for variables
+// Var describes a "variable reading template"
 template <class T, class D>
 class Var {
  public:
@@ -267,13 +267,16 @@ class Var {
 
   virtual ~Var() = 0;
 
-  // Get the name of variable
+  // Get name
   auto name() const -> std::string_view;
 
-  // Create a variable based on self with the given name
+  // Clone itself, the derived class (template class D) needs to implement the copy constructor
+  auto clone() const -> D;
+
+  // Like Clone, but also changes the name
   auto renamed(std::string_view name) const -> D;
 
-  // Parse string into variable
+  // Parse a variable from string
   auto parse(std::string_view s) const -> T;
 
   // Creates a `var::Vec<D>` containing self of size `len`
@@ -796,6 +799,135 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
 #define CPLIB_REGISTER_VALIDATOR(var) \
   CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::default_initializer)
 }  // namespace validator
+
+namespace generator {
+struct Report {
+  class Status {
+   public:
+    enum Value {
+      INTERNAL_ERROR,
+      OK,
+    };
+
+    Status() = default;
+    constexpr Status(Value value);
+
+    constexpr operator Value() const;
+
+    explicit operator bool() const = delete;
+
+    constexpr auto to_string() const -> std::string_view;
+
+   private:
+    Value value_;
+  };
+
+  Status status;
+  std::string message;
+
+  Report(Status status, std::string message);
+};
+
+class State {
+ public:
+  using initializer_type = std::function<auto(State& state, int argc, char** argv)->void>;
+  using reporter_type = std::function<auto(const Report& report)->void>;
+  using flag_args_parser_type = std::function<auto(std::set<std::string> flag_args)->void>;
+  using var_args_parser_type =
+      std::function<auto(std::map<std::string, std::string> var_args)->void>;
+
+  // Initializer is a function parsing command line arguments and initializing [`generator::State`]
+  initializer_type initializer;
+
+  // Reporter is a function that reports the given [`generator::Report`] and exits the program.
+  reporter_type reporter;
+
+  // Names of the flag type (`--flag`) command line arguments required by the generator
+  std::vector<std::string> required_flag_args;
+
+  // Names of the variable type (`--var=value`) command line arguments required by the generator
+  std::vector<std::string> required_var_args;
+
+  // Functions to parse flag type command line arguments
+  std::vector<flag_args_parser_type> flag_parsers;
+
+  // Functions to parse variable type command line arguments
+  std::vector<var_args_parser_type> var_parsers;
+
+  State(initializer_type initializer);
+
+  ~State();
+
+  // Quit generator with status
+  CPLIB_NORETURN auto quit(Report report) -> void;
+
+  // Quit generator with [`report::status::OK`]
+  CPLIB_NORETURN auto quit_ok() -> void;
+
+ private:
+  bool exited_;
+};
+
+auto default_initializer(State& state, int argc, char** argv) -> void;
+
+auto json_reporter(const Report& report) -> void;
+
+auto plain_text_reporter(const Report& report) -> void;
+
+auto colored_text_reporter(const Report& report) -> void;
+
+#define CPLIB_REGISTER_GENERATOR_OPT(state_var_name_, initializer_, args_struct_name_,     \
+                                     args_struct_impl_)                                    \
+  ::cplib::generator::State state_var_name_(initializer_);                                 \
+  namespace args_detail_ {                                                                 \
+  struct Flag {                                                                            \
+    std::string name;                                                                      \
+    bool value;                                                                            \
+    Flag(std::string name_) : name(name_), value(false) {                                  \
+      state_var_name_.required_flag_args.emplace_back(name);                               \
+      state_var_name_.flag_parsers.emplace_back(                                           \
+          [&](const std::set<std::string>& flag_args) { value = flag_args.count(name); }); \
+    }                                                                                      \
+  };                                                                                       \
+                                                                                           \
+  template <class T>                                                                       \
+  struct Var {                                                                             \
+    T var;                                                                                 \
+    typename T::result_type value;                                                         \
+    Var(T var_) : var(std::move(var_)), value(typename T::result_type()) {                 \
+      state_var_name_.required_var_args.emplace_back(var.name());                          \
+      state_var_name_.var_parsers.emplace_back(                                            \
+          [this](const std::map<std::string, std::string>& var_args) {                     \
+            value = var.parse(var_args.at(std::string(var.name())));                       \
+          });                                                                              \
+    }                                                                                      \
+  };                                                                                       \
+                                                                                           \
+  struct BaseArgs_ args_struct_impl_;                                                      \
+                                                                                           \
+  struct Args_ : BaseArgs_ {                                                               \
+   public:                                                                                 \
+    static Args_ instance;                                                                 \
+                                                                                           \
+   private:                                                                                \
+    Args_() : BaseArgs_(){};                                                               \
+  };                                                                                       \
+  Args_ Args_::instance;                                                                   \
+  }                                                                                        \
+                                                                                           \
+  using args_struct_name_ = args_detail_::Args_;                                           \
+                                                                                           \
+  signed main(signed argc, char** argv) {                                                  \
+    state_var_name_.initializer(state_var_name_, argc, argv);                              \
+    auto generator_main(const args_struct_name_& args)->void;                              \
+    generator_main(args_detail_::Args_::instance);                                         \
+    return 0;                                                                              \
+  }
+
+#define CPLIB_REGISTER_GENERATOR(var, args_struct_name, args_struct_impl)                      \
+  CPLIB_REGISTER_GENERATOR_OPT(var, ::cplib::generator::default_initializer, args_struct_name, \
+                               args_struct_impl)
+}  // namespace generator
 }  // namespace cplib
 
 #endif  // CPLIB_HPP_
@@ -1272,6 +1404,12 @@ inline Var<T, D>::~Var() {}
 template <class T, class D>
 inline auto Var<T, D>::name() const -> std::string_view {
   return name_;
+}
+
+template <class T, class D>
+inline auto Var<T, D>::clone() const -> D {
+  D clone = *static_cast<const D*>(this);
+  return clone;
 }
 
 template <class T, class D>
@@ -1805,8 +1943,9 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
 
   for (int i = 4; i < argc; ++i) {
     auto arg = std::string_view(argv[i]);
-    if (arg.rfind("--report-format=", 0) == 0) {
-      arg.remove_prefix(std::string_view("--report-format=").size());
+    if (constexpr std::string_view prefix = "--report-format=";
+        !arg.compare(0, prefix.size(), prefix)) {
+      arg.remove_prefix(prefix.size());
       if (arg == "auto") {
         need_detect_reporter = true;
       } else if (arg == "json") {
@@ -1819,10 +1958,10 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
           state.reporter = plain_text_reporter;
         need_detect_reporter = false;
       } else {
-        panic(format("Unknown --report-format option: %s", arg.data()));
+        panic(format("Unknown %s option: %s", prefix.data(), arg.data()));
       }
     } else {
-      panic(format("Unknown option: %s", arg.data()));
+      panic("Unknown option: " + std::string(arg));
     }
   }
 
@@ -2023,8 +2162,9 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
 
   for (int i = 2; i < argc; ++i) {
     auto arg = std::string_view(argv[i]);
-    if (arg.rfind("--report-format=", 0) == 0) {
-      arg.remove_prefix(std::string_view("--report-format=").size());
+    if (constexpr std::string_view prefix = "--report-format=";
+        !arg.compare(0, prefix.size(), prefix)) {
+      arg.remove_prefix(prefix.size());
       if (arg == "auto") {
         need_detect_reporter = true;
       } else if (arg == "json") {
@@ -2037,10 +2177,10 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
           state.reporter = plain_text_reporter;
         need_detect_reporter = false;
       } else {
-        panic(format("Unknown --report-format option: %s", arg.data()));
+        panic(format("Unknown %s option: %s", prefix.data(), arg.data()));
       }
     } else {
-      panic(format("Unknown option: %s", arg.data()));
+      panic("Unknown option: " + std::string(arg));
     }
   }
 
@@ -2354,8 +2494,9 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
 
   for (int i = opts_args_start; i < argc; ++i) {
     auto arg = std::string_view(argv[i]);
-    if (arg.rfind("--report-format=", 0) == 0) {
-      arg.remove_prefix(std::string_view("--report-format=").size());
+    if (constexpr std::string_view prefix = "--report-format=";
+        !arg.compare(0, prefix.size(), prefix)) {
+      arg.remove_prefix(prefix.size());
       if (arg == "auto") {
         need_detect_reporter = true;
       } else if (arg == "json") {
@@ -2368,10 +2509,10 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
           state.reporter = plain_text_reporter;
         need_detect_reporter = false;
       } else {
-        panic(format("Unknown --report-format option: %s", arg.data()));
+        panic(format("Unknown %s option: %s", prefix.data(), arg.data()));
       }
     } else {
-      panic(format("Unknown option: %s", arg.data()));
+      panic("Unknown option: " + std::string(arg));
     }
   }
 
@@ -2404,9 +2545,9 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::INTERNAL_ERROR:
       return "Internal Error";
     case Report::Status::VALID:
-      return "valid";
+      return "Valid";
     case Report::Status::INVALID:
-      return "invalid";
+      return "Invalid";
     default:
       panic(format("Unknown validator report status: %d", static_cast<int>(status)));
       return "Unknown";
@@ -2451,7 +2592,7 @@ inline auto json_reporter(const Report& report, const std::map<std::string, bool
 
   std::clog << "}\n";
 
-  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
+  std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 inline auto plain_text_reporter(const Report& report,
@@ -2515,4 +2656,231 @@ inline auto colored_text_reporter(const Report& report,
 }
 // /Impl reporters }}}
 }  // namespace validator
+
+namespace generator {
+inline constexpr Report::Status::Status(Value value) : value_(value) {}
+
+inline constexpr Report::Status::operator Value() const { return value_; }
+
+inline constexpr auto Report::Status::to_string() const -> std::string_view {
+  switch (value_) {
+    case INTERNAL_ERROR:
+      return "internal_error";
+    case OK:
+      return "ok";
+    default:
+      panic(format("Unknown generator report status: %d", static_cast<int>(value_)));
+      return "unknown";
+  }
+}
+
+inline Report::Report(Report::Status status, std::string message)
+    : status(std::move(status)), message(std::move(message)) {}
+
+// Impl State {{{
+inline State::State(initializer_type initializer)
+    : initializer(std::move(initializer)),
+      reporter(json_reporter),
+      required_flag_args(),
+      required_var_args(),
+      flag_parsers(),
+      var_parsers(),
+      exited_(false) {
+  cplib::detail::panic_impl = [this](std::string_view msg) {
+    quit(Report(Report::Status::INTERNAL_ERROR, std::string(msg)));
+  };
+  cplib::detail::work_mode = WorkMode::GENERATOR;
+}
+
+inline State::~State() {
+  if (!exited_) panic("Generator must exit by calling method `State::quit*`");
+}
+
+CPLIB_NORETURN inline auto State::quit(Report report) -> void {
+  exited_ = true;
+
+  reporter(report);
+
+  std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
+  std::exit(EXIT_FAILURE);
+}
+
+CPLIB_NORETURN inline auto State::quit_ok() -> void { quit(Report(Report::Status::OK, "")); }
+// /Impl State }}}
+
+// Impl default_initializer {{{
+namespace detail {
+inline auto parse_arg(std::string_view arg) -> std::pair<std::string, std::optional<std::string>> {
+  constexpr std::string_view prefix = "--";
+  if (arg.compare(0, prefix.size(), prefix)) panic("Unknown option: " + std::string(arg));
+  arg.remove_prefix(prefix.size());
+
+  auto assign_pos = arg.find_first_of('=');
+  if (assign_pos == std::string_view::npos) return {std::string(arg), std::nullopt};
+  return {std::string(arg.substr(0, assign_pos)), std::string(arg.substr(assign_pos + 1))};
+}
+}  // namespace detail
+
+inline auto default_initializer(State& state, int argc, char** argv) -> void {
+  using namespace std::string_literals;
+
+  std::sort(state.required_flag_args.begin(), state.required_flag_args.end());
+  std::sort(state.required_var_args.begin(), state.required_var_args.end());
+
+  std::vector<std::string> args_usage_builder;
+  for (const auto& arg : state.required_flag_args)
+    args_usage_builder.push_back("[--"s + arg + "]"s);
+  for (const auto& arg : state.required_var_args)
+    args_usage_builder.push_back("--"s + arg + "=<value>"s);
+  args_usage_builder.push_back("[--report-format={auto|json|text}]"s);
+
+  auto args_usage = join(args_usage_builder.begin(), args_usage_builder.end(), ' ');
+
+  if (argc > 1 && std::string_view("--help") == argv[1]) {
+    std::string msg =
+        format("cplib (CPLib) " CPLIB_VERSION
+               "\n"
+               "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
+               "\n"
+               "Usage:\n"
+               "  %s %s\n"
+               "\n"
+               "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+               "enable colors\n",
+               argv[0], args_usage.c_str());
+    std::clog << msg << '\n';
+    exit(0);
+  }
+
+  auto detect_reporter = [&]() {
+    if (!isatty(fileno(stderr)))
+      state.reporter = json_reporter;
+    else if (cplib::detail::has_colors())
+      state.reporter = colored_text_reporter;
+    else
+      state.reporter = plain_text_reporter;
+  };
+
+  detect_reporter();
+
+  bool need_detect_reporter = true;
+
+  std::set<std::string> flag_args;
+  std::map<std::string, std::string> var_args;
+
+  for (int i = 1; i < argc; ++i) {
+    auto arg = std::string_view(argv[i]);
+    if (constexpr std::string_view prefix = "--report-format=";
+        !arg.compare(0, prefix.size(), prefix)) {
+      arg.remove_prefix(prefix.size());
+      if (arg == "auto") {
+        need_detect_reporter = true;
+      } else if (arg == "json") {
+        state.reporter = json_reporter;
+        need_detect_reporter = false;
+      } else if (arg == "text") {
+        if (cplib::detail::has_colors())
+          state.reporter = colored_text_reporter;
+        else
+          state.reporter = plain_text_reporter;
+        need_detect_reporter = false;
+      } else {
+        panic(format("Unknown %s option: %s", prefix.data(), arg.data()));
+      }
+    } else {
+      auto [name, value] = detail::parse_arg(arg);
+      if (!value.has_value()) {
+        if (!std::binary_search(state.required_flag_args.begin(), state.required_flag_args.end(),
+                                name)) {
+          panic("Unknown flag: " + name);
+        }
+        flag_args.insert(name);
+      } else {
+        if (!std::binary_search(state.required_var_args.begin(), state.required_var_args.end(),
+                                name)) {
+          panic("Unknown variable: " + name);
+        }
+        if (auto it = var_args.find(name); it != var_args.end()) {
+          it->second.push_back(' ');
+          it->second += *value;
+        } else {
+          var_args[name] = *value;
+        }
+      }
+    }
+  }
+
+  if (need_detect_reporter) detect_reporter();
+
+  for (const auto& parser : state.flag_parsers) {
+    parser(flag_args);
+  }
+
+  for (const auto& parser : state.var_parsers) {
+    parser(var_args);
+  }
+}
+// /Impl default_initializer }}}
+
+// Impl reporters {{{
+namespace detail {
+inline auto status_to_title_string(Report::Status status) -> std::string {
+  switch (status) {
+    case Report::Status::INTERNAL_ERROR:
+      return "Internal Error";
+    case Report::Status::OK:
+      return "OK";
+    default:
+      panic(format("Unknown generator report status: %d", static_cast<int>(status)));
+      return "Unknown";
+  }
+}
+
+inline auto status_to_colored_title_string(Report::Status status) -> std::string {
+  switch (status) {
+    case Report::Status::INTERNAL_ERROR:
+      return "\x1b[0;35mInternal Error\x1b[0m";
+    case Report::Status::OK:
+      return "\x1b[0;32mOK\x1b[0m";
+    default:
+      panic(format("Unknown generator report status: %d", static_cast<int>(status)));
+      return "Unknown";
+  }
+}
+}  // namespace detail
+
+inline auto json_reporter(const Report& report) -> void {
+  std::clog << std::boolalpha;
+
+  std::clog << "{\"status\": \"" << report.status.to_string() << "\", \"message\": \""
+            << cplib::detail::json_string_encode(report.message) << "\"}";
+
+  std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
+}
+
+inline auto plain_text_reporter(const Report& report) -> void {
+  if (report.status == Report::Status::OK && report.message.empty()) {
+    // Do nothing when the report is OK and message is empty.
+    std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
+  }
+
+  std::clog << detail::status_to_title_string(report.status).c_str() << ".\n"
+            << report.message << '\n';
+
+  std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
+}
+
+inline auto colored_text_reporter(const Report& report) -> void {
+  if (report.status == Report::Status::OK && report.message.empty()) {
+    // Do nothing when the report is OK and message is empty.
+    std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
+  }
+
+  std::clog << detail::status_to_colored_title_string(report.status).c_str() << ".\n"
+            << report.message << '\n';
+
+  std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
+}
+// /Impl reporters }}}
+}  // namespace generator
 }  // namespace cplib
