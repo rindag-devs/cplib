@@ -21,7 +21,7 @@ def fail(msg):
 def get_compile_args(debug):
     args = ["-Wall", "-Wextra", f"-std={CXX_STD}"]
     if debug:
-        args += ["-fsanitize=address,undefined", "-g", '-Og']
+        args += ["-fsanitize=address,undefined", "-g", "-Og"]
     else:
         args.append("-O2")
     return args
@@ -32,11 +32,13 @@ def compile(cxx, cxx_std, src, bin, args):
 
 
 def run_test(id, inf, ouf, ans, expected_file):
-    result = subprocess.run([BIN_CHK, inf, ouf, ans, "--report-format=json"],
-                            encoding='utf-8',
-                            capture_output=True,
-                            check=True).stderr.strip()
-    expected = open(expected_file, "rb").read().decode('utf-8').strip()
+    result = subprocess.run(
+        [BIN_CHK, inf, ouf, ans, "--report-format=json"],
+        encoding="utf-8",
+        capture_output=True,
+        check=True,
+    ).stderr.strip()
+    expected = open(expected_file, "rb").read().decode("utf-8").strip()
     if result != expected:
         fail(f"Test {id} failed.\nExpected:\n{expected}\nGot:\n{result}")
 
@@ -52,9 +54,8 @@ def main():
         compile(CXX, CXX_STD, SRC_CHK, BIN_CHK, compile_args)
 
     for i in range(N_DATA):
-        run_test(i, f"data/{i}.in", f"data/{i}.out", f"data/{i}.ans",
-                 f"data/{i}.json")
+        run_test(i, f"data/{i}.in", f"data/{i}.out", f"data/{i}.ans", f"data/{i}.json")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
