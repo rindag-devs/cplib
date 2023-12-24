@@ -1173,7 +1173,11 @@ namespace detail {
 // https://www.josuttis.com/cppcode/fdstream.html
 class FdOutBuf : public std::streambuf {
  public:
-  FdOutBuf(int fd) : fd_(fd) {}
+  FdOutBuf(int fd) : fd_(fd) {
+#ifdef ON_WINDOWS
+    _setmode(fd_, _O_BINARY);  // Sets file mode to binary
+#endif
+  }
 
  protected:
   // Write one character
@@ -1206,7 +1210,7 @@ class FdInBuf : public std::streambuf {
    */
   explicit FdInBuf(int fd) : fd_(fd) {
 #ifdef ON_WINDOWS
-    _setmode(fd_, O_BINARY);  // Sets file mode to binary
+    _setmode(fd_, _O_BINARY);  // Sets file mode to binary
 #endif
     setg(buf_ + PB_SIZE,   // Beginning of putback area
          buf_ + PB_SIZE,   // Read position
