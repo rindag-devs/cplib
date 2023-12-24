@@ -2,7 +2,7 @@ import { Callout } from "nextra-theme-docs";
 
 # Validator
 
-阅读本章之前，请保证你已阅读过 [Checker](/user-guide/checker) 章节以并掌握 `cplib::var::Var` 的基本用法．本章中将不再在对这一部分重复介绍．
+阅读本章之前，请保证你已阅读过 [Checker](/user-guide/checker) 章节并掌握 `cplib::var::Var` 的基本用法．本章中将不再在对这一部分重复介绍．
 
 Validator，即「校验器」，通常用于检验测试点输入文件的有效性，以及这个输入文件符合什么「特性」（Trait）．
 
@@ -12,7 +12,7 @@ Validator 与 Checker 主要体现于两点．其一是 Validator 只需要处�
 本节的相关代码见 [GitHub 仓库](https://github.com/rindag-devs/cplib/tree/main/tests/validator/1-undirected-graph)．
 </Callout>
 
-让我们从一个实例开始介绍 Validator：
+让我们从一个示例开始介绍 Validator：
 
 > **目标**：给定一张 $n$（$2 \le n \le 1000$）个点 $m$（$1 \le m \le 1000$）条边的无向图，检验它是否有效．同时检验它是否是连通图以及是否是树．
 >
@@ -104,7 +104,7 @@ void validator_main() {
 }
 ```
 
-可以看到，Validator 的大体结构与 Checker 大致相同．以下重点说明集合与 Checker 的不同点．
+可以看到，Validator 的大体结构与 Checker 大致相同．以下重点说明与 Checker 的不同点．
 
 ```cpp
 CPLIB_REGISTER_VALIDATOR(val);
@@ -146,4 +146,12 @@ Validator 除了用于检测输入的合法之外，还可以检查输入文件�
 
 ## 使用
 
-Validator 的使用与 Checker 大致相同．只不过调用 Validator 时只需传递一个文件参数 `<input-file>`．同时，为兼容 Testlib Validator 的使用习惯，`<input-file>` 参数可以省略，省略是自动使用标准输入流（stdin）作为输入文件．
+Validator 的使用与 Checker 大致相同．只不过调用 Validator 时只需传递一个文件参数 `<input-file>`．同时，为兼容 Testlib Validator 的使用习惯，`<input-file>` 参数可以省略，省略时自动使用标准输入流（stdin）作为输入文件．
+
+## 建议
+
+综上所述，在编写较为复杂的 Validator 时，我们推荐你遵循如下建议：
+
+- 使用自定义类型和 `cplib::var::ExtVar` 封装你的代码，而不是完全使用基本类型读入．
+- 在 `T::read` 函数中，读入的同时检查变量的「有效性」．
+- 在任何情况下都应使用 `val.inf` 读取输入文件．**不要** 使用 `std::cin` 或 C 风格读入函数通过读取 `stdin` 的方式进行输入．这些函数通常不具备 Validator 所需的严格格式要求和错误处理机制，使用这些函数也会破坏 `val.inf` 的内部状态，从而导致不可预期的行为．

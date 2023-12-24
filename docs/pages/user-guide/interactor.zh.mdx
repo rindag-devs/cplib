@@ -1,1 +1,168 @@
+import { Callout } from "nextra-theme-docs";
+
 # Interactor
+
+阅读本章之前，请保证你已阅读过 [Checker](/user-guide/checker) 章节并掌握 `cplib::var::Var` 的基本用法．本章中将不再在对这一部分重复介绍．
+
+Interactor，即「交互器」，用于在 STDIO 交互题与选手程序交互．
+
+CPLib 中 Interactor 同时担任「与选手程序交互」和「检验答案是否正确」两个功能，而不是像 Testlib/Polygon 的设计那样，两个功能由 Interactor 和 Checker 两个单独的程序实现．
+
+Interactor 通常需要处理两个输入流：
+
+- 测试点输入文件（`inf`）：包含描述该测试点的信息．注意：在交互题中，该文件 **不等同** 于选手程序的标准输入．
+- 用户输入流（`from_user`）：该流连接至选手程序的标准输出，用于读取选手输出的信息．
+
+以及一个输出流：
+
+- 用户输出流（`to_user`）：用于向选手程序的标准输入发送数据．
+
+其中，输入流使用 `cplib::var::Reader` 进行包装，而输出流使用 `std::ostream` 进行包装．
+
+CPLib Interactor 的交互流程大体如下：
+
+1. Interactor 从测试点输入文件（`inf`）中读取测试点信息，并提取可以被选手程序知道的部分，根据给定格式通过用户输出流（`to_user`）发送至选手输入．
+2. 选手代码向 Interactor 发送若干操作，Interactor 通过用户输入流（`from_user`）读入并解析这些操作，将操作的返回值通过用户输出流（`to_user`）发送至选手输入．在部分题目中，还应发送一个错误码示意选手程序应继续进行交互还是退出程序．
+3. 使用 `quit*` 系列函数退出程序并返回本次交互的结果．
+
+<Callout type="info">
+本节的相关代码见 [GitHub 仓库](https://github.com/rindag-devs/cplib/tree/main/tests/interactor/0-guessing-number)．
+</Callout>
+
+我们先从一道简单的题目开始讲解 Interactor 的编写和使用．
+
+> **题目描述**：给定整数 $n$（$1 \le n \le 10^9$），交互库会在区间 $[1,n]$ 中选择一个整数 $m$，你应该编写一个程序来猜测它．你可以进行两种操作：`Q x`：询问整数 $x$ 与 $m$ 的关系，交互库会返回一行一个字符表示答案，若 $x>m$，交互库会返回字符 `>`，等于则返回 `=`，小于则返回 `<`，该操作不能调用超过 $50$ 次；`A x`：报告答案 $m$ 的值为 $x$，该操作没有返回值，执行该操作后必须立刻退出程序．
+
+## 编写
+
+首先我们从一个空工作目录开始，将 `cplib.hpp` 复制到工作目录下．然后新建文件 `intr.cpp`，并输入以下代码：
+
+```cpp filename="intr.cpp" copy showLineNumbers
+#include "cplib.hpp"
+
+using namespace cplib;
+
+CPLIB_REGISTER_INTERACTOR(intr);
+
+struct Input {
+  int n, m;
+  static Input read(var::Reader& in) {
+    auto [n, m] = in(var::i32("n"), var::i32("A"));
+    return {n, m};
+  }
+};
+
+struct Query {
+  int x;
+  static Query read(var::Reader& in, const Input& input) {
+    auto x = in.read(var::i32(1, input.n, "x"));
+    return {x};
+  }
+};
+
+struct Answer {
+  int x;
+  static Answer read(var::Reader& in, const Input& input) {
+    auto x = in.read(var::i32(1, input.n, "x"));
+    return {x};
+  }
+};
+
+struct Operate : std::variant<Query, Answer> {
+  static Operate read(var::Reader& in, const Input& input) {
+    auto op = in.read(var::String(Pattern("[QA]"), "type"));
+    if (op == "Q") {
+      return {in.read(var::ExtVar<Query>("Q", input))};
+    } else {
+      return {in.read(var::ExtVar<Answer>("A", input))};
+    }
+  }
+};
+
+void interactor_main() {
+  auto input = intr.inf.read(var::ExtVar<Input>("input"));
+
+  intr.to_user << input.n << "\n";
+
+  int use_cnt = 0;
+  while (true) {
+    auto op = intr.from_user.read(var::ExtVar<Operate>("operate", input));
+    if (op.index() == 0) {
+      const auto& Q = std::get<0>(op);
+      if (use_cnt >= 50) intr.quit_wa("Too many queries");
+      if (Q.x > input.m)
+        intr.to_user << ">\n";
+      else if (Q.x == input.m)
+        intr.to_user << "=\n";
+      else
+        intr.to_user << "<\n";
+      ++use_cnt;
+    } else {
+      const auto& A = std::get<1>(op);
+      if (A.x == input.m)
+        intr.quit_ac();
+      else
+        intr.quit_wa(format("Expected %d, got %d", input.m, A.x));
+    }
+  }
+}
+```
+
+可以看到，Interactor 的大体结构与 Checker 大致相同，下文不再过多讲述．
+
+为代码编写方便，`to_user` 流采用无缓冲区设计，所有输出至该流的数据都将立刻发送到选手程序的标准输入．故代码中并没有使用 `intr.to_user.flush()` 等语法刷新 `to_user` 流的缓冲区．
+
+## 使用
+
+切换至工作目录，将 `intr.cpp` 编译为可执行文件．将测试点输入文件存储至 `data/0.in`．之后在终端中运行可执行文件，就可以通过标准输入输出模拟选手程序与 Interactor 交互．
+
+对于交互量较大的数据，手动模拟交互会非常耗时，此时我们可以编写脚本，来自动连接选手程序和 Interactor 的输入输出，以此测试程序．
+
+本教程以 Python 3 脚本为演示．在工作目录下新建文件 `run.py`，然后输入以下代码：
+
+```py filename="run.py" copy showLineNumbers
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import sys
+import subprocess
+import threading
+
+BIN_INTR = "./intr"
+BIN_STD = "./std"
+
+
+class SubprocessThread(threading.Thread):
+    def __init__(self, args, stdin_pipe, stdout_pipe, stderr_pipe):
+        threading.Thread.__init__(self)
+        self.p = subprocess.Popen(args, stdin=stdin_pipe, stdout=stdout_pipe, stderr=stderr_pipe)
+
+    def run(self):
+        self.p.wait()
+
+
+def main():
+    inf = sys.argv[1]
+    t_sol = SubprocessThread([BIN_STD], subprocess.PIPE, subprocess.PIPE, subprocess.DEVNULL)
+    t_judge = SubprocessThread([BIN_INTR, inf], t_sol.p.stdout, t_sol.p.stdin, sys.stderr)
+
+    t_sol.start()
+    t_judge.start()
+    t_sol.join()
+    t_judge.join()
+
+
+if __name__ == "__main__":
+    main()
+```
+其中代码中常量 `BIN_INTR` 和 `BIN_STD` 的值为执行 Interactor 和选手程序所需的命令，通常为编译 Interactor 和选手程序得到的可执行文件的相对路径．例如 Windows 下，应为 `.\intr.exe` 和 `.\std.exe`．
+
+接下来在终端中执行命令 `python3 run.py data/0.in`（在 Windows 下，可能需要路径中的斜杠 `/` 替换为反斜杠 `\`），即可得到 Interactor 的输出结果．
+
+## 建议
+
+综上所述，在编写较为复杂的 Interactor 时，我们推荐你遵循如下建议：
+
+- 使用 `std::variant` 来描述选手的不同操作．
+- 在任何情况下都应使用 `intr.from_user` 和 `intr.to_user` 与选手程序通信．**不要** 使用 `std::cin` / `std::cout` 或 C 风格读入函数通过读取 `stdin` / `stdout` 的方式进行输入输出．这些函数通常不具备 Interactor 所需的错误处理机制，使用这些函数也会破坏 `intr.from_user` 和 `intr.to_user` 的内部状态，从而导致不可预期的行为．
+- 以及在 [Checker](/user-guide/checker#建议) 一章中提到的所有建议．

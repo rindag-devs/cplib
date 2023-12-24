@@ -6,8 +6,8 @@ Checker，即「自定义判分器」，通常用于在正确答案不唯一的�
 
 Checker 通常需要处理三个文件：
 
-- 测试点输入文件（`inf`）：即选手代码运行时的输入文件．
-- 选手输出文件（`ouf`）：即选手代码运行时产生的输出文件．
+- 测试点输入文件（`inf`）：即选手程序运行时的输入文件．
+- 选手输出文件（`ouf`）：即选手程序运行时产生的输出文件．
 - 标准答案文件（`ans`）：储存正确答案的文件．大部分情况下，等价于标准程序（std）运行时产生的输出文件．
 
 Checker 通常需要检测两个条件：
@@ -63,7 +63,7 @@ CPLib 的主要功能都存放在命名空间 `cplib` 中．由于算法竞赛�
 CPLIB_REGISTER_CHECKER(chk);
 ```
 
-`CPLIB_REGISTER_CHECKER(name)` 宏将所含程序注册成一个 CPLib Checker，并将 Checker 的状态保存至名称为 `name` 的全局变量中．（实例中名称为 `chk`）．`name` 可替换为任意符合 C++ 语法的变量名，但在本文档中，为了可读性和简洁性，均会使用 `chk` 作为全局状态变量名．
+`CPLIB_REGISTER_CHECKER(name)` 宏将所含程序注册成一个 CPLib Checker，并将 Checker 的状态保存至名称为 `name` 的全局变量中．（代码中名称为 `chk`）．`name` 可替换为任意符合 C++ 语法的变量名，但在本文档中，为了可读性和简洁性，均会使用 `chk` 作为全局状态变量名．
 
 ```cpp
 void checker_main() {
@@ -231,7 +231,7 @@ Windows 10 [自 v1511 起](https://www.reddit.com/r/Windows10/comments/44czox/wi
 >
 > **输出格式**：第一行输出一个整数 $\mathit{sum}$，表示第一问的答案．第二行首先输出一个在 $[1,n^2]$ 区间内的整数 $\mathit{len}$，表示最短路径经过的点数．然后输出 $\mathit{len}$ 个整数，表示最短路径依次经过的结点编号（需要包含最开始的 $1$ 和最末尾的 $n$）．
 
-编写更为复杂的 Checker 时，像上个实例一样把全部逻辑都写在 `checker_main` 里是一种 **非常错误** 的选择．下面给出了一个更易阅读和维护的 Checker 实现：
+编写更为复杂的 Checker 时，像上个示例一样把全部逻辑都写在 `checker_main` 里是一种 **非常错误** 的选择．下面给出了一个更易阅读和维护的 Checker 实现：
 
 ```cpp filename="chk.cpp" copy showLineNumbers
 #include <map>
@@ -314,13 +314,13 @@ void checker_main() {
 }
 ```
 
-这个实例展现了如何对自定义类型使用变量读入模板进行读入．
+这个示例展现了如何对自定义类型使用变量读入模板进行读入．
 
-实例中首先定义结构体 `Edge` 描述一条边．如果我们要创建读入 `Edge` 的变量读入模板，最简单的方式是使用 `cplib::var::ExtVar`．使用它之前，需要为 `Edge` 结构体编写名称为 `read` 的 public static 方法．该方法的第一个形参类型必须为 `cplib::var::Reader&`：即上节介绍的的 `chk.inf`、`chk.ouf`、`chk.ans` 对象对应的类型的引用．后续形参可以任意定义．
+首先定义结构体 `Edge` 描述一条边．如果我们要创建读入 `Edge` 的变量读入模板，最简单的方式是使用 `cplib::var::ExtVar`．使用它之前，需要为 `Edge` 结构体编写名称为 `read` 的 public static 方法．该方法的第一个形参类型必须为 `cplib::var::Reader&`：即上节介绍的的 `chk.inf`、`chk.ouf`、`chk.ans` 对象对应的类型的引用．后续形参可以任意定义．
 
-上一节的实例展示了 `cplib::var::Reader` 类型的 `.read` 方法．而本实例对 `Edge::read` 的实现使用了它的 `operator()` 运算符重载．该运算符会依次以多个变量读入模板的实例作为参数调用 `.read`，并将所有的结果按顺序打包为一个 `std::tuple` 返回．在读入多个 **不存在依赖关系** 的变量时，使用 `operator()` 可让代码更加简短．
+上一节的代码展示了 `cplib::var::Reader` 类型的 `.read` 方法．而 `Edge::read` 的实现使用了它的 `operator()` 运算符重载．该运算符会依次以多个变量读入模板的实例作为参数调用 `.read`，并将所有的结果按顺序打包为一个 `std::tuple` 返回．在读入多个 **不存在依赖关系** 的变量时，使用 `operator()` 可让代码更加简短．
 
-CPLib 提供了 `cplib::var::Vec` 来创建 `std::vector` 的变量读入模板，同时为 `cplib::var::Var` 实现了 `operator*(size_t)`．使用类似本实例 `Input::read` 中的语法将任意一个 `cplib::var::Var` 子类的对象与整数相乘来快速创建 `cplib::var::Vec`．
+CPLib 提供了 `cplib::var::Vec` 来创建 `std::vector` 的变量读入模板，同时为 `cplib::var::Var` 实现了 `operator*(size_t)`．使用类似代码中 `Input::read` 中的语法将任意一个 `cplib::var::Var` 子类的对象与整数相乘来快速创建 `cplib::var::Vec`．
 
 编写完 `Edge::read` 后，我们就可以使用 `cplib::var::ExtVar<Edge>` 来创建一个通过调用 `Edge::read` 来读入 `Edge` 类型的变量读入模板了．当实例化一个以 `T` 为目标读入类型的 `cplib::var::ExtVar<T>` 时，若 `T::read` 的参数数量大于等于 $2$ 个，则你需要根据 `T::read` 的第二个至最后一个形参来向 `cplib::var::ExtVar<T>` 的构造函数传递实参．如果像本例的 `Edge` 类型这样，其 `Edge::read` 方法只有一个形参，则构造函数不需要传递任何实参．
 
