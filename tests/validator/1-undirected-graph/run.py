@@ -37,7 +37,6 @@ def run_test(id, inf, expected_file):
         encoding="utf-8",
         capture_output=True,
         stdin=open(inf, "rb"),
-        check=True,
     ).stderr.strip()
     expected = open(expected_file, "rb").read().decode("utf-8").strip()
     if result != expected:
