@@ -28,6 +28,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <queue>
 #include <random>
 #include <set>
@@ -222,8 +223,10 @@ class Random {
 namespace io {
 class InStream {
  public:
+  using FailFunc = std::function<auto(std::string_view)->void>;
+
   explicit InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
-                    std::function<auto(std::string_view)->void> fail_func);
+                    FailFunc fail_func);
 
   // Get the name of stream
   auto name() const -> std::string_view;
@@ -295,8 +298,8 @@ class InStream {
  private:
   std::unique_ptr<std::streambuf> buf_;
   std::string name_;
-  bool strict_;  // In strict mode, whitespace characters are not ignored
-  std::function<auto(std::string_view)->void> fail_func_;  // Calls when fail
+  bool strict_;         // In strict mode, whitespace characters are not ignored
+  FailFunc fail_func_;  // Calls when fail
   size_t line_num_;
   size_t col_num_;
 };
@@ -318,7 +321,7 @@ class Reader {
   // Create a root reader of input stream
   explicit Reader(std::unique_ptr<io::InStream> inner);
 
-  explicit Reader(Reader&&) = default;
+  Reader(Reader&&) = default;
   Reader& operator=(Reader&&) = default;
 
   // Get the inner wrapped input stream
@@ -333,7 +336,7 @@ class Reader {
 
   // Read multiple variables and put them into a tuple
   template <class... T>
-  auto operator()(T... vars) -> std::tuple<typename T::Var::result_type...>;
+  auto operator()(T... vars) -> std::tuple<typename T::Var::Target...>;
 
  private:
   Reader(const Reader&) = delete;
@@ -350,8 +353,8 @@ class Vec;
 template <class T, class D>
 class Var {
  public:
-  using result_type = T;
-  using derived_type = D;
+  using Target = T;
+  using Derived = D;
 
   virtual ~Var() = 0;
 
@@ -474,7 +477,7 @@ class Line : public Var<std::string, Line> {
 
 // Vector of variables
 template <class T>
-class Vec : public Var<std::vector<typename T::Var::result_type>, Vec<T>> {
+class Vec : public Var<std::vector<typename T::Var::Target>, Vec<T>> {
  public:
   T element;
   size_t len;
@@ -484,12 +487,12 @@ class Vec : public Var<std::vector<typename T::Var::result_type>, Vec<T>> {
   explicit Vec(T element, size_t len, Separator sep);
 
  protected:
-  auto read_from(Reader& in) const -> std::vector<typename T::Var::result_type> override;
+  auto read_from(Reader& in) const -> std::vector<typename T::Var::Target> override;
 };
 
 // Matrix (2D vector) of variables
 template <class T>
-class Mat : public Var<std::vector<std::vector<typename T::Var::result_type>>, Mat<T>> {
+class Mat : public Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>> {
  public:
   T element;
   size_t len0, len1;
@@ -499,14 +502,12 @@ class Mat : public Var<std::vector<std::vector<typename T::Var::result_type>>, M
   explicit Mat(T element, size_t len0, size_t len1, Separator sep0, Separator sep1);
 
  protected:
-  auto read_from(Reader& in) const
-      -> std::vector<std::vector<typename T::Var::result_type>> override;
+  auto read_from(Reader& in) const -> std::vector<std::vector<typename T::Var::Target>> override;
 };
 
 // Pair of variables
 template <class F, class S>
-class Pair : public Var<std::pair<typename F::Var::result_type, typename S::Var::result_type>,
-                        Pair<F, S>> {
+class Pair : public Var<std::pair<typename F::Var::Target, typename S::Var::Target>, Pair<F, S>> {
  public:
   F first;
   S second;
@@ -521,12 +522,12 @@ class Pair : public Var<std::pair<typename F::Var::result_type, typename S::Var:
 
  protected:
   auto read_from(Reader& in) const
-      -> std::pair<typename F::Var::result_type, typename S::Var::result_type> override;
+      -> std::pair<typename F::Var::Target, typename S::Var::Target> override;
 };
 
 // Tuple of variables
 template <class... T>
-class Tuple : public Var<std::tuple<typename T::Var::result_type...>, Tuple<T...>> {
+class Tuple : public Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
  public:
   std::tuple<T...> elements;
   Separator sep;
@@ -536,7 +537,7 @@ class Tuple : public Var<std::tuple<typename T::Var::result_type...>, Tuple<T...
   explicit Tuple(std::tuple<T...> elements, Separator sep, std::string name);
 
  protected:
-  auto read_from(Reader& in) const -> std::tuple<typename T::Var::result_type...> override;
+  auto read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> override;
 };
 
 // Wrapped function
@@ -632,8 +633,8 @@ struct Report {
 
 class State {
  public:
-  using initializer_type = std::function<auto(State& state, int argc, char** argv)->void>;
-  using reporter_type = std::function<auto(const Report& report)->void>;
+  using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+  using Reporter = std::function<auto(const Report& report)->void>;
 
   Random rnd;
 
@@ -642,12 +643,12 @@ class State {
   var::Reader ans;
 
   // Initializer is a function parsing command line arguments and initializing [`checker::State`]
-  initializer_type initializer;
+  Initializer initializer;
 
   // Reporter is a function that reports the given [`checker::Report`] and exits the program.
-  reporter_type reporter;
+  Reporter reporter;
 
-  State(initializer_type initializer);
+  State(Initializer initializer);
 
   ~State();
 
@@ -728,8 +729,8 @@ struct Report {
 
 class State {
  public:
-  using initializer_type = std::function<auto(State& state, int argc, char** argv)->void>;
-  using reporter_type = std::function<auto(const Report& report)->void>;
+  using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+  using Reporter = std::function<auto(const Report& report)->void>;
 
   Random rnd;
 
@@ -739,12 +740,12 @@ class State {
   std::unique_ptr<std::streambuf> to_user_buf;
 
   // Initializer is a function parsing command line arguments and initializing [`interactor::State`]
-  initializer_type initializer;
+  Initializer initializer;
 
   // Reporter is a function that reports the given [`interactor::Report`] and exits the program.
-  reporter_type reporter;
+  Reporter reporter;
 
-  State(initializer_type initializer);
+  State(Initializer initializer);
 
   ~State();
 
@@ -822,20 +823,20 @@ struct Report {
 };
 
 struct Trait {
-  using check_func_type = std::function<auto()->bool>;
+  using CheckFunc = std::function<auto()->bool>;
 
   std::string name;
-  check_func_type check_func;
+  CheckFunc check_func;
   std::vector<std::string> dependencies;
 
-  Trait(std::string name, check_func_type check_func);
-  Trait(std::string name, check_func_type check_func, std::vector<std::string> dependencies);
+  Trait(std::string name, CheckFunc check_func);
+  Trait(std::string name, CheckFunc check_func, std::vector<std::string> dependencies);
 };
 
 class State {
  public:
-  using initializer_type = std::function<auto(State& state, int argc, char** argv)->void>;
-  using reporter_type = std::function<
+  using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+  using Reporter = std::function<
       auto(const Report& report, const std::map<std::string, bool>& trait_status)->void>;
 
   Random rnd;
@@ -843,12 +844,12 @@ class State {
   var::Reader inf;
 
   // Initializer is a function parsing command line arguments and initializing [`validator::State`]
-  initializer_type initializer;
+  Initializer initializer;
 
   // Reporter is a function that reports the given [`validator::Report`] and exits the program.
-  reporter_type reporter;
+  Reporter reporter;
 
-  State(initializer_type initializer);
+  State(Initializer initializer);
 
   ~State();
 
@@ -924,19 +925,18 @@ struct Report {
 
 class State {
  public:
-  using initializer_type = std::function<auto(State& state, int argc, char** argv)->void>;
-  using reporter_type = std::function<auto(const Report& report)->void>;
-  using flag_args_parser_type = std::function<auto(std::set<std::string> flag_args)->void>;
-  using var_args_parser_type =
-      std::function<auto(std::map<std::string, std::string> var_args)->void>;
+  using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+  using Reporter = std::function<auto(const Report& report)->void>;
+  using FlagParser = std::function<auto(std::set<std::string> flag_args)->void>;
+  using VarParser = std::function<auto(std::map<std::string, std::string> var_args)->void>;
 
   Random rnd;
 
   // Initializer is a function parsing command line arguments and initializing [`generator::State`]
-  initializer_type initializer;
+  Initializer initializer;
 
   // Reporter is a function that reports the given [`generator::Report`] and exits the program.
-  reporter_type reporter;
+  Reporter reporter;
 
   // Names of the flag type (`--flag`) command line arguments required by the generator
   std::vector<std::string> required_flag_args;
@@ -945,12 +945,12 @@ class State {
   std::vector<std::string> required_var_args;
 
   // Functions to parse flag type command line arguments
-  std::vector<flag_args_parser_type> flag_parsers;
+  std::vector<FlagParser> flag_parsers;
 
   // Functions to parse variable type command line arguments
-  std::vector<var_args_parser_type> var_parsers;
+  std::vector<VarParser> var_parsers;
 
-  State(initializer_type initializer);
+  State(Initializer initializer);
 
   ~State();
 
@@ -989,8 +989,8 @@ auto colored_text_reporter(const Report& report) -> void;
   template <class T>                                                                       \
   struct Var {                                                                             \
     T var;                                                                                 \
-    typename T::result_type value;                                                         \
-    Var(T var_) : var(std::move(var_)), value(typename T::result_type()) {                 \
+    typename T::Target value;                                                              \
+    Var(T var_) : var(std::move(var_)), value(typename T::Target()) {                      \
       state_var_name_.required_var_args.emplace_back(var.name());                          \
       state_var_name_.var_parsers.emplace_back(                                            \
           [this](const std::map<std::string, std::string>& var_args) {                     \
@@ -1476,7 +1476,7 @@ class FdInBuf : public std::streambuf {
 }  // namespace detail
 
 inline InStream::InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
-                          std::function<auto(std::string_view)->void> fail_func)
+                          FailFunc fail_func)
     : buf_(std::move(buf)),
       name_(std::move(name)),
       strict_(std::move(strict)),
@@ -1574,6 +1574,41 @@ inline auto InStream::fail(std::string_view message) -> void {
   fail_func_(message);
   exit(EXIT_FAILURE);  // Usually unnecessary, but in sepial cases to prevent problems.
 }
+
+namespace detail {
+// Open the given file and create a `var::Reader`
+inline auto make_file_reader(std::string_view path, std::string name, bool strict,
+                             io::InStream::FailFunc fail_func) -> var::Reader {
+  auto buf = std::make_unique<std::filebuf>();
+  if (!buf->open(path.data(), std::ios::binary | std::ios::in))
+    panic(format("Can not open file `%s` as input stream", path.data()));
+  return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict,
+                                                    std::move(fail_func)));
+}
+
+// Open `stdin` as input stream and create a `var::Reader`
+inline auto make_stdin_reader(std::string name, bool strict, io::InStream::FailFunc fail_func)
+    -> var::Reader {
+  auto buf = std::make_unique<io::detail::FdInBuf>(fileno(stdin));
+  var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict,
+                                                    std::move(fail_func)));
+  stdin = nullptr;
+  std::cin.rdbuf(nullptr);
+  std::cin.tie(nullptr);
+  return reader;
+}
+
+// Open `stdout` as output stream and create a `std::::ostream`
+inline auto make_stdout_ostream(std::unique_ptr<std::streambuf>& buf, std::ostream& stream)
+    -> void {
+  buf = std::make_unique<io::detail::FdOutBuf>(fileno(stdout));
+  stream.rdbuf(buf.get());
+  stdout = nullptr;
+  std::cout.rdbuf(nullptr);
+  std::cin.tie(nullptr);
+  std::cerr.tie(nullptr);
+}
+}  // namespace detail
 }  // namespace io
 
 namespace var {
@@ -1603,7 +1638,7 @@ inline auto Reader::read(const Var<T, D>& v) -> T {
 }
 
 template <class... T>
-inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::result_type...> {
+inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::Target...> {
   return {read(vars)...};
 }
 
@@ -1902,14 +1937,14 @@ inline Vec<T>::Vec(T element, size_t len) : Vec<T>(element, len, var::space) {}
 
 template <class T>
 inline Vec<T>::Vec(T element, size_t len, Separator sep)
-    : Var<std::vector<typename T::Var::result_type>, Vec<T>>(std::string(element.name())),
+    : Var<std::vector<typename T::Var::Target>, Vec<T>>(std::string(element.name())),
       element(std::move(element)),
       len(std::move(len)),
       sep(std::move(sep)) {}
 
 template <class T>
-inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::result_type> {
-  std::vector<typename T::Var::result_type> result(len);
+inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::Target> {
+  std::vector<typename T::Var::Target> result(len);
   for (size_t i = 0; i < len; ++i) {
     if (i > 0) in.read(sep);
     result[i] = in.read(element.renamed(std::to_string(i)));
@@ -1922,8 +1957,7 @@ inline Mat<T>::Mat(T element, size_t len0, size_t len1) : Mat<T>(element, len0, 
 
 template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1, Separator sep0, Separator sep1)
-    : Var<std::vector<std::vector<typename T::Var::result_type>>, Mat<T>>(
-          std::string(element.name())),
+    : Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>>(std::string(element.name())),
       element(std::move(element)),
       len0(std::move(len0)),
       len1(std::move(len1)),
@@ -1932,9 +1966,9 @@ inline Mat<T>::Mat(T element, size_t len0, size_t len1, Separator sep0, Separato
 
 template <class T>
 inline auto Mat<T>::read_from(Reader& in) const
-    -> std::vector<std::vector<typename T::Var::result_type>> {
-  std::vector<std::vector<typename T::Var::result_type>> result(
-      len0, std::vector<typename T::Var::result_type>(len1));
+    -> std::vector<std::vector<typename T::Var::Target>> {
+  std::vector<std::vector<typename T::Var::Target>> result(
+      len0, std::vector<typename T::Var::Target>(len1));
   for (size_t i = 0; i < len0; ++i) {
     if (i > 0) in.read(sep0);
     auto name_prefix = std::to_string(i) + "_";
@@ -1957,8 +1991,7 @@ inline Pair<F, S>::Pair(F first, S second, Separator sep)
 
 template <class F, class S>
 inline Pair<F, S>::Pair(F first, S second, Separator sep, std::string name)
-    : Var<std::pair<typename F::Var::result_type, typename S::Var::result_type>, Pair<F, S>>(
-          std::move(name)),
+    : Var<std::pair<typename F::Var::Target, typename S::Var::Target>, Pair<F, S>>(std::move(name)),
       first(std::move(first)),
       second(std::move(second)),
       sep(std::move(sep)) {}
@@ -1979,7 +2012,7 @@ inline Pair<F, S>::Pair(std::pair<F, S> pr, Separator sep, std::string name)
 
 template <class F, class S>
 inline auto Pair<F, S>::read_from(Reader& in) const
-    -> std::pair<typename F::Var::result_type, typename S::Var::result_type> {
+    -> std::pair<typename F::Var::Target, typename S::Var::Target> {
   auto result_first = in.read(first.renamed("first"));
   in.read(sep);
   auto result_second = in.read(second.renamed("second"));
@@ -1996,13 +2029,12 @@ inline Tuple<T...>::Tuple(std::tuple<T...> elements, Separator sep)
 
 template <class... T>
 inline Tuple<T...>::Tuple(std::tuple<T...> elements, Separator sep, std::string name)
-    : Var<std::tuple<typename T::Var::result_type...>, Tuple<T...>>(std::move(name)),
+    : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>>(std::move(name)),
       elements(std::move(elements)),
       sep(std::move(sep)) {}
 
 template <class... T>
-inline auto Tuple<T...>::read_from(Reader& in) const
-    -> std::tuple<typename T::Var::result_type...> {
+inline auto Tuple<T...>::read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> {
   return std::apply(
       [&in](const auto&... args) {
         size_t cnt = 0;
@@ -2068,7 +2100,7 @@ inline Report::Report(Report::Status status, double score, std::string message)
     : status(std::move(status)), score(std::move(score)), message(std::move(message)) {}
 
 // Impl State {{{
-inline State::State(initializer_type initializer)
+inline State::State(Initializer initializer)
     : rnd(),
       inf(var::Reader(nullptr)),
       ouf(var::Reader(nullptr)),
@@ -2117,59 +2149,64 @@ inline auto State::quit_pc(double points, std::string_view message) -> void {
 // /Impl State }}}
 
 // Impl default_initializer {{{
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
-  constexpr std::string_view ARGS_USAGE =
-      "<input_file> <output_file> <answer_file> [--report-format={auto|json|text}]";
+namespace detail {
+constexpr std::string_view ARGS_USAGE =
+    "<input_file> <output_file> <answer_file> [--report-format={auto|json|text}]";
 
-  if (argc > 1 && std::string_view("--help") == argv[1]) {
-    std::string msg =
-        format("cplib (CPLib) " CPLIB_VERSION
-               "\n"
-               "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
-               "\n"
-               "Usage:\n"
-               "  %s %s\n"
-               "\n"
-               "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-               "enable colors\n",
-               argv[0], ARGS_USAGE.data());
-    std::clog << msg << '\n';
-    exit(0);
-  }
+inline auto print_help_message(std::string_view program_name) -> void {
+  std::string msg =
+      format("cplib (CPLib) " CPLIB_VERSION
+             "\n"
+             "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
+             "\n"
+             "Usage:\n"
+             "  %s %s\n"
+             "\n"
+             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+             "enable colors",
+             program_name.data(), ARGS_USAGE.data());
+  panic(msg);
+}
 
-  auto detect_reporter = [&]() {
-    if (!isatty(fileno(stderr)))
-      state.reporter = json_reporter;
-    else if (cplib::detail::has_colors())
+inline auto detect_reporter(State& state) -> void {
+  if (!isatty(fileno(stderr)))
+    state.reporter = json_reporter;
+  else if (cplib::detail::has_colors())
+    state.reporter = colored_text_reporter;
+  else
+    state.reporter = plain_text_reporter;
+}
+
+// Set the report format of `state` according to the string `format`.
+//
+// Returns `false` if the `format` is invalid.
+inline auto set_report_format(State& state, std::string_view format) -> bool {
+  if (format == "auto") {
+    detect_reporter(state);
+  } else if (format == "json") {
+    state.reporter = json_reporter;
+  } else if (format == "text") {
+    if (cplib::detail::has_colors())
       state.reporter = colored_text_reporter;
     else
       state.reporter = plain_text_reporter;
-  };
+  } else {
+    return false;
+  }
+  return true;
+}
 
-  detect_reporter();
-
+inline auto parse_command_line_arguments(State& state, int argc, char** argv)
+    -> std::array<std::string_view, 3> {
   if (argc < 4)
     panic("Program must be run with the following arguments:\n  " + std::string(ARGS_USAGE));
-
-  bool need_detect_reporter = true;
 
   for (int i = 4; i < argc; ++i) {
     auto arg = std::string_view(argv[i]);
     if (constexpr std::string_view prefix = "--report-format=";
         !arg.compare(0, prefix.size(), prefix)) {
       arg.remove_prefix(prefix.size());
-      if (arg == "auto") {
-        need_detect_reporter = true;
-      } else if (arg == "json") {
-        state.reporter = json_reporter;
-        need_detect_reporter = false;
-      } else if (arg == "text") {
-        if (cplib::detail::has_colors())
-          state.reporter = colored_text_reporter;
-        else
-          state.reporter = plain_text_reporter;
-        need_detect_reporter = false;
-      } else {
+      if (!set_report_format(state, arg)) {
         panic(format("Unknown %s option: %s", prefix.data(), arg.data()));
       }
     } else {
@@ -2177,22 +2214,25 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
     }
   }
 
-  if (need_detect_reporter) detect_reporter();
+  return {argv[1], argv[2], argv[3]};
+}
+}  // namespace detail
 
-  auto inf_buf = std::make_unique<std::filebuf>();
-  if (!inf_buf->open(argv[1], std::ios::binary | std::ios::in)) panic("Can't open input file");
-  state.inf = var::Reader(std::make_unique<io::InStream>(std::move(inf_buf), "inf", false,
-                                                         [](std::string_view msg) { panic(msg); }));
+inline auto default_initializer(State& state, int argc, char** argv) -> void {
+  detail::detect_reporter(state);
 
-  auto ouf_buf = std::make_unique<std::filebuf>();
-  if (!ouf_buf->open(argv[2], std::ios::binary | std::ios::in)) panic("Can't open output file");
-  state.ouf = var::Reader(std::make_unique<io::InStream>(
-      std::move(ouf_buf), "ouf", false, [&state](std::string_view msg) { state.quit_wa(msg); }));
+  if (argc > 1 && std::string_view("--help") == argv[1]) {
+    detail::print_help_message(argv[0]);
+  }
 
-  auto ans_buf = std::make_unique<std::filebuf>();
-  if (!ans_buf->open(argv[3], std::ios::binary | std::ios::in)) panic("Can't open answer file");
-  state.ans = var::Reader(std::make_unique<io::InStream>(std::move(ans_buf), "ans", false,
-                                                         [](std::string_view msg) { panic(msg); }));
+  auto [inf_path, ouf_path, ans_path] = detail::parse_command_line_arguments(state, argc, argv);
+
+  state.inf = io::detail::make_file_reader(inf_path, "inf", false,
+                                           [](std::string_view msg) { panic(msg); });
+  state.ouf = io::detail::make_file_reader(ouf_path, "ouf", false,
+                                           [&state](std::string_view msg) { state.quit_wa(msg); });
+  state.ans = io::detail::make_file_reader(ans_path, "ans", false,
+                                           [](std::string_view msg) { panic(msg); });
 }
 // /Impl default_initializer }}}
 
@@ -2286,7 +2326,7 @@ inline Report::Report(Report::Status status, double score, std::string message)
     : status(std::move(status)), score(std::move(score)), message(std::move(message)) {}
 
 // Impl State {{{
-inline State::State(initializer_type initializer)
+inline State::State(Initializer initializer)
     : rnd(),
       inf(var::Reader(nullptr)),
       from_user(var::Reader(nullptr)),
@@ -2336,58 +2376,62 @@ inline auto State::quit_pc(double points, std::string_view message) -> void {
 // /Impl State }}}
 
 // Impl default_initializer {{{
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
-  constexpr std::string_view ARGS_USAGE = "<input_file> [--report-format={auto|json|text}]";
+namespace detail {
+constexpr std::string_view ARGS_USAGE = "<input_file> [--report-format={auto|json|text}]";
 
-  if (argc > 1 && std::string_view("--help") == argv[1]) {
-    std::string msg =
-        format("cplib (CPLib) " CPLIB_VERSION
-               "\n"
-               "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
-               "\n"
-               "Usage:\n"
-               "  %s %s\n"
-               "\n"
-               "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-               "enable colors\n",
-               argv[0], ARGS_USAGE.data());
-    std::clog << msg << '\n';
-    exit(0);
-  }
+inline auto print_help_message(std::string_view program_name) -> void {
+  std::string msg =
+      format("cplib (CPLib) " CPLIB_VERSION
+             "\n"
+             "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
+             "\n"
+             "Usage:\n"
+             "  %s %s\n"
+             "\n"
+             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+             "enable colors",
+             program_name.data(), ARGS_USAGE.data());
+  panic(msg);
+}
 
-  auto detect_reporter = [&]() {
-    if (!isatty(fileno(stderr)))
-      state.reporter = json_reporter;
-    else if (cplib::detail::has_colors())
+inline auto detect_reporter(State& state) -> void {
+  if (!isatty(fileno(stderr)))
+    state.reporter = json_reporter;
+  else if (cplib::detail::has_colors())
+    state.reporter = colored_text_reporter;
+  else
+    state.reporter = plain_text_reporter;
+}
+
+// Set the report format of `state` according to the string `format`.
+//
+// Returns `false` if the `format` is invalid.
+inline auto set_report_format(State& state, std::string_view format) -> bool {
+  if (format == "auto") {
+    detect_reporter(state);
+  } else if (format == "json") {
+    state.reporter = json_reporter;
+  } else if (format == "text") {
+    if (cplib::detail::has_colors())
       state.reporter = colored_text_reporter;
     else
       state.reporter = plain_text_reporter;
-  };
+  } else {
+    return false;
+  }
+  return true;
+}
 
-  detect_reporter();
-
+inline auto parse_command_line_arguments(State& state, int argc, char** argv) -> std::string_view {
   if (argc < 2)
     panic("Program must be run with the following arguments:\n  " + std::string(ARGS_USAGE));
-
-  bool need_detect_reporter = true;
 
   for (int i = 2; i < argc; ++i) {
     auto arg = std::string_view(argv[i]);
     if (constexpr std::string_view prefix = "--report-format=";
         !arg.compare(0, prefix.size(), prefix)) {
       arg.remove_prefix(prefix.size());
-      if (arg == "auto") {
-        need_detect_reporter = true;
-      } else if (arg == "json") {
-        state.reporter = json_reporter;
-        need_detect_reporter = false;
-      } else if (arg == "text") {
-        if (cplib::detail::has_colors())
-          state.reporter = colored_text_reporter;
-        else
-          state.reporter = plain_text_reporter;
-        need_detect_reporter = false;
-      } else {
+      if (!set_report_format(state, arg)) {
         panic(format("Unknown %s option: %s", prefix.data(), arg.data()));
       }
     } else {
@@ -2395,27 +2439,36 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
     }
   }
 
-  if (need_detect_reporter) detect_reporter();
+  return argv[1];
+}
 
-  auto inf_buf = std::make_unique<std::filebuf>();
-  if (!inf_buf->open(argv[1], std::ios::binary | std::ios::in)) panic("Can't open input file");
-  state.inf = var::Reader(std::make_unique<io::InStream>(std::move(inf_buf), "inf", false,
-                                                         [](std::string_view msg) { panic(msg); }));
-
-  state.from_user = var::Reader(std::make_unique<io::InStream>(
-      std::make_unique<io::detail::FdInBuf>(fileno(stdin)), "ouf", false,
-      [&state](std::string_view msg) { state.quit_wa(msg); }));
-
-  state.to_user_buf = std::make_unique<io::detail::FdOutBuf>(fileno(stdout));
-  state.to_user.rdbuf(state.to_user_buf.get());
-
-  // Disable stdin & stdout
+// Disable stdin & stdout
+inline auto disable_stdio() -> void {
   stdin = nullptr;
   stdout = nullptr;
   std::cin.rdbuf(nullptr);
   std::cout.rdbuf(nullptr);
   std::cin.tie(nullptr);
   std::cerr.tie(nullptr);
+}
+}  // namespace detail
+
+inline auto default_initializer(State& state, int argc, char** argv) -> void {
+  detail::detect_reporter(state);
+
+  if (argc > 1 && std::string_view("--help") == argv[1]) {
+    detail::print_help_message(argv[0]);
+  }
+
+  auto inf_path = detail::parse_command_line_arguments(state, argc, argv);
+
+  state.inf = io::detail::make_file_reader(inf_path, "inf", false,
+                                           [](std::string_view msg) { panic(msg); });
+
+  state.from_user = io::detail::make_stdin_reader(
+      "from_user", false, [&state](std::string_view msg) { state.quit_wa(msg); });
+
+  io::detail::make_stdout_ostream(state.to_user_buf, state.to_user);
 }
 // /Impl default_initializer }}}
 
@@ -2506,11 +2559,10 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
 inline Report::Report(Report::Status status, std::string message)
     : status(std::move(status)), message(std::move(message)) {}
 
-inline Trait::Trait(std::string name, check_func_type check_func)
+inline Trait::Trait(std::string name, CheckFunc check_func)
     : Trait(std::move(name), std::move(check_func), {}) {}
 
-inline Trait::Trait(std::string name, check_func_type check_func,
-                    std::vector<std::string> dependencies)
+inline Trait::Trait(std::string name, CheckFunc check_func, std::vector<std::string> dependencies)
     : name(std::move(name)),
       check_func(std::move(check_func)),
       dependencies(std::move(dependencies)) {}
@@ -2613,7 +2665,7 @@ inline auto validate_traits(const std::vector<Trait>& traits,
 }
 }  // namespace detail
 
-inline State::State(initializer_type initializer)
+inline State::State(Initializer initializer)
     : rnd(),
       inf(var::Reader(nullptr)),
       initializer(std::move(initializer)),
@@ -2663,64 +2715,70 @@ inline auto State::quit_invalid(std::string_view message) -> void {
 }
 // /Impl State }}}
 
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
-  constexpr std::string_view ARGS_USAGE = "[<input_file>] [--report-format={auto|json|text}]";
+// Impl default_initializer {{{
+namespace detail {
+constexpr std::string_view ARGS_USAGE = "[<input_file>] [--report-format={auto|json|text}]";
 
-  if (argc > 1 && std::string_view("--help") == argv[1]) {
-    std::string msg =
-        format("cplib (CPLib) " CPLIB_VERSION
-               "\n"
-               "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
-               "\n"
-               "Usage:\n"
-               "  %s %s\n"
-               "\n"
-               "If <input_file> does not exist, stdin will be used as input\n"
-               "\n"
-               "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-               "enable colors\n",
-               argv[0], ARGS_USAGE.data());
-    std::clog << msg << '\n';
-    exit(0);
-  }
+inline auto print_help_message(std::string_view program_name) -> void {
+  std::string msg =
+      format("cplib (CPLib) " CPLIB_VERSION
+             "\n"
+             "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
+             "\n"
+             "Usage:\n"
+             "  %s %s\n"
+             "\n"
+             "If <input_file> does not exist, stdin will be used as input\n"
+             "\n"
+             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+             "enable colors",
+             program_name.data(), ARGS_USAGE.data());
+  panic(msg);
+}
 
-  auto detect_reporter = [&]() {
-    if (!isatty(fileno(stderr)))
-      state.reporter = json_reporter;
-    else if (cplib::detail::has_colors())
+inline auto detect_reporter(State& state) -> void {
+  if (!isatty(fileno(stderr)))
+    state.reporter = json_reporter;
+  else if (cplib::detail::has_colors())
+    state.reporter = colored_text_reporter;
+  else
+    state.reporter = plain_text_reporter;
+}
+
+// Set the report format of `state` according to the string `format`.
+//
+// Returns `false` if the `format` is invalid.
+inline auto set_report_format(State& state, std::string_view format) -> bool {
+  if (format == "auto") {
+    detect_reporter(state);
+  } else if (format == "json") {
+    state.reporter = json_reporter;
+  } else if (format == "text") {
+    if (cplib::detail::has_colors())
       state.reporter = colored_text_reporter;
     else
       state.reporter = plain_text_reporter;
-  };
-
-  detect_reporter();
-
-  bool need_detect_reporter = true;
-
-  bool use_stdin = false;
-  int opts_args_start = 2;
-  if (argc < 2 || argv[1][0] == '\0' || argv[1][0] == '-') {
-    use_stdin = true;
-    opts_args_start = 1;
+  } else {
+    return false;
   }
+  return true;
+}
+
+inline auto parse_command_line_arguments(State& state, int argc, char** argv) -> std::string_view {
+  std::string_view inf_path;
+  int opts_args_start = 2;
+
+  if (argc < 2 || argv[1][0] == '\0' || argv[1][0] == '-')
+    opts_args_start = 1;
+  else
+    inf_path = argv[1];
 
   for (int i = opts_args_start; i < argc; ++i) {
     auto arg = std::string_view(argv[i]);
     if (constexpr std::string_view prefix = "--report-format=";
         !arg.compare(0, prefix.size(), prefix)) {
       arg.remove_prefix(prefix.size());
-      if (arg == "auto") {
-        need_detect_reporter = true;
-      } else if (arg == "json") {
-        state.reporter = json_reporter;
-        need_detect_reporter = false;
-      } else if (arg == "text") {
-        if (cplib::detail::has_colors())
-          state.reporter = colored_text_reporter;
-        else
-          state.reporter = plain_text_reporter;
-        need_detect_reporter = false;
-      } else {
+      if (!set_report_format(state, arg)) {
         panic(format("Unknown %s option: %s", prefix.data(), arg.data()));
       }
     } else {
@@ -2728,25 +2786,27 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
     }
   }
 
-  if (need_detect_reporter) detect_reporter();
+  return inf_path;
+}
+}  // namespace detail
 
-  std::unique_ptr<std::streambuf> inf_buf = nullptr;
+inline auto default_initializer(State& state, int argc, char** argv) -> void {
+  detail::detect_reporter(state);
 
-  if (use_stdin) {
-    inf_buf = std::make_unique<io::detail::FdInBuf>(fileno(stdin));
-    stdin = nullptr;
-    std::cin.rdbuf(nullptr);
-    std::cin.tie(nullptr);
-  } else {
-    auto tmp_inf_buf = std::make_unique<std::filebuf>();
-    if (!tmp_inf_buf->open(argv[1], std::ios::binary | std::ios::in))
-      panic("Can't open input file");
-    inf_buf = std::move(tmp_inf_buf);
+  if (argc > 1 && std::string_view("--help") == argv[1]) {
+    detail::print_help_message(argv[0]);
   }
 
-  state.inf = var::Reader(
-      std::make_unique<io::InStream>(std::move(inf_buf), "inf", true,
-                                     [&state](std::string_view msg) { state.quit_invalid(msg); }));
+  auto inf_path = detail::parse_command_line_arguments(state, argc, argv);
+
+  std::unique_ptr<std::streambuf> inf_buf = nullptr;
+  if (inf_path.empty()) {
+    state.inf = io::detail::make_stdin_reader(
+        "inf", true, [&state](std::string_view msg) { state.quit_invalid(msg); });
+  } else {
+    state.inf = io::detail::make_file_reader(
+        inf_path, "inf", true, [&state](std::string_view msg) { state.quit_invalid(msg); });
+  }
 }
 // /Impl default_initializer }}}
 
@@ -2890,7 +2950,7 @@ inline Report::Report(Report::Status status, std::string message)
     : status(std::move(status)), message(std::move(message)) {}
 
 // Impl State {{{
-inline State::State(initializer_type initializer)
+inline State::State(Initializer initializer)
     : rnd(),
       initializer(std::move(initializer)),
       reporter(json_reporter),
@@ -2932,52 +2992,52 @@ inline auto parse_arg(std::string_view arg) -> std::pair<std::string, std::optio
   if (assign_pos == std::string_view::npos) return {std::string(arg), std::nullopt};
   return {std::string(arg.substr(0, assign_pos)), std::string(arg.substr(assign_pos + 1))};
 }
-}  // namespace detail
 
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
-  using namespace std::string_literals;
+inline auto print_help_message(std::string_view program_name, std::string_view args_usage) -> void {
+  std::string msg =
+      format("cplib (CPLib) " CPLIB_VERSION
+             "\n"
+             "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
+             "\n"
+             "Usage:\n"
+             "  %s %s\n"
+             "\n"
+             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+             "enable colors",
+             program_name.data(), args_usage.data());
+  panic(msg);
+}
 
-  std::sort(state.required_flag_args.begin(), state.required_flag_args.end());
-  std::sort(state.required_var_args.begin(), state.required_var_args.end());
+inline auto detect_reporter(State& state) -> void {
+  if (!isatty(fileno(stderr)))
+    state.reporter = json_reporter;
+  else if (cplib::detail::has_colors())
+    state.reporter = colored_text_reporter;
+  else
+    state.reporter = plain_text_reporter;
+}
 
-  std::vector<std::string> args_usage_builder;
-  for (const auto& arg : state.required_flag_args)
-    args_usage_builder.push_back("[--"s + arg + "]"s);
-  for (const auto& arg : state.required_var_args)
-    args_usage_builder.push_back("--"s + arg + "=<value>"s);
-  args_usage_builder.push_back("[--report-format={auto|json|text}]"s);
-
-  auto args_usage = join(args_usage_builder.begin(), args_usage_builder.end(), ' ');
-
-  if (argc > 1 && std::string_view("--help") == argv[1]) {
-    std::string msg =
-        format("cplib (CPLib) " CPLIB_VERSION
-               "\n"
-               "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
-               "\n"
-               "Usage:\n"
-               "  %s %s\n"
-               "\n"
-               "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-               "enable colors\n",
-               argv[0], args_usage.c_str());
-    std::clog << msg << '\n';
-    exit(0);
-  }
-
-  auto detect_reporter = [&]() {
-    if (!isatty(fileno(stderr)))
-      state.reporter = json_reporter;
-    else if (cplib::detail::has_colors())
+// Set the report format of `state` according to the string `format`.
+//
+// Returns `false` if the `format` is invalid.
+inline auto set_report_format(State& state, std::string_view format) -> bool {
+  if (format == "auto") {
+    detect_reporter(state);
+  } else if (format == "json") {
+    state.reporter = json_reporter;
+  } else if (format == "text") {
+    if (cplib::detail::has_colors())
       state.reporter = colored_text_reporter;
     else
       state.reporter = plain_text_reporter;
-  };
+  } else {
+    return false;
+  }
+  return true;
+}
 
-  detect_reporter();
-
-  bool need_detect_reporter = true;
-
+inline auto parse_command_line_arguments(State& state, int argc, char** argv)
+    -> std::pair<std::set<std::string>, std::map<std::string, std::string>> {
   std::set<std::string> flag_args;
   std::map<std::string, std::string> var_args;
 
@@ -2986,22 +3046,11 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
     if (constexpr std::string_view prefix = "--report-format=";
         !arg.compare(0, prefix.size(), prefix)) {
       arg.remove_prefix(prefix.size());
-      if (arg == "auto") {
-        need_detect_reporter = true;
-      } else if (arg == "json") {
-        state.reporter = json_reporter;
-        need_detect_reporter = false;
-      } else if (arg == "text") {
-        if (cplib::detail::has_colors())
-          state.reporter = colored_text_reporter;
-        else
-          state.reporter = plain_text_reporter;
-        need_detect_reporter = false;
-      } else {
+      if (!set_report_format(state, arg)) {
         panic(format("Unknown %s option: %s", prefix.data(), arg.data()));
       }
     } else {
-      auto [name, value] = detail::parse_arg(arg);
+      auto [name, value] = parse_arg(arg);
       if (!value.has_value()) {
         if (!std::binary_search(state.required_flag_args.begin(), state.required_flag_args.end(),
                                 name)) {
@@ -3023,15 +3072,46 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
     }
   }
 
-  if (need_detect_reporter) detect_reporter();
+  return {flag_args, var_args};
+}
 
-  for (const auto& parser : state.flag_parsers) {
-    parser(flag_args);
+inline auto validate_required_arguments(const State& state,
+                                        const std::map<std::string, std::string>& var_args)
+    -> void {
+  for (const auto& var : state.required_var_args) {
+    if (!var_args.count(var)) panic("Missing variable: " + var);
+  }
+}
+
+inline auto get_args_usage(const State& state) {
+  using namespace std::string_literals;
+  std::vector<std::string> builder;
+  for (const auto& arg : state.required_flag_args) builder.push_back("[--"s + arg + "]"s);
+  for (const auto& arg : state.required_var_args) builder.push_back("--"s + arg + "=<value>"s);
+  builder.push_back("[--report-format={auto|json|text}]"s);
+
+  return join(builder.begin(), builder.end(), ' ');
+}
+}  // namespace detail
+
+inline auto default_initializer(State& state, int argc, char** argv) -> void {
+  std::sort(state.required_flag_args.begin(), state.required_flag_args.end());
+  std::sort(state.required_var_args.begin(), state.required_var_args.end());
+
+  auto args_usage = detail::get_args_usage(state);
+
+  detail::detect_reporter(state);
+
+  if (argc > 1 && std::string_view("--help") == argv[1]) {
+    detail::print_help_message(argv[0], args_usage);
   }
 
-  for (const auto& parser : state.var_parsers) {
-    parser(var_args);
-  }
+  auto [flag_args, var_args] = detail::parse_command_line_arguments(state, argc, argv);
+
+  detail::validate_required_arguments(state, var_args);
+
+  for (const auto& parser : state.flag_parsers) parser(flag_args);
+  for (const auto& parser : state.var_parsers) parser(var_args);
 
   state.rnd.reseed(argc, argv);
 }
