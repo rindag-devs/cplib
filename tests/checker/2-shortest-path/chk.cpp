@@ -1,5 +1,11 @@
 /**
  * Check shortest path from 1 to n.
+ *
+ * Run test with:
+ *
+ * ```bash
+ * pnpm gulp test --kind checker --match "^2-shortest-path$"
+ * ```
  */
 
 #include <map>

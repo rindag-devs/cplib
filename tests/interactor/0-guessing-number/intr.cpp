@@ -1,5 +1,11 @@
 /**
  * Guessing number in range [1,n].
+ *
+ * Run test with:
+ *
+ * ```bash
+ * pnpm gulp test --kind interactor --match "^0-guessing-number$"
+ * ```
  */
 
 #include "../../../cplib.hpp"

@@ -2,6 +2,12 @@
  * Check if two sets of integer sets are equal.
  *
  * sets of integer sets = `std::set<std::set<int32_t>>`.
+ *
+ * Run test with:
+ *
+ * ```bash
+ * pnpm gulp test --kind checker --match "^3-set-of-sets$"
+ * ```
  */
 
 #include <algorithm>

@@ -1,0 +1,27 @@
+{
+  "name": "cplib",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "type": "module",
+  "devDependencies": {
+    "@babel/core": "^7.23.7",
+    "@babel/eslint-parser": "^7.23.3",
+    "del": "^7.1.0",
+    "eslint": "^8.56.0",
+    "eslint-config-alloy": "^5.1.2",
+    "gulp": "^4.0.2",
+    "gulp-plugin-extras": "^0.3.0",
+    "lodash": "^4.17.21",
+    "minimist": "^1.2.8",
+    "prettier": "^3.1.1",
+    "pupa": "^3.1.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "glob-parent@<5.1.2": ">=5.1.2"
+    }
+  }
+}

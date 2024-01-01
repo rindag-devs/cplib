@@ -1,5 +1,11 @@
 /**
  * Validator for undirected graphs.
+ *
+ * Run test with:
+ *
+ * ```bash
+ * pnpm gulp test --kind validator --match "^1-undirected-graph$"
+ * ```
  */
 
 #include <cstdint>

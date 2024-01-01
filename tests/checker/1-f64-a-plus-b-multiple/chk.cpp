@@ -3,6 +3,12 @@
  *
  * If the minimum value of relative error and absolute error does not exceed 10^(-6),
  * it is considered correct.
+ *
+ * Run test with:
+ *
+ * ```bash
+ * pnpm gulp test --kind checker --match "^1-f64-a-plus-b-multiple$"
+ * ```
  */
 
 #include <cstdint>
@@ -35,7 +41,7 @@ struct Output {
   }
 };
 
-auto checker_main() -> void {
+void checker_main() {
   auto n = chk.inf.read(var::i32("n"));
 
   auto output = var::ExtVar<Output>("output", n);

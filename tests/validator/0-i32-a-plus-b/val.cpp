@@ -1,5 +1,11 @@
 /**
  * Int32 A+B Problem.
+ *
+ * Run test with:
+ *
+ * ```bash
+ * pnpm gulp test --kind validator --match "^0-i32-a-plus-b$"
+ * ```
  */
 
 #include <cstdint>
@@ -11,7 +17,7 @@ using namespace cplib;
 
 CPLIB_REGISTER_VALIDATOR(val);
 
-auto validator_main() -> void {
+void validator_main() {
   int32_t n, m;
   val.traits({
       {"n_positive", [&]() { return n > 0; }},
