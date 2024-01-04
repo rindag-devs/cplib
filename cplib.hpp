@@ -1,4 +1,4 @@
-/**
+/*
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
  * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
  *
@@ -93,32 +93,83 @@ auto srand(unsigned int) CPLIB_RAND_THROW_STATEMENT -> void;
 namespace cplib {
 [[noreturn]] auto panic(std::string_view message) -> void;
 
-// Format string using printf-like syntax
+/**
+ * Format string using printf-like syntax.
+ *
+ * @param fmt The format string.
+ * @param ... The variadic arguments to be formatted.
+ * @return The formatted string.
+ */
 CPLIB_PRINTF_LIKE(1, 2) auto format(const char* fmt, ...) -> std::string;
 
-// Determine whether the two floating-point values are equals within the accuracy range
+/**
+ * Determine whether the two floating-point values are equals within the accuracy range.
+ *
+ * @tparam T The type of the values.
+ * @param expected The expected floating-point value.
+ * @param result The actual floating-point value.
+ * @param max_err The maximum allowable error.
+ * @return True if the values are equal within the accuracy range, false otherwise.
+ */
 template <class T>
 auto float_equals(T expected, T result, T max_err) -> bool;
 
-// Calculate the minimum relative and absolute error between two floating-point values
+/**
+ * Calculate the minimum relative and absolute error between two floating-point values.
+ *
+ * @tparam T The type of the values.
+ * @param expected The expected floating-point value.
+ * @param result The actual floating-point value.
+ * @return The minimum error between the values.
+ */
 template <class T>
 auto float_delta(T expected, T result) -> T;
 
-// Compress string to at most 64 bytes
+/**
+ * Compress string to at most 64 bytes.
+ *
+ * @param s The input string.
+ * @return The compressed string.
+ */
 auto compress(std::string_view s) -> std::string;
 
-// Trim spaces at beginning and end of string
+/**
+ * Trim spaces at beginning and end of string.
+ *
+ * @param s The input string.
+ * @return The trimmed string.
+ */
 auto trim(std::string_view s) -> std::string;
 
-// Concatenate the values between [first,last) into a string through separator
+/**
+ * Concatenate the values between [first,last) into a string through separator.
+ *
+ * @tparam It The type of the iterator.
+ * @param first Iterator to the first value.
+ * @param last Iterator to the last value (exclusive).
+ * @param separator The separator character.
+ * @return The concatenated string.
+ */
 template <class It>
 auto join(It first, It last, char separator) -> std::string;
 
-// Splits string s by character separators returning exactly k+1 items, where k is the number of
-// separator occurences. Split the string into a list of strings using separator
+/**
+ * Splits string s by character separators returning exactly k+1 items, where k is the number of
+ * separator occurrences. Split the string into a list of strings using separator.
+ *
+ * @param s The input string.
+ * @param separator The separator character.
+ * @return The vector of split strings.
+ */
 auto split(std::string_view s, char separator) -> std::vector<std::string>;
 
-// Similar to `split`, but ignores the empty string
+/**
+ * Similar to `split`, but ignores the empty string.
+ *
+ * @param s The input string.
+ * @param separator The separator character.
+ * @return The vector of tokenized strings.
+ */
 auto tokenize(std::string_view s, char separator) -> std::vector<std::string>;
 
 /**
@@ -129,13 +180,26 @@ auto tokenize(std::string_view s, char separator) -> std::vector<std::string>;
  */
 class Pattern {
  public:
-  // Create pattern instance by string
+  /**
+   * Create pattern instance by string.
+   *
+   * @param src The source string representing the regex pattern.
+   */
   explicit Pattern(std::string src);
 
-  // Checks if given string match the pattern
+  /**
+   * Checks if given string matches the pattern.
+   *
+   * @param s The input string to be matched against the pattern.
+   * @return True if the given string matches the pattern, False otherwise.
+   */
   auto match(std::string_view s) const -> bool;
 
-  // Returns source string of the pattern
+  /**
+   * Returns the source string of the pattern.
+   *
+   * @return The source string representing the regex pattern.
+   */
   auto src() const -> std::string_view;
 
  private:
@@ -145,6 +209,10 @@ class Pattern {
   std::shared_ptr<std::pair<regex_t, bool>> re_;
 };
 
+/**
+ * Random number generator that provides various methods to generate random numbers and perform
+ * random operations.
+ */
 class Random {
  public:
   using Engine = std::mt19937;
@@ -157,62 +225,147 @@ class Random {
 
   using BoolDist = std::bernoulli_distribution;
 
-  // Construct a random generator with default seed
+  /**
+   * Construct a random generator with default seed.
+   */
   explicit Random();
 
-  // Construct a random generator with `seed`
+  /**
+   * Construct a random generator with given seed.
+   *
+   * @param seed The seed of the random generator.
+   */
   explicit Random(uint32_t seed);
 
-  // Construct a random generator with seed which generated by `argc` and `argv`
+  /**
+   * Construct a random generator with seed which generated by `argc` and `argv`
+   *
+   * @param argc The number of command-line arguments.
+   * @param argv The array of command-line arguments.
+   */
   explicit Random(int argc, char** argv);
 
-  // Reseed the generator.
+  /**
+   * Reseed the generator with a new seed.
+   *
+   * @param seed The new seed value.
+   */
   auto reseed(uint32_t seed) -> void;
 
-  // Reseed with seed which generated by `argc` and `argv`
+  /**
+   * Reseed the generator with a seed generated by `argc` and `argv`.
+   *
+   * @param argc The number of command-line arguments.
+   * @param argv The array of command-line arguments.
+   */
   auto reseed(int argc, char** argv) -> void;
 
-  // Get engine
+  /**
+   * Get the engine used by the random generator.
+   *
+   * @return A reference to the engine.
+   */
   auto engine() -> Engine&;
 
-  // Generate random integer in a [from, to] range by by `std::uniform_int_distribution`
+  /**
+   * Generate a random integer in the range [from, to].
+   *
+   * @tparam T The type of the integer.
+   * @param from The lower bound of the range.
+   * @param to The upper bound of the range.
+   * @return The randomly generated integer.
+   */
   template <class T>
   auto next(T from, T to) -> typename std::enable_if<std::is_integral_v<T>, T>::type;
 
-  // Generate random floating-point in a [from, to] range by by `std::uniform_real_distribution`
+  /**
+   * Generate a random floating-point number in the range [from, to].
+   *
+   * @tparam T The type of the floating-point number.
+   * @param from The lower bound of the range.
+   * @param to The upper bound of the range.
+   * @return The randomly generated floating-point number.
+   */
   template <class T>
   auto next(T from, T to) -> typename std::enable_if<std::is_floating_point_v<T>, T>::type;
 
-  // Generate random bool
+  /**
+   * Generate a random boolean value.
+   *
+   * @tparam T The type of the boolean.
+   * @return The randomly generated boolean value.
+   */
   template <class T>
   auto next() -> typename std::enable_if<std::is_same_v<T, bool>, bool>::type;
 
-  // Generate random bool with `true_prob` probability of `true`
+  /**
+   * Generate a random boolean value with a given probability of being true.
+   *
+   * @tparam T The type of the boolean.
+   * @param true_prob The probability of the boolean being true.
+   * @return The randomly generated boolean value.
+   */
   template <class T>
   auto next(double true_prob) -> typename std::enable_if<std::is_same_v<T, bool>, bool>::type;
 
-  // Return random value from initializer_list
+  /**
+   * Return a random value from the given initializer_list.
+   *
+   * @tparam T The type of the value.
+   * @param init_list The initializer_list to choose from.
+   * @return A random value from the initializer_list.
+   */
   template <class T>
   auto choice(std::initializer_list<T> init_list) -> T;
 
-  // Return random iterator from iterator range
+  /**
+   * Return a random iterator from the given range.
+   *
+   * @tparam It The type of the iterator.
+   * @param first The beginning of the range.
+   * @param last The end of the range.
+   * @return A random iterator from the range.
+   */
   template <class It>
   auto choice(It first, It last) -> It;
 
-  // Return random iterator from Container
+  /**
+   * Return a random iterator from the given container.
+   *
+   * @tparam Container The type of the container.
+   * @param container The container to choose from.
+   * @return A random iterator from the container.
+   */
   template <class Container>
   auto choice(Container& container) -> decltype(std::begin(container));
 
-  // Return a random iterator from given map container by utilizing the values of the map container
-  // as weights for weighted random number generation
+  /**
+   * Return a random iterator from the given map container by utilizing the values of the map
+   * container as weights for weighted random number generation.
+   *
+   * @tparam Map The type of the map container.
+   * @param map The map container to choose from.
+   * @return A random iterator from the map container.
+   */
   template <class Map>
   auto weighted_choice(const Map& map) -> decltype(std::begin(map));
 
-  // Shuffle the given range by `std::shuffle`
+  /**
+   * Shuffle the elements in the given range.
+   *
+   * @tparam RandomIt The type of the random access iterator.
+   * @param first The beginning of the range.
+   * @param last The end of the range.
+   */
   template <class RandomIt>
   auto shuffle(RandomIt first, RandomIt last) -> void;
 
-  // Shuffle the given container by `std::shuffle`
+  /**
+   * Shuffle the elements in the given container.
+   *
+   * @tparam Container The type of the container.
+   * @param container The container to shuffle.
+   */
   template <class Container>
   auto shuffle(Container& container) -> void;
 
@@ -221,78 +374,144 @@ class Random {
 };
 
 namespace io {
+/**
+ * An input stream class that provides various functionalities for reading and manipulating streams.
+ */
 class InStream {
  public:
   using FailFunc = std::function<auto(std::string_view)->void>;
 
+  /**
+   * Constructs an InStream object.
+   *
+   * @param buf A unique pointer to a stream buffer.
+   * @param name The name of the stream.
+   * @param strict Indicates if the stream is in strict mode.
+   * @param fail_func A function that will be called when a failure occurs.
+   */
   explicit InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
                     FailFunc fail_func);
 
-  // Get the name of stream
+  /**
+   * Returns the name of the stream.
+   *
+   * @return The name of the stream as a string view.
+   */
   auto name() const -> std::string_view;
 
-  // Move stream pointer to the first non-black character or EOF
+  /**
+   * Moves the stream pointer to the first non-blank character or EOF.
+   */
   auto skip_blanks() -> void;
 
-  // Return the current character in the stream, or EOF if reached, without removing it from the
-  // stream
+  /**
+   * Returns the current character in the stream, or EOF if reached, without removing it from the
+   * stream.
+   *
+   * @return The current character in the stream as an integer, or EOF if reached.
+   */
   auto seek() -> int;
 
-  // Return current character and moves pointer one character forward, or EOF if reached
+  /**
+   * Returns the current character and moves the pointer one character forward, or EOF if reached.
+   *
+   * @return The current character in the stream as an integer, or EOF if reached.
+   */
   auto read() -> int;
 
-  // Read at most n characters
+  /**
+   * Reads at most n characters from the stream.
+   *
+   * @param n The maximum number of characters to read.
+   * @return The read characters as a string.
+   */
   auto read_n(size_t n) -> std::string;
 
-  // Check if stream is in strict mode
+  /**
+   * Checks if the stream is in strict mode.
+   *
+   * @return True if the stream is in strict mode, false otherwise.
+   */
   auto is_strict() const -> bool;
 
-  // Set strict mode of stream
+  /**
+   * Sets the strict mode of the stream.
+   *
+   * @param b The value to set strict mode to.
+   */
   auto set_strict(bool b) -> void;
 
-  // Get the current line number
+  /**
+   * Returns the current line number.
+   *
+   * @return The current line number as a size_t.
+   */
   auto line_num() const -> size_t;
 
-  // Get the current column number
+  /**
+   * Returns the current column number.
+   *
+   * @return The current column number as a size_t.
+   */
   auto col_num() const -> size_t;
 
-  // Check if current position is EOF. If not it doesn't move stream pointer
+  /**
+   * Checks if the current position is EOF.
+   *
+   * @return True if the current position is EOF, false otherwise.
+   */
   auto eof() -> bool;
 
-  // Move pointer to the first non-whitespace character and calls [`eof()`]
+  /**
+   * Moves the pointer to the first non-whitespace character and calls [`eof()`].
+   *
+   * @return True if the pointer is at EOF, false otherwise.
+   */
   auto seek_eof() -> bool;
 
   /**
-   * Checks that current position contains '\n'. If not it doesn't move stream pointer
+   * Checks if the current position contains '\n'.
    *
-   * The differences between OSs are not distinguished, on Windows "\r\n" is not treated as
-   * end-of-line
+   * @return True if the current position contains '\n', false otherwise.
    */
   auto eoln() -> bool;
 
-  // Move pointer to the first non-space and non-tab character and calls [`eoln()`]
+  /**
+   * Moves the pointer to the first non-space and non-tab character and calls [`eoln()`].
+   *
+   * @return True if the pointer is at '\n', false otherwise.
+   */
   auto seek_eoln() -> bool;
 
-  // Move stream pointer to the first character of the next line (if exists)
+  /**
+   * Moves the stream pointer to the first character of the next line (if it exists).
+   */
   auto next_line() -> void;
 
   /**
-   * Read a new token. Ignores whitespaces into the non-strict mode
-   * (strict mode is used in validators usually).
+   * Reads a new token from the stream.
+   * Ignores whitespaces in non-strict mode (strict mode is used in validators usually).
+   *
+   * @return The read token as a string.
    */
   auto read_token() -> std::string;
 
   /**
-   * If current position contains EOF, do nothing and returns `std::nullopt`.
+   * If the current position contains EOF, do nothing and return `std::nullopt`.
    *
-   * Otherwise, reads line from the current position to EOLN or EOF. Moves stream pointer to
+   * Otherwise, reads a line from the current position to EOLN or EOF. Moves the stream pointer to
    * the first character of the new line (if possible).
    *
-   * The return value does not include the trailing \n.
+   * @return An optional string containing the line read, or `std::nullopt` if the current position
+   *         contains EOF.
    */
   auto read_line() -> std::optional<std::string>;
 
-  // Quit program with an error
+  /**
+   * Quit program with an error.
+   *
+   * @param message The error message.
+   */
   [[noreturn]] auto fail(std::string_view message) -> void;
 
  private:
@@ -309,37 +528,73 @@ namespace var {
 template <class T, class D>
 class Var;
 
-// Represents a traced input stream with line and column information
+/**
+ * `Reader` represents a traced input stream with line and column information.
+ */
 class Reader {
  public:
+  /**
+   * `Trace` represents trace information for a variable.
+   */
   struct Trace {
     std::string var_name;
     size_t line_num;
     size_t col_num;
   };
 
-  // Create a root reader of input stream
+  /**
+   * Create a root reader of input stream.
+   *
+   * @param inner The inner input stream to wrap.
+   */
   explicit Reader(std::unique_ptr<io::InStream> inner);
 
+  /// Move constructor.
   Reader(Reader&&) = default;
+
+  /// Move assignment operator.
   Reader& operator=(Reader&&) = default;
 
-  // Get the inner wrapped input stream
+  /**
+   * Get the inner wrapped input stream.
+   *
+   * @return Reference to the inner input stream.
+   */
   auto inner() -> io::InStream&;
 
-  // Call [`Instream::fail`] of the wrapped input stream
+  /**
+   * Call `Instream::fail` of the wrapped input stream.
+   *
+   * @param message The error message.
+   */
   [[noreturn]] auto fail(std::string_view message) -> void;
 
-  // Read a variable
+  /**
+   * Read a variable based on a variable reading template.
+   *
+   * @tparam T The target type of the variable reading template.
+   * @tparam D The derived class of the variable reading template.
+   * @param v The variable reading template.
+   * @return The value read from the input stream.
+   */
   template <class T, class D>
   auto read(const Var<T, D>& v) -> T;
 
-  // Read multiple variables and put them into a tuple
+  /**
+   * Read multiple variables and put them into a tuple.
+   *
+   * @tparam T The types of the variable reading templates.
+   * @param vars The variable reading templates.
+   * @return A tuple containing the values read from the input stream.
+   */
   template <class... T>
   auto operator()(T... vars) -> std::tuple<typename T::Var::Target...>;
 
  private:
+  /// Copy constructor (deleted to prevent copying).
   Reader(const Reader&) = delete;
+
+  /// Copy assignment operator (deleted to prevent copying).
   Reader& operator=(const Reader&) = delete;
 
   std::unique_ptr<io::InStream> inner_;
@@ -349,102 +604,275 @@ class Reader {
 template <class T>
 class Vec;
 
-// Var describes a "variable reading template"
+/**
+ * `Var` describes a "variable reading template".
+ *
+ * @tparam T The target type of the variable reading template.
+ * @tparam D The derived class of the variable reading template. When other classes inherit from
+ * `Var`, this template parameter should be the class itself.
+ */
 template <class T, class D>
 class Var {
  public:
   using Target = T;
   using Derived = D;
 
+  /**
+   * Destructor.
+   */
   virtual ~Var() = 0;
 
-  // Get name
+  /**
+   * Get the name of the variable reading template.
+   *
+   * @return The name of the variable as a string_view.
+   */
   auto name() const -> std::string_view;
 
-  // Clone itself, the derived class (template class D) needs to implement the copy constructor
+  /**
+   * Clone itself, the derived class (template class D) needs to implement the copy constructor.
+   *
+   * @return A copy of the variable.
+   */
   auto clone() const -> D;
 
-  // Like Clone, but also changes the name
+  /**
+   * Creates a copy with a new name.
+   *
+   * @param name The new name for the variable.
+   * @return A copy of the variable with the new name.
+   */
   auto renamed(std::string_view name) const -> D;
 
-  // Parse a variable from string
+  /**
+   * Parse a variable from a string.
+   *
+   * @param s The string representation of the variable.
+   * @return The parsed value of the variable.
+   */
   auto parse(std::string_view s) const -> T;
 
-  // Creates a `var::Vec<D>` containing self of size `len`
+  /**
+   * Creates a `var::Vec<D>` containing self of size `len`.
+   *
+   * @param len The size of the `var::Vec`.
+   * @return A `var::Vec<D>` containing copies of the variable.
+   */
   auto operator*(size_t len) const -> Vec<D>;
 
+  // Allow the `Reader` class to access the protected member function `read_from`.
   friend auto Reader::read(const Var<T, D>& v) -> T;
 
  protected:
+  /**
+   * Default constructor.
+   */
   explicit Var();
+
+  /**
+   * Constructor with a specified name.
+   *
+   * @param name The name of the variable.
+   */
   explicit Var(std::string name);
 
+  /**
+   * Read the value of the variable from a `Reader` object.
+   *
+   * @param in The `Reader` object to read from.
+   * @return The value of the variable.
+   */
   virtual auto read_from(Reader& in) const -> T = 0;
 
  private:
   std::string name_;
 };
 
-// Integer
+/**
+ * `Int` is a variable reading template, indicating to read an integer in a given range in decimal
+ * form.
+ *
+ * @tparam T The target type of the variable reading template.
+ */
 template <class T>
 class Int : public Var<T, Int<T>> {
  public:
   std::optional<T> min, max;
 
+  /**
+   * Default constructor.
+   */
   explicit Int();
+
+  /**
+   * Constructor with name parameter.
+   *
+   * @param name The name of the Int variable.
+   */
   explicit Int(std::string name);
+
+  /**
+   * Constructor with min and max parameters.
+   *
+   * @param min The minimum value of the Int variable.
+   * @param max The maximum value of the Int variable.
+   */
   explicit Int(std::optional<T> min, std::optional<T> max);
+
+  /**
+   * Constructor with min, max, and name parameters.
+   *
+   * @param min The minimum value of the Int variable.
+   * @param max The maximum value of the Int variable.
+   * @param name The name of the Int variable.
+   */
   explicit Int(std::optional<T> min, std::optional<T> max, std::string name);
 
  protected:
+  /**
+   * Read the value of the Int variable from a reader.
+   *
+   * @param in The reader to read from.
+   * @return The read value.
+   */
   auto read_from(Reader& in) const -> T override;
 };
 
-// Floating-point number
+/**
+ * `Float` is a variable reading template, indicating to read a floating-point number in a given
+ * range in fixed form or scientific form.
+ */
 template <class T>
 class Float : public Var<T, Float<T>> {
  public:
   std::optional<T> min, max;
 
+  /**
+   * Default constructor.
+   */
   explicit Float();
+
+  /**
+   * Constructor with name parameter.
+   *
+   * @param name The name of the Float variable.
+   */
   explicit Float(std::string name);
+
+  /**
+   * Constructor with min and max range parameters.
+   *
+   * @param min The minimum value of the Float variable.
+   * @param max The maximum value of the Float variable.
+   */
   explicit Float(std::optional<T> min, std::optional<T> max);
+
+  /**
+   * Constructor with min and max range parameters and name parameter.
+   *
+   * @param min The minimum value of the Float variable.
+   * @param max The maximum value of the Float variable.
+   * @param name The name of the Float variable.
+   */
   explicit Float(std::optional<T> min, std::optional<T> max, std::string name);
 
  protected:
+  /**
+   * Read the value from the input reader.
+   *
+   * @param in The input reader.
+   * @return The value read from the input reader.
+   */
   auto read_from(Reader& in) const -> T override;
 };
 
-// Floating-point number with digit count restrictions
+/**
+ * `StrictFloat` is a variable reading template, indicating to read a floating-point number in a
+ * given range in fixed for with digit count restrictions.
+ */
 template <class T>
 class StrictFloat : public Var<T, StrictFloat<T>> {
  public:
   T min, max;
   size_t min_n_digit, max_n_digit;
 
+  /**
+   * Constructor with min, max range, and digit count restrictions parameters.
+   *
+   * @param min The minimum value of the StrictFloat variable.
+   * @param max The maximum value of the StrictFloat variable.
+   * @param min_n_digit The minimum number of digits of the StrictFloat variable.
+   * @param max_n_digit The maximum number of digits of the StrictFloat variable.
+   */
   explicit StrictFloat(T min, T max, size_t min_n_digit, size_t max_n_digit);
+
+  /**
+   * Constructor with min, max range, digit count restrictions parameters, and name parameter.
+   *
+   * @param min The minimum value of the StrictFloat variable.
+   * @param max The maximum value of the StrictFloat variable.
+   * @param min_n_digit The minimum number of digits of the StrictFloat variable.
+   * @param max_n_digit The maximum number of digits of the StrictFloat variable.
+   * @param name The name of the StrictFloat variable.
+   */
   explicit StrictFloat(T min, T max, size_t min_n_digit, size_t max_n_digit, std::string name);
 
  protected:
+  /**
+   * Read the value from the input reader.
+   *
+   * @param in The input reader.
+   * @return The value read from the input reader.
+   */
   auto read_from(Reader& in) const -> T override;
 };
 
-// Whitespace separated string
+/**
+ * `String` is a variable reading template, indicating to read a whitespace separated string.
+ */
 class String : public Var<std::string, String> {
  public:
   std::optional<Pattern> pat;
 
+  /**
+   * Default constructor.
+   */
   explicit String();
+
+  /**
+   * Constructor with pattern parameter.
+   *
+   * @param pat The pattern of the String variable.
+   */
   explicit String(Pattern pat);
+
+  /**
+   * Constructor with name parameter.
+   *
+   * @param name The name of the String variable.
+   */
   explicit String(std::string name);
+
+  /**
+   * Constructor with pattern and name parameters.
+   *
+   * @param pat The pattern of the String variable.
+   * @param name The name of the String variable.
+   * */
   explicit String(Pattern pat, std::string name);
 
  protected:
+  /**
+   * Read the value from the input reader.
+   *
+   * @param in The input reader.
+   * @return The value read from the input reader.
+   */
   auto read_from(Reader& in) const -> std::string override;
 };
 
 /**
- * Separator
+ * `Separator` is a variable reading template, indicating to read a character as a separator.
  *
  * - If it is in strict mode, read exact one character determine whether it is same as `sep`.
  * - Otherwise, if `std::isspace(sep)`, read the next consecutive whitespaces.
@@ -454,118 +882,364 @@ class Separator : public Var<std::nullopt_t, Separator> {
  public:
   char sep;
 
+  /**
+   * Constructs a `Separator` object with the specified separator character.
+   *
+   * @param sep The separator character.
+   */
   Separator(char sep);
+
+  /**
+   * Constructs a `Separator` object with the specified separator character and name.
+   *
+   * @param sep The separator character.
+   * @param name The name of the `Separator`.
+   */
   explicit Separator(char sep, std::string name);
 
  protected:
+  /**
+   * Reads the separator character from the input reader.
+   *
+   * @param in The input reader.
+   * @return `std::nullopt` to indicate that no value is read.
+   */
   auto read_from(Reader& in) const -> std::nullopt_t override;
 };
 
-// Eoln separated string
+/**
+ * `Line` is a variable reading template, indicating to read a end-of-line separated string.
+ */
 class Line : public Var<std::string, Line> {
  public:
   std::optional<Pattern> pat;
 
+  /**
+   * Constructs a `Line` object.
+   */
   explicit Line();
+
+  /**
+   * Constructs a `Line` object with the specified pattern.
+   *
+   * @param pat The pattern to match for the line.
+   */
   explicit Line(Pattern pat);
+
+  /**
+   * Constructs a `Line` object with the specified name.
+   *
+   * @param name The name of the `Line`.
+   */
   explicit Line(std::string name);
+
+  /**
+   * Constructs a `Line` object with the specified pattern and name.
+   *
+   * @param pat The pattern to match for the line.
+   * @param name The name of the `Line`.
+   */
   explicit Line(Pattern pat, std::string name);
 
  protected:
+  /**
+   * Reads the line from the input reader.
+   *
+   * @param in The input reader.
+   * @return The read line as a string.
+   */
   auto read_from(Reader& in) const -> std::string override;
 };
 
-// Vector of variables
+/**
+ * `Vec` is a variable reading template, used to read a fixed length of variables of the same type
+ * and return them as `std::vector`.
+ *
+ * @tparam T The type of the inner variable reading template.
+ */
 template <class T>
 class Vec : public Var<std::vector<typename T::Var::Target>, Vec<T>> {
  public:
+  /// The type of the element in the vector.
   T element;
+  /// The length of the vector.
   size_t len;
+  /// The separator between elements.
   Separator sep;
 
+  /**
+   * Constructor.
+   *
+   * @param element The type of the element in the vector.
+   * @param len The length of the vector.
+   */
   explicit Vec(T element, size_t len);
+
+  /**
+   * Constructor with separator.
+   *
+   * @param element The type of the element in the vector.
+   * @param len The length of the vector.
+   * @param sep The separator between elements.
+   */
   explicit Vec(T element, size_t len, Separator sep);
 
  protected:
+  /**
+   * Read from reader.
+   *
+   * @param in The reader object.
+   * @return The vector of elements.
+   */
   auto read_from(Reader& in) const -> std::vector<typename T::Var::Target> override;
 };
 
-// Matrix (2D vector) of variables
+/**
+ * `Mat` is a variable reading template used to read a fixed-size variable matrix. The elements in
+ * the matrix have the same type.
+ *
+ * @tparam T The type of the inner variable reading template.
+ */
 template <class T>
 class Mat : public Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>> {
  public:
+  /// The type of the element in the matrix.
   T element;
-  size_t len0, len1;
-  Separator sep0, sep1;
+  /// The length of the first dimension of the matrix.
+  size_t len0;
+  /// The length of the second dimension of the matrix.
+  size_t len1;
+  /// The separator used for the first dimension.
+  Separator sep0;
+  /// The separator used for the second dimension.
+  Separator sep1;
 
+  /**
+   * Constructor.
+   *
+   * @param element The type of the element in the matrix.
+   * @param len0 The length of the first dimension of the matrix.
+   * @param len1 The length of the second dimension of the matrix.
+   */
   explicit Mat(T element, size_t len0, size_t len1);
+
+  /**
+   * Constructor with separators.
+   *
+   * @param element The type of the element in the matrix.
+   * @param len0 The length of the first dimension of the matrix.
+   * @param len1 The length of the second dimension of the matrix.
+   * @param sep0 The separator used for the first dimension.
+   * @param sep1 The separator used for the second dimension.
+   */
   explicit Mat(T element, size_t len0, size_t len1, Separator sep0, Separator sep1);
 
  protected:
+  /**
+   * Read from reader.
+   *
+   * @param in The reader object.
+   * @return The matrix of elements.
+   */
   auto read_from(Reader& in) const -> std::vector<std::vector<typename T::Var::Target>> override;
 };
 
-// Pair of variables
+/**
+ * `Pair` is a variable reading template that reads two variables separated by a given separator and
+ * returns them as `std::pair`.
+ *
+ * @tparam F The type of the first variable reading template.
+ * @tparam S The type of the second variable reading template.
+ */
 template <class F, class S>
 class Pair : public Var<std::pair<typename F::Var::Target, typename S::Var::Target>, Pair<F, S>> {
  public:
+  /// The first element of the pair.
   F first;
+  /// The second element of the pair.
   S second;
+  /// The separator used when converting to string.
   Separator sep;
 
+  /**
+   * Constructor.
+   *
+   * @param first The first element of the pair.
+   * @param second The second element of the pair.
+   */
   explicit Pair(F first, S second);
+
+  /**
+   * Constructor with separator.
+   *
+   * @param first The first element of the pair.
+   * @param second The second element of the pair.
+   * @param sep The separator used when converting to string.
+   */
   explicit Pair(F first, S second, Separator sep);
+
+  /**
+   * Constructor with separator and name.
+   *
+   * @param first The first element of the pair.
+   * @param second The second element of the pair.
+   * @param sep The separator used when converting to string.
+   * @param name The name of the pair.
+   */
   explicit Pair(F first, S second, Separator sep, std::string name);
+
+  /**
+   * Constructor from std::pair.
+   *
+   * @param pr The std::pair to initialize the Pair with.
+   */
   explicit Pair(std::pair<F, S> pr);
+
+  /**
+   * Constructor from std::pair with separator.
+   *
+   * @param pr The std::pair to initialize the Pair with.
+   * @param sep The separator used when converting to string.
+   */
   explicit Pair(std::pair<F, S> pr, Separator sep);
+
+  /**
+   * Constructor from std::pair with separator and name.
+   *
+   * @param pr The std::pair to initialize the Pair with.
+   * @param sep The separator used when converting to string.
+   * @param name The name of the pair.
+   */
   explicit Pair(std::pair<F, S> pr, Separator sep, std::string name);
 
  protected:
+  /**
+   * Read from reader.
+   *
+   * @param in The reader object.
+   * @return The pair of elements.
+   */
   auto read_from(Reader& in) const
       -> std::pair<typename F::Var::Target, typename S::Var::Target> override;
 };
 
-// Tuple of variables
+/**
+ * Tuple of variables.
+ *
+ * @tparam T The type of the variable reading templates.
+ */
 template <class... T>
 class Tuple : public Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
  public:
+  /// The elements of the tuple.
   std::tuple<T...> elements;
+  /// The separator used when converting to string.
   Separator sep;
 
+  /**
+   * Constructor.
+   *
+   * @param elements The elements of the tuple.
+   */
   explicit Tuple(std::tuple<T...> elements);
+
+  /**
+   * Constructor with separator.
+   *
+   * @param elements The elements of the tuple.
+   * @param sep The separator used when converting to string.
+   */
   explicit Tuple(std::tuple<T...> elements, Separator sep);
+
+  /**
+   * Constructor with separator and name.
+   *
+   * @param elements The elements of the tuple.
+   * @param sep The separator used when converting to string.
+   * @param name The name of the tuple.
+   */
   explicit Tuple(std::tuple<T...> elements, Separator sep, std::string name);
 
  protected:
+  /**
+   * Read from reader.
+   *
+   * @param in The reader object.
+   * @return The tuple of elements.
+   */
   auto read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> override;
 };
 
-// Wrapped function
+/**
+ * `FnVar` is used to wrap a function into a variable reading template.
+ *
+ * The type of the first parameter of the wrapped function must be `cplib::var::Reader`, and
+ * subsequent parameters (which may not exist) are arbitrary.
+ *
+ * @tparam F The type of the function.
+ */
 template <class F>
 class FnVar : public Var<typename std::function<F>::result_type, FnVar<F>> {
  public:
+  /// The inner function.
   std::function<auto(Reader& in)->typename std::function<F>::result_type> inner;
 
+  /**
+   * Constructor.
+   *
+   * @param name The name of the variable to be read.
+   * @param f The function object.
+   * @param args The second to last arguments to the function, the count and type must match the
+   * parameters of `f`.
+   */
   template <class... Args>
   FnVar(std::string name, std::function<F> f, Args... args);
 
  protected:
+  /**
+   * Read from reader.
+   *
+   * Use `in` as the first argument, together with subsequent arguments passed in the constructor,
+   * to call the wrapped function.
+   *
+   * @param in The reader object.
+   * @return The result of the function.
+   */
   auto read_from(Reader& in) const -> typename std::function<F>::result_type override;
 };
 
 /**
  * For a type `T` which has implemented `static auto T::read(var::Reader&, ...) -> T`,
  * `ExtVar<T>` provides a variable template for creating `T` by calling `T::read`.
+ *
+ * @tparam T The type of the variable, which must have a static `auto T::read(var::Reader&, ...) ->
+ * T`
  */
 template <class T>
 class ExtVar : public Var<T, ExtVar<T>> {
  public:
+  /// The inner function.
   std::function<auto(Reader& in)->T> inner;
 
+  /**
+   * Constructor.
+   *
+   * @param name The name of the variable to be read.
+   * @param args The second to last arguments to the function `T::read`.
+   */
   template <class... Args>
   ExtVar(std::string name, Args... args);
 
  protected:
+  /**
+   * Read from reader.
+   *
+   * Use `in` as the first argument, together with subsequent arguments passed in the constructor,
+   * to call `T::read`.
+   *
+   * @param in The reader object.
+   * @return The result of `T::read`.
+   */
   auto read_from(Reader& in) const -> T override;
 };
 
@@ -589,6 +1263,9 @@ const auto tab = Separator('\t', "tab");
 const auto eoln = Separator('\n', "eoln");
 };  // namespace var
 
+/**
+ * `WorkMode` indicates the current mode of cplib.
+ */
 enum class WorkMode {
   NONE,
   CHECKER,
@@ -597,92 +1274,207 @@ enum class WorkMode {
   GENERATOR,
 };
 
-// Get current work mode of cplib.
+/**
+ * Get current work mode of cplib.
+ *
+ * @return The current work mode.
+ */
 auto get_work_mode() -> WorkMode;
 
 namespace checker {
+/**
+ * `Report` represents a report showing when checker exits.
+ */
 struct Report {
+  /**
+   * `Status` represents the status of the report.
+   */
   class Status {
    public:
     enum Value {
+      /// Indicates an internal error occurred.
       INTERNAL_ERROR,
+      /// Indicates the solution is accepted
       ACCEPTED,
+      /// Indicates the solution is incorrect.
       WRONG_ANSWER,
+      /// Indicates the solution is partially correct.
       PARTIALLY_CORRECT,
     };
 
+    /**
+     * Default constructor for Status.
+     */
     Status() = default;
+
+    /**
+     * Constructor for Status with a given value.
+     *
+     * @param value The value of the status.
+     */
     constexpr Status(Value value);
 
+    /**
+     * Implicit conversion operator to Value.
+     *
+     * @return The value of the status.
+     */
     constexpr operator Value() const;
 
+    /**
+     * Deleted conversion operator to bool.
+     *
+     * @return Deleted conversion operator to bool.
+     */
     explicit operator bool() const = delete;
 
+    /**
+     * Get the string representation of the status.
+     *
+     * @return The string representation of the status.
+     */
     constexpr auto to_string() const -> std::string_view;
 
    private:
     Value value_;
   };
 
+  /// The status of the report.
   Status status;
-  double score;  // Full score is 1.0
+
+  /// The score of the report (full score is 1.0).
+  double score;
+
+  /// The message associated with the report.
   std::string message;
 
+  /**
+   * Constructor for Report.
+   * @param status The status of the report.
+   * @param score The score of the report.
+   * @param message The message associated with the report.
+   */
   Report(Status status, double score, std::string message);
 };
 
+/**
+ * Represents the state of the checker.
+ */
 class State {
  public:
+  /// The type of function used to initialize the state.
   using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+
+  /// The type of function used for reporting.
   using Reporter = std::function<auto(const Report& report)->void>;
 
+  /// Random number generator.
   Random rnd;
 
+  /// Input file reader.
   var::Reader inf;
+
+  /// Output file reader.
   var::Reader ouf;
+
+  /// Answer file reader.
   var::Reader ans;
 
-  // Initializer is a function parsing command line arguments and initializing [`checker::State`]
+  /// Initializer is a function parsing command line arguments and initializing `checker::State`
   Initializer initializer;
 
-  // Reporter is a function that reports the given [`checker::Report`] and exits the program.
+  /// Reporter is a function that reports the given `checker::Report` and exits the program.
   Reporter reporter;
 
+  /**
+   * Constructs a new `State` object with the given initializer function.
+   *
+   * @param initializer The initializer function.
+   */
   State(Initializer initializer);
 
+  /**
+   * Destroys the `State` object.
+   */
   ~State();
 
-  // Disable the check for redundant content in the output file
+  /**
+   * Disables the check for redundant content in the output file.
+   */
   auto disable_check_dirt() -> void;
 
-  // Quit checker with status
+  /**
+   * Quits the checker with the given report.
+   *
+   * @param report The report to be reported.
+   */
   [[noreturn]] auto quit(Report report) -> void;
 
-  // Quit checker with [`report::status::ACCEPTED`]
+  /**
+   * Quits the checker with the `report::Status::ACCEPTED` status.
+   */
   [[noreturn]] auto quit_ac() -> void;
 
-  // Quit checker with [`report::status::WRONG_ANSWER`]
+  /**
+   * Quits the checker with the `report::Status::WRONG_ANSWER` status and the given message.
+   *
+   * @param message The message to be reported.
+   */
   [[noreturn]] auto quit_wa(std::string_view message) -> void;
 
-  // Quit checker with [`report::status::PARTIALLY_CORRECT`]
+  /**
+   * Quits the checker with the `report::Status::PARTIALLY_CORRECT` status, the given points, and
+   * message.
+   *
+   * @param points The points to be awarded.
+   * @param message The message to be reported.
+   */
   [[noreturn]] auto quit_pc(double points, std::string_view message) -> void;
 
  private:
+  /// Whether the program has exited.
   bool exited_;
 
-  // Check if the output file has redundant content when reporting
+  /// Whether to check for redundant content in the output file.
   bool check_dirt_;
 };
 
+/**
+ * Initialize state according to default behavior.
+ *
+ * @param state The state object to be initialized.
+ * @param argc The number of command line arguments.
+ * @param argv The command line arguments.
+ */
 auto default_initializer(State& state, int argc, char** argv) -> void;
 
+/**
+ * Report the given report in JSON format.
+ *
+ * @param report The report to be reported.
+ */
 auto json_reporter(const Report& report) -> void;
 
+/**
+ * Report the given report in plain text format for human reading.
+ *
+ * @param report The report to be reported.
+ */
 auto plain_text_reporter(const Report& report) -> void;
 
+/**
+ * Report the given report in colored text format for human reading.
+ *
+ * @param report The report to be reported.
+ */
 auto colored_text_reporter(const Report& report) -> void;
 
-// Macro to register checker
+/**
+ * Macro to register checker with custom initializer.
+ *
+ * @param var_ The variable name of state object to be initialized.
+ * @param initializer_ The initializer function.
+ */
 #define CPLIB_REGISTER_CHECKER_OPT(var_, initializer_) \
   ::cplib::checker::State var_(initializer_);          \
   signed main(signed argc, char** argv) {              \
@@ -692,94 +1484,212 @@ auto colored_text_reporter(const Report& report) -> void;
     return 0;                                          \
   }
 
+/**
+ * Macro to register checker with default initializer.
+ *
+ * @param var The variable name of state object to be initialized.
+ */
 #define CPLIB_REGISTER_CHECKER(var) \
   CPLIB_REGISTER_CHECKER_OPT(var, ::cplib::checker::default_initializer)
 }  // namespace checker
 
 namespace interactor {
+/**
+ * `Report` represents a report showing when interactor exits.
+ */
 struct Report {
+  /**
+   * `Status` represents the status of the report.
+   */
   class Status {
    public:
     enum Value {
+      /// Indicates an internal error occurred.
       INTERNAL_ERROR,
+      /// Indicates the solution is accepted
       ACCEPTED,
+      /// Indicates the solution is incorrect.
       WRONG_ANSWER,
+      /// Indicates the solution is partially correct.
       PARTIALLY_CORRECT,
     };
 
+    /**
+     * Default constructor for Status.
+     */
     Status() = default;
+
+    /**
+     * Constructor for Status with a given value.
+     *
+     * @param value The value of the status.
+     */
     constexpr Status(Value value);
 
+    /**
+     * Implicit conversion operator to Value.
+     *
+     * @return The value of the status.
+     */
     constexpr operator Value() const;
 
+    /**
+     * Deleted conversion operator to bool.
+     *
+     * @return Deleted conversion operator to bool.
+     */
     explicit operator bool() const = delete;
 
+    /**
+     * Get the string representation of the status.
+     *
+     * @return The string representation of the status.
+     */
     constexpr auto to_string() const -> std::string_view;
 
    private:
     Value value_;
   };
 
+  /// The status of the report.
   Status status;
-  double score;  // Full score is 1.0
+
+  /// The score of the report (full score is 1.0).
+  double score;
+
+  /// The message associated with the report.
   std::string message;
 
+  /**
+   * Constructor for Report.
+   * @param status The status of the report.
+   * @param score The score of the report.
+   * @param message The message associated with the report.
+   */
   Report(Status status, double score, std::string message);
 };
 
+/**
+ * Represents the state of the validator.
+ */
 class State {
  public:
+  /// The type of function used to initialize the state.
   using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+
+  /// The type of function used for reporting.
   using Reporter = std::function<auto(const Report& report)->void>;
 
+  /// Random number generator.
   Random rnd;
 
+  /// Input file reader.
   var::Reader inf;
+
+  /// Reader used to read user program stdout.
   var::Reader from_user;
+
+  /// Output stream used to send information to user program stdin.
   std::ostream to_user;
+
+  /// Stream buffer of `to_user`.
   std::unique_ptr<std::streambuf> to_user_buf;
 
-  // Initializer is a function parsing command line arguments and initializing [`interactor::State`]
+  /// Initializer is a function parsing command line arguments and initializing `interactor::State`
   Initializer initializer;
 
-  // Reporter is a function that reports the given [`interactor::Report`] and exits the program.
+  /// Reporter is a function that reports the given `interactor::Report` and exits the program.
   Reporter reporter;
 
+  /**
+   * Constructs a new `State` object with the given initializer function.
+   *
+   * @param initializer The initializer function.
+   */
   State(Initializer initializer);
 
+  /**
+   * Destroys the `State` object.
+   */
   ~State();
 
-  // Disable the check for redundant content in the output file
+  /**
+   * Disables the check for redundant content of `from_user` stream.
+   */
   auto disable_check_dirt() -> void;
 
-  // Quit interactor with status
+  /**
+   * Quits the interactor with the given report.
+   *
+   * @param report The report to be reported.
+   */
   [[noreturn]] auto quit(Report report) -> void;
 
-  // Quit interactor with [`report::status::ACCEPTED`]
+  /**
+   * Quits the interactor with the `report::Status::ACCEPTED` status.
+   */
   [[noreturn]] auto quit_ac() -> void;
 
-  // Quit interactor with [`report::status::WRONG_ANSWER`]
+  /**
+   * Quits the interactor with the `report::Status::WRONG_ANSWER` status and the given message.
+   *
+   * @param message The message to be reported.
+   */
   [[noreturn]] auto quit_wa(std::string_view message) -> void;
 
-  // Quit interactor with [`report::status::PARTIALLY_CORRECT`]
+  /**
+   * Quits the interactor with the `report::Status::PARTIALLY_CORRECT` status, the given points, and
+   * message.
+   *
+   * @param points The points to be awarded.
+   * @param message The message to be reported.
+   */
   [[noreturn]] auto quit_pc(double points, std::string_view message) -> void;
 
  private:
+  /// Whether the program has exited.
   bool exited_;
 
-  // Check if the output file has redundant content when reporting
+  /// Whether to check for redundant content in the `from_user` stream.
   bool check_dirt_;
 };
 
+/**
+ * Initialize state according to default behavior.
+ *
+ * @param state The state object to be initialized.
+ * @param argc The number of command line arguments.
+ * @param argv The command line arguments.
+ */
 auto default_initializer(State& state, int argc, char** argv) -> void;
 
+/**
+ * Report the given report in JSON format.
+ *
+ * @param report The report to be reported.
+ */
 auto json_reporter(const Report& report) -> void;
 
+/**
+ * Report the given report in plain text format for human reading.
+ *
+ * @param report The report to be reported.
+ */
 auto plain_text_reporter(const Report& report) -> void;
 
+/**
+ * Report the given report in colored text format for human reading.
+ *
+ * @param report The report to be reported.
+ */
 auto colored_text_reporter(const Report& report) -> void;
 
-// Macro to register interactor
+/**
+ * Macro to register interactor with custom initializer.
+ *
+ * @param var_ The variable name of state object to be initialized.
+ * @param initializer_ The initializer function.
+ */
 #define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_) \
   ::cplib::interactor::State var_(initializer_);          \
   signed main(signed argc, char** argv) {                 \
@@ -789,99 +1699,229 @@ auto colored_text_reporter(const Report& report) -> void;
     return 0;                                             \
   }
 
+/**
+ * Macro to register interactor with default initializer.
+ *
+ * @param var The variable name of state object to be initialized.
+ */
 #define CPLIB_REGISTER_INTERACTOR(var) \
   CPLIB_REGISTER_INTERACTOR_OPT(var, ::cplib::interactor::default_initializer)
 }  // namespace interactor
 
 namespace validator {
+/**
+ * `Report` represents a report showing when validator exits.
+ */
 struct Report {
+  /**
+   * `Status` represents the status of the report.
+   */
   class Status {
    public:
     enum Value {
+      /// Indicates an internal error occurred.
       INTERNAL_ERROR,
+      /// Indicates the input file is valid.
       VALID,
+      /// Indicates the input file is invalid.
       INVALID,
     };
 
+    /**
+     * Default constructor for Status.
+     */
     Status() = default;
+
+    /**
+     * Constructor for Status with a given value.
+     *
+     * @param value The value of the status.
+     */
     constexpr Status(Value value);
 
+    /**
+     * Implicit conversion operator to Value.
+     *
+     * @return The value of the status.
+     */
     constexpr operator Value() const;
 
+    /**
+     * Deleted conversion operator to bool.
+     *
+     * @return Deleted conversion operator to bool.
+     */
     explicit operator bool() const = delete;
 
+    /**
+     * Get the string representation of the status.
+     *
+     * @return The string representation of the status.
+     */
     constexpr auto to_string() const -> std::string_view;
 
    private:
     Value value_;
   };
 
+  /// The status of the report.
   Status status;
+
+  /// The message associated with the report.
   std::string message;
 
+  /**
+   * Constructor for Report.
+   * @param status The status of the report.
+   * @param message The message associated with the report.
+   */
   Report(Status status, std::string message);
 };
 
 struct Trait {
+  /// Type of function which checks the trait is satisfied.
   using CheckFunc = std::function<auto()->bool>;
 
+  /// The name of the trait.
   std::string name;
+
+  /// The function used to check if the trait is satisfied.
   CheckFunc check_func;
+
+  /// The list of names of traits that this trait depends on.
   std::vector<std::string> dependencies;
 
+  /**
+   * Constructor that takes the name and check function.
+   *
+   * @param name The name of the trait.
+   * @param check_func The function used to check if the trait is satisfied.
+   */
   Trait(std::string name, CheckFunc check_func);
+
+  /**
+   * Constructor that takes the name, check function, and dependencies.
+   *
+   * @param name The name of the trait.
+   * @param check_func The function used to check if the trait is satisfied.
+   * @param dependencies The list of names of traits that this trait depends on.
+   */
   Trait(std::string name, CheckFunc check_func, std::vector<std::string> dependencies);
 };
 
 class State {
  public:
+  /// The type of function used to initialize the state.
   using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+
+  /// The type of function used for reporting.
   using Reporter = std::function<
       auto(const Report& report, const std::map<std::string, bool>& trait_status)->void>;
 
+  /// Random number generator.
   Random rnd;
 
+  /// Input file reader.
   var::Reader inf;
 
-  // Initializer is a function parsing command line arguments and initializing [`validator::State`]
+  /// Initializer is a function parsing command line arguments and initializing `validator::State`.
   Initializer initializer;
 
-  // Reporter is a function that reports the given [`validator::Report`] and exits the program.
+  /// Reporter is a function that reports the given `validator::Report` and exits the program.
   Reporter reporter;
 
+  /**
+   * Constructs a new `State` object with the given initializer function.
+   *
+   * @param initializer The initializer function.
+   */
   State(Initializer initializer);
 
+  /**
+   * Destroys the `State` object.
+   */
   ~State();
 
-  // Set traits
+  /**
+   * Sets the traits of the validator.
+   *
+   * **WARNING**: Calling this function multiple times will overwrite the last trait list.
+   *
+   * @param traits The list of traits.
+   */
   auto traits(std::vector<Trait> traits) -> void;
 
-  // Quit validator with status
+  /**
+   * Quits the validator with the given report.
+   *
+   * @param report The report to be reported.
+   */
   [[noreturn]] auto quit(Report report) -> void;
 
-  // Quit validator with [`report::status::VALID`]
+  /**
+   * Quits the validator with the `report::Status::VALID` status.
+   */
   [[noreturn]] auto quit_valid() -> void;
 
-  // Quit validator with [`report::status::INVALID`]
+  /**
+   * Quits the validator with the `report::Status::INVALID` status and given message.
+   *
+   * @param message The message to be reported.
+   */
   [[noreturn]] auto quit_invalid(std::string_view message) -> void;
 
  private:
+  /// Whether the program has exited.
   bool exited_;
+
+  /// The list of traits of the validator.
   std::vector<Trait> traits_;
+
+  /// The edge set of a directed graph established based on the dependencies between traits.
   std::vector<std::vector<size_t>> trait_edges_;
 };
 
+/**
+ * Initialize state according to default behavior.
+ *
+ * @param state The state object to be initialized.
+ * @param argc The number of command line arguments.
+ * @param argv The command line arguments.
+ */
 auto default_initializer(State& state, int argc, char** argv) -> void;
 
+/**
+ * Report the given report in JSON format.
+ *
+ * @param report The report to be reported.
+ * @param trait_status The status of each trait (satisfied or dissatisfied).
+ */
 auto json_reporter(const Report& report, const std::map<std::string, bool>& trait_status) -> void;
 
+/**
+ * Report the given report in plain text format.
+ *
+ * @param report The report to be reported.
+ * @param trait_status The status of each trait (satisfied or dissatisfied).
+ */
 auto plain_text_reporter(const Report& report, const std::map<std::string, bool>& trait_status)
     -> void;
 
+/**
+ * Report the given report in colored text format.
+ *
+ * @param report The report to be reported.
+ * @param trait_status The status of each trait (satisfied or dissatisfied).
+ */
 auto colored_text_reporter(const Report& report, const std::map<std::string, bool>& trait_status)
     -> void;
 
-// Macro to register validator
+/**
+ * Macro to register validator with custom initializer.
+ *
+ * @param var_ The variable name of state object to be initialized.
+ * @param initializer_ The initializer function.
+ */
 #define CPLIB_REGISTER_VALIDATOR_OPT(var_, initializer_) \
   ::cplib::validator::State var_(initializer_);          \
   signed main(signed argc, char** argv) {                \
@@ -891,87 +1931,185 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
     return 0;                                            \
   }
 
+/**
+ * Macro to register validator with default initializer.
+ *
+ * @param var The variable name of state object to be initialized.
+ */
 #define CPLIB_REGISTER_VALIDATOR(var) \
   CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::default_initializer)
 }  // namespace validator
 
 namespace generator {
+/**
+ * `Report` represents a report showing when generator exits.
+ */
 struct Report {
+  /**
+   * `Status` represents the status of the report.
+   */
   class Status {
    public:
     enum Value {
+      /// Indicates an internal error occurred.
       INTERNAL_ERROR,
+      /// Indicates the program runs normally.
       OK,
     };
 
+    /**
+     * Default constructor for Status.
+     */
     Status() = default;
+
+    /**
+     * Constructor for Status with a given value.
+     *
+     * @param value The value of the status.
+     */
     constexpr Status(Value value);
 
+    /**
+     * Implicit conversion operator to Value.
+     *
+     * @return The value of the status.
+     */
     constexpr operator Value() const;
 
+    /**
+     * Deleted conversion operator to bool.
+     *
+     * @return Deleted conversion operator to bool.
+     */
     explicit operator bool() const = delete;
 
+    /**
+     * Get the string representation of the status.
+     *
+     * @return The string representation of the status.
+     */
     constexpr auto to_string() const -> std::string_view;
 
    private:
     Value value_;
   };
 
+  /// The status of the report.
   Status status;
+
+  /// The message associated with the report.
   std::string message;
 
+  /**
+   * Constructor for Report.
+   * @param status The status of the report.
+   * @param message The message associated with the report.
+   */
   Report(Status status, std::string message);
 };
 
 class State {
  public:
+  /// The type of function used to initialize the state.
   using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+
+  /// The type of function used for reporting.
   using Reporter = std::function<auto(const Report& report)->void>;
+
+  /// The parser function of a flag type (`--flag`) command line argument.
   using FlagParser = std::function<auto(std::set<std::string> flag_args)->void>;
+
+  /// The parser function of a variable type (`--var=value`) command line argument.
   using VarParser = std::function<auto(std::map<std::string, std::string> var_args)->void>;
 
+  /// Random number generator.
   Random rnd;
 
-  // Initializer is a function parsing command line arguments and initializing [`generator::State`]
+  /// Initializer is a function parsing command line arguments and initializing `generator::State`.
   Initializer initializer;
 
-  // Reporter is a function that reports the given [`generator::Report`] and exits the program.
+  /// Reporter is a function that reports the given `generator::Report` and exits the program.
   Reporter reporter;
 
-  // Names of the flag type (`--flag`) command line arguments required by the generator
+  /// Names of the flag type (`--flag`) command line arguments required by the generator.
   std::vector<std::string> required_flag_args;
 
-  // Names of the variable type (`--var=value`) command line arguments required by the generator
+  /// Names of the variable type (`--var=value`) command line arguments required by the generator.
   std::vector<std::string> required_var_args;
 
-  // Functions to parse flag type command line arguments
+  /// Functions to parse flag type command line arguments.
   std::vector<FlagParser> flag_parsers;
 
-  // Functions to parse variable type command line arguments
+  /// Functions to parse variable type command line arguments.
   std::vector<VarParser> var_parsers;
 
+  /**
+   * Constructs a new `State` object with the given initializer function.
+   *
+   * @param initializer The initializer function.
+   */
   State(Initializer initializer);
 
+  /**
+   * Destroys the `State` object.
+   */
   ~State();
 
-  // Quit generator with status
+  /**
+   * Quits the generator with the given report.
+   *
+   * @param report The report to be reported.
+   */
   [[noreturn]] auto quit(Report report) -> void;
 
-  // Quit generator with [`report::status::OK`]
+  /**
+   * Quits the generator with the `report::Status::OK` status.
+   */
   [[noreturn]] auto quit_ok() -> void;
 
  private:
+  /// Whether the program has exited.
   bool exited_;
 };
 
+/**
+ * Initialize state according to default behavior.
+ *
+ * @param state The state object to be initialized.
+ * @param argc The number of command line arguments.
+ * @param argv The command line arguments.
+ */
 auto default_initializer(State& state, int argc, char** argv) -> void;
 
+/**
+ * Report the given report in JSON format.
+ *
+ * @param report The report to be reported.
+ */
 auto json_reporter(const Report& report) -> void;
 
+/**
+ * Report the given report in plain text format for human reading.
+ *
+ * @param report The report to be reported.
+ */
 auto plain_text_reporter(const Report& report) -> void;
 
+/**
+ * Report the given report in colored text format for human reading.
+ *
+ * @param report The report to be reported.
+ */
 auto colored_text_reporter(const Report& report) -> void;
 
+/**
+ * Macro to register generator with custom initializer.
+ *
+ * @param var_name_ The variable name of state object to be initialized.
+ * @param initializer_ The initializer function.
+ * @param args_struct_name_ The name of the command line arguments struct.
+ * @param args_struct_impl_ The implementation of the command line arguments struct.
+ */
 #define CPLIB_REGISTER_GENERATOR_OPT(state_var_name_, initializer_, args_struct_name_,     \
                                      args_struct_impl_)                                    \
   ::cplib::generator::State state_var_name_(initializer_);                                 \
@@ -1020,6 +2158,13 @@ auto colored_text_reporter(const Report& report) -> void;
     return 0;                                                                              \
   }
 
+/**
+ * Macro to register generator with default initializer.
+ *
+ * @param var_name_ The variable name of state object to be initialized.
+ * @param args_struct_name_ The name of the command line arguments struct.
+ * @param args_struct_impl_ The implementation of the command line arguments struct.
+ */
 #define CPLIB_REGISTER_GENERATOR(var, args_struct_name, args_struct_impl)                      \
   CPLIB_REGISTER_GENERATOR_OPT(var, ::cplib::generator::default_initializer, args_struct_name, \
                                args_struct_impl)
