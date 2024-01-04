@@ -8,8 +8,7 @@
  * ```
  */
 
-#include <cstdint>
-#include <numeric>
+#include <algorithm>
 #include <vector>
 
 #include "../../../cplib.hpp"
