@@ -1,1 +1,71 @@
+import { Callout } from "nextra-theme-docs";
+
 # Generator
+
+阅读本章之前，请保证你已阅读过 [Checker](/user-guide/checker) 章节并掌握 `cplib::var::Var` 的基本用法．本章中将不再在对这一部分重复介绍．
+
+Generator，即「生成器」，用于根据命令行参数的要求，按给定方式生成一份测试点输入文件，并通过标准输出（stdout）将生成的数据输出．
+
+大部分情况下，只有调用时给定的命令行参数能够决定 Generator 的生成结果．也就是说，Generator 无需处理任何输入流或输入文件．
+
+<Callout type="info">
+本节的相关代码见 [GitHub 仓库](https://github.com/rindag-devs/cplib/blob/main/tests/generator/0-i32-a-plus-b)．
+</Callout>
+
+我们先从一个简单的场景开始讲解 Generator 的编写和使用．
+
+> **要求**：实现整数 A+B Problem 的输入文件生成器，调用方式为 `./gen [--same] --n-max=<value> --n-min=<value>`．其中 `n-min` 和 `n-max` 规定了整数 $a$ 和 $b$ 的范围．`same` 标志表示是否令 $a = b$．
+
+## 编写
+
+下面是一种 Generator 的参考实现：
+
+```cpp filename="gen.cpp" copy showLineNumbers
+#include "cplib.hpp"
+
+using namespace cplib;
+
+CPLIB_REGISTER_GENERATOR(gen, Args, {
+  Var<var::i32> n_min{var::i32("n-min")};
+  Var<var::i32> n_max{var::i32("n-max")};
+  Flag same{"same"};
+});
+
+void generator_main(const Args& args) {
+  if (args.n_min.value > args.n_max.value) panic("n_min must be less than n_max");
+
+  int a = gen.rnd.next(args.n_min.value, args.n_max.value);
+  int b = args.same.value ? a : gen.rnd.next(args.n_min.value, args.n_max.value);
+
+  std::cout << a << ' ' << b << '\n';
+
+  gen.quit_ok();
+}
+```
+
+Generator 和其他模式的主要不同点体现在 `CPLIB_REGISTER_GENERATOR` 宏．该宏包含三个参数，依次为：
+
+- Generator 状态的全局变量名称．该参数与其他模式的注册宏中的第一个参数作用相同．
+- 绑定到命令行参数的结构体的名称．
+- 绑定到命令行参数的结构体的实现．
+
+例如此处，`Args` 被设定为令行参数的结构体的名称．这会在代码的全局命名空间中导出一个名为 `Args` 的结构体，该结构体的成员将会作为命令行参数的解析器，在 initializer 初始化时自动解析命令行参数．该结构体中的所有成员变量都必须为以下两种类型中的一种：
+
+- `Flag`：指示定义一个「标志风格」（`--var`）的命令行参数．`Flag` 类型的构造函数接收一个 `std::string`，并用它作为命令行参数的名称（即 `--var` 中的 `var` 部分，不包含前面的两个减号）．解析该参数时，会检查 `--var` 是否在命令行参数中存在，若存在则设置成员变量 `value` 为 `true`，不存在则为 `false`．
+- `Var<T>`：指示定义一个「变量风格」（`--var=<value>`）的命令行参数，其中 `T` 为一个变量模板的类型（需继自 `cplib::var::Var` 类）．`Var<T>` 类型的构造函数接收一个 `T` 类型的实例，并用该实例的 `name()` 方法返回的结果作为命令行参数的名称（即 `--var=<value>` 中的 `var` 部分，不包含前面的两个减号）．解析该参数时，将会调用 `T` 类型的 `read_from` 函数解析 `<value>` 字符串，并将解析结果放入 `value` 字段中．
+
+`Args`、`Var<T>`、`Flag` 三个结构体均定义在一个相同的隐藏命名空间中，而仅有 `Args` 被导出到全局命名空间，故无需担心全局命名污染．
+
+## 使用
+
+Generator 的使用与 Checker 大致相同．只不过调用时无需传递文件参数，而是要根据 `Args` 结构体的定义传递命令行参数．
+
+## 建议
+
+综上所述，在编写较为复杂的 Generator 时，我们推荐你遵循如下建议：
+
+- Generator 需要保证生成的结果仅与命令行有关，所以不要使用 `std::time` 或 `std::clock` 等你不能确定每次调用时返回结果相同的函数．
+- 不要使用 `std::rand` 或其他自定义的生成器，你应该使用 `val.rnd`．
+- 不要尝试给 `val.rnd` 手动设置随机数种子，你应该使用 `initializer` 中根据命令行参数自动生成的种子．
+- 你可以任意选择将数据输出到标准输出的方式．但为保证 `std::cout` 的输出效率，CPLib 在 Generator 模式下会自动关闭 C++ 流和 stdio 的同步，所以不要混用 C 风格输出（`std::printf` 等）和 C++ 风格输出（`std::cout` 等）．
+- 如果多个 Generator 程序的数据生成方式大致相同，你应该将其合并为一个 Generator 程序，并使用命令行参数来区分不同之处．
