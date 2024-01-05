@@ -3589,12 +3589,17 @@ inline auto parse_command_line_arguments(State& state, int argc, char** argv) ->
 
 // Disable stdin & stdout
 inline auto disable_stdio() -> void {
+  std::ios_base::sync_with_stdio(false);
   stdin = nullptr;
   stdout = nullptr;
   std::cin.rdbuf(nullptr);
   std::cout.rdbuf(nullptr);
   std::cin.tie(nullptr);
   std::cerr.tie(nullptr);
+  std::wcin.rdbuf(nullptr);
+  std::wcout.rdbuf(nullptr);
+  std::wcin.tie(nullptr);
+  std::wcerr.tie(nullptr);
 }
 }  // namespace detail
 
@@ -4257,6 +4262,9 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
 
   for (const auto& parser : state.flag_parsers) parser(flag_args);
   for (const auto& parser : state.var_parsers) parser(var_args);
+
+  // Unsynchronize to speed up std::cout output.
+  std::ios_base::sync_with_stdio(false);
 
   state.rnd.reseed(argc, argv);
 }
