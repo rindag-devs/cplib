@@ -3,12 +3,21 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "clean": "NODE_OPTIONS=\"--import tsx/esm\" gulp clean",
+    "test": "NODE_OPTIONS=\"--import tsx/esm\" gulp test",
+    "lint": "tsc --noEmit && eslint gulpfile.ts gulp-config/**.ts"
   },
   "type": "module",
   "devDependencies": {
     "@babel/core": "^7.23.7",
     "@babel/eslint-parser": "^7.23.3",
+    "@tsconfig/node16": "^16.1.1",
+    "@types/gulp": "^4.0.17",
+    "@types/lodash": "^4.14.202",
+    "@types/minimist": "^1.2.5",
+    "@types/vinyl": "^2.0.11",
+    "@typescript-eslint/eslint-plugin": "^6.17.0",
+    "@typescript-eslint/parser": "^6.17.0",
     "del": "^7.1.0",
     "eslint": "^8.56.0",
     "eslint-config-alloy": "^5.1.2",
@@ -17,7 +26,11 @@
     "lodash": "^4.17.21",
     "minimist": "^1.2.8",
     "prettier": "^3.1.1",
-    "pupa": "^3.1.0"
+    "pupa": "^3.1.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "vinyl": "^3.0.0"
   },
   "pnpm": {
     "overrides": {
