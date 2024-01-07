@@ -69,7 +69,7 @@
 #endif                          /* __GNUC__ */
 
 #ifdef __GLIBC__
-#define CPLIB_RAND_THROW_STATEMENT throw()
+#define CPLIB_RAND_THROW_STATEMENT noexcept(true)
 #else
 #define CPLIB_RAND_THROW_STATEMENT
 #endif
@@ -193,14 +193,14 @@ class Pattern {
    * @param s The input string to be matched against the pattern.
    * @return True if the given string matches the pattern, False otherwise.
    */
-  auto match(std::string_view s) const -> bool;
+  [[nodiscard]] auto match(std::string_view s) const -> bool;
 
   /**
    * Returns the source string of the pattern.
    *
    * @return The source string representing the regex pattern.
    */
-  auto src() const -> std::string_view;
+  [[nodiscard]] auto src() const -> std::string_view;
 
  private:
   std::string src_;
@@ -397,7 +397,7 @@ class InStream {
    *
    * @return The name of the stream as a string view.
    */
-  auto name() const -> std::string_view;
+  [[nodiscard]] auto name() const -> std::string_view;
 
   /**
    * Moves the stream pointer to the first non-blank character or EOF.
@@ -432,7 +432,7 @@ class InStream {
    *
    * @return True if the stream is in strict mode, false otherwise.
    */
-  auto is_strict() const -> bool;
+  [[nodiscard]] auto is_strict() const -> bool;
 
   /**
    * Sets the strict mode of the stream.
@@ -446,14 +446,14 @@ class InStream {
    *
    * @return The current line number as a size_t.
    */
-  auto line_num() const -> size_t;
+  [[nodiscard]] auto line_num() const -> size_t;
 
   /**
    * Returns the current column number.
    *
    * @return The current column number as a size_t.
    */
-  auto col_num() const -> size_t;
+  [[nodiscard]] auto col_num() const -> size_t;
 
   /**
    * Checks if the current position is EOF.
@@ -519,8 +519,8 @@ class InStream {
   std::string name_;
   bool strict_;         // In strict mode, whitespace characters are not ignored
   FailFunc fail_func_;  // Calls when fail
-  size_t line_num_;
-  size_t col_num_;
+  size_t line_num_{1};
+  size_t col_num_{1};
 };
 }  // namespace io
 
@@ -549,11 +549,17 @@ class Reader {
    */
   explicit Reader(std::unique_ptr<io::InStream> inner);
 
+  /// Copy constructor (deleted to prevent copying).
+  Reader(const Reader&) = delete;
+
+  /// Copy assignment operator (deleted to prevent copying).
+  auto operator=(const Reader&) -> Reader& = delete;
+
   /// Move constructor.
   Reader(Reader&&) = default;
 
   /// Move assignment operator.
-  Reader& operator=(Reader&&) = default;
+  auto operator=(Reader&&) -> Reader& = default;
 
   /**
    * Get the inner wrapped input stream.
@@ -591,12 +597,6 @@ class Reader {
   auto operator()(T... vars) -> std::tuple<typename T::Var::Target...>;
 
  private:
-  /// Copy constructor (deleted to prevent copying).
-  Reader(const Reader&) = delete;
-
-  /// Copy assignment operator (deleted to prevent copying).
-  Reader& operator=(const Reader&) = delete;
-
   std::unique_ptr<io::InStream> inner_;
   std::vector<Trace> traces_;
 };
@@ -627,14 +627,14 @@ class Var {
    *
    * @return The name of the variable as a string_view.
    */
-  auto name() const -> std::string_view;
+  [[nodiscard]] auto name() const -> std::string_view;
 
   /**
    * Clone itself, the derived class (template class D) needs to implement the copy constructor.
    *
    * @return A copy of the variable.
    */
-  auto clone() const -> D;
+  [[nodiscard]] auto clone() const -> D;
 
   /**
    * Creates a copy with a new name.
@@ -642,7 +642,7 @@ class Var {
    * @param name The new name for the variable.
    * @return A copy of the variable with the new name.
    */
-  auto renamed(std::string_view name) const -> D;
+  [[nodiscard]] auto renamed(std::string_view name) const -> D;
 
   /**
    * Parse a variable from a string.
@@ -650,7 +650,7 @@ class Var {
    * @param s The string representation of the variable.
    * @return The parsed value of the variable.
    */
-  auto parse(std::string_view s) const -> T;
+  [[nodiscard]] auto parse(std::string_view s) const -> T;
 
   /**
    * Creates a `var::Vec<D>` containing self of size `len`.
@@ -887,7 +887,7 @@ class Separator : public Var<std::nullopt_t, Separator> {
    *
    * @param sep The separator character.
    */
-  Separator(char sep);
+  explicit Separator(char sep);
 
   /**
    * Constructs a `Separator` object with the specified separator character and name.
@@ -1228,7 +1228,7 @@ class ExtVar : public Var<T, ExtVar<T>> {
    * @param args The second to last arguments to the function `T::read`.
    */
   template <class... Args>
-  ExtVar(std::string name, Args... args);
+  explicit ExtVar(std::string name, Args... args);
 
  protected:
   /**
@@ -1312,14 +1312,14 @@ struct Report {
      *
      * @param value The value of the status.
      */
-    constexpr Status(Value value);
+    constexpr Status(Value value);  // NOLINT(google-explicit-constructor)
 
     /**
      * Implicit conversion operator to Value.
      *
      * @return The value of the status.
      */
-    constexpr operator Value() const;
+    constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
 
     /**
      * Deleted conversion operator to bool.
@@ -1333,7 +1333,7 @@ struct Report {
      *
      * @return The string representation of the status.
      */
-    constexpr auto to_string() const -> std::string_view;
+    [[nodiscard]] constexpr auto to_string() const -> std::string_view;
 
    private:
     Value value_;
@@ -1391,7 +1391,7 @@ class State {
    *
    * @param initializer The initializer function.
    */
-  State(Initializer initializer);
+  explicit State(Initializer initializer);
 
   /**
    * Destroys the `State` object.
@@ -1433,10 +1433,10 @@ class State {
 
  private:
   /// Whether the program has exited.
-  bool exited_;
+  bool exited_{false};
 
   /// Whether to check for redundant content in the output file.
-  bool check_dirt_;
+  bool check_dirt_{true};
 };
 
 /**
@@ -1524,14 +1524,14 @@ struct Report {
      *
      * @param value The value of the status.
      */
-    constexpr Status(Value value);
+    constexpr Status(Value value);  // NOLINT(google-explicit-constructor)
 
     /**
      * Implicit conversion operator to Value.
      *
      * @return The value of the status.
      */
-    constexpr operator Value() const;
+    constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
 
     /**
      * Deleted conversion operator to bool.
@@ -1545,7 +1545,7 @@ struct Report {
      *
      * @return The string representation of the status.
      */
-    constexpr auto to_string() const -> std::string_view;
+    [[nodiscard]] constexpr auto to_string() const -> std::string_view;
 
    private:
     Value value_;
@@ -1606,7 +1606,7 @@ class State {
    *
    * @param initializer The initializer function.
    */
-  State(Initializer initializer);
+  explicit State(Initializer initializer);
 
   /**
    * Destroys the `State` object.
@@ -1648,10 +1648,10 @@ class State {
 
  private:
   /// Whether the program has exited.
-  bool exited_;
+  bool exited_{false};
 
   /// Whether to check for redundant content in the `from_user` stream.
-  bool check_dirt_;
+  bool check_dirt_{true};
 };
 
 /**
@@ -1737,14 +1737,14 @@ struct Report {
      *
      * @param value The value of the status.
      */
-    constexpr Status(Value value);
+    constexpr Status(Value value);  // NOLINT(google-explicit-constructor)
 
     /**
      * Implicit conversion operator to Value.
      *
      * @return The value of the status.
      */
-    constexpr operator Value() const;
+    constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
 
     /**
      * Deleted conversion operator to bool.
@@ -1758,7 +1758,7 @@ struct Report {
      *
      * @return The string representation of the status.
      */
-    constexpr auto to_string() const -> std::string_view;
+    [[nodiscard]] constexpr auto to_string() const -> std::string_view;
 
    private:
     Value value_;
@@ -1835,7 +1835,7 @@ class State {
    *
    * @param initializer The initializer function.
    */
-  State(Initializer initializer);
+  explicit State(Initializer initializer);
 
   /**
    * Destroys the `State` object.
@@ -1872,7 +1872,7 @@ class State {
 
  private:
   /// Whether the program has exited.
-  bool exited_;
+  bool exited_{false};
 
   /// The list of traits of the validator.
   std::vector<Trait> traits_;
@@ -1967,14 +1967,14 @@ struct Report {
      *
      * @param value The value of the status.
      */
-    constexpr Status(Value value);
+    constexpr Status(Value value);  // NOLINT(google-explicit-constructor)
 
     /**
      * Implicit conversion operator to Value.
      *
      * @return The value of the status.
      */
-    constexpr operator Value() const;
+    constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
 
     /**
      * Deleted conversion operator to bool.
@@ -1988,7 +1988,7 @@ struct Report {
      *
      * @return The string representation of the status.
      */
-    constexpr auto to_string() const -> std::string_view;
+    [[nodiscard]] constexpr auto to_string() const -> std::string_view;
 
    private:
     Value value_;
@@ -2048,7 +2048,7 @@ class State {
    *
    * @param initializer The initializer function.
    */
-  State(Initializer initializer);
+  explicit State(Initializer initializer);
 
   /**
    * Destroys the `State` object.
@@ -2060,7 +2060,7 @@ class State {
    *
    * @param report The report to be reported.
    */
-  [[noreturn]] auto quit(Report report) -> void;
+  [[noreturn]] auto quit(const Report& report) -> void;
 
   /**
    * Quits the generator with the `report::Status::OK` status.
@@ -2069,7 +2069,7 @@ class State {
 
  private:
   /// Whether the program has exited.
-  bool exited_;
+  bool exited_{false};
 };
 
 /**
@@ -2192,23 +2192,24 @@ inline auto has_colors() -> bool {
   return isatty(fileno(stderr));
 }
 
-inline auto json_string_encode(char c) -> std::string {
-  if (c == '\\')
+inline auto json_string_encode(int c) -> std::string {
+  if (c == '\\') {
     return "\\\\";
-  else if (c == '\b')
+  } else if (c == '\b') {
     return "\\b";
-  else if (c == '\f')
+  } else if (c == '\f') {
     return "\\f";
-  else if (c == '\n')
+  } else if (c == '\n') {
     return "\\n";
-  else if (c == '\r')
+  } else if (c == '\r') {
     return "\\r";
-  else if (c == '\t')
+  } else if (c == '\t') {
     return "\\t";
-  else if (!isprint(c))
+  } else if (!isprint(c)) {
     return format("\\u%04x", static_cast<int>(c));
-  else
-    return std::string{c};
+  } else {
+    return {static_cast<char>(c)};
+  }
 }
 
 inline auto json_string_encode(std::string_view s) -> std::string {
@@ -2217,23 +2218,24 @@ inline auto json_string_encode(std::string_view s) -> std::string {
   return result;
 }
 
-inline auto hex_encode(char c) -> std::string {
-  if (c == '\\')
+inline auto hex_encode(int c) -> std::string {
+  if (c == '\\') {
     return "\\\\";
-  else if (c == '\b')
+  } else if (c == '\b') {
     return "\\b";
-  else if (c == '\f')
+  } else if (c == '\f') {
     return "\\f";
-  else if (c == '\n')
+  } else if (c == '\n') {
     return "\\n";
-  else if (c == '\r')
+  } else if (c == '\r') {
     return "\\r";
-  else if (c == '\t')
+  } else if (c == '\t') {
     return "\\t";
-  else if (!isprint(c))
+  } else if (!isprint(c)) {
     return format("\\x%02x", static_cast<int>(c));
-  else
-    return std::string{c};
+  } else {
+    return {static_cast<char>(c)};
+  }
 }
 
 inline auto hex_encode(std::string_view s) -> std::string {
@@ -2285,10 +2287,12 @@ CPLIB_PRINTF_LIKE(1, 2) inline auto format(const char* fmt, ...) -> std::string 
 
 template <class T>
 inline auto float_equals(T expected, T result, T max_err) -> bool {
-  if (bool x_nan = std::isnan(expected), y_nan = std::isnan(result); x_nan || y_nan)
+  if (bool x_nan = std::isnan(expected), y_nan = std::isnan(result); x_nan || y_nan) {
     return x_nan && y_nan;
-  if (bool x_inf = std::isinf(expected), y_inf = std::isinf(result); x_inf || y_inf)
+  }
+  if (bool x_inf = std::isinf(expected), y_inf = std::isinf(result); x_inf || y_inf) {
     return x_inf && y_inf && (expected > 0) == (result > 0);
+  }
 
   max_err += 1e-15;
 
@@ -2313,21 +2317,23 @@ inline auto float_delta(T expected, T result) -> T {
 
 inline auto compress(std::string_view s) -> std::string {
   auto t = detail::hex_encode(s);
-  if (t.size() <= 64)
-    return std::string(t);
-  else
-    return std::string(t.substr(0, 30)) + "..." + std::string(t.substr(t.size() - 31, 31));
+  if (t.size() <= 64) {
+    return {t};
+  } else {
+    return static_cast<std::string>(t.substr(0, 30)) + "..." +
+           static_cast<std::string>(t.substr(t.size() - 31, 31));
+  }
 }
 
 inline auto trim(std::string_view s) -> std::string {
   if (s.empty()) return std::string(s);
 
   ssize_t left = 0;
-  while (left < ssize_t(s.size()) && std::isspace(s[left])) left++;
-  if (left >= ssize_t(s.size())) return "";
+  while (left < static_cast<ssize_t>(s.size()) && std::isspace(s[left])) ++left;
+  if (left >= static_cast<ssize_t>(s.size())) return "";
 
-  ssize_t right = ssize_t(s.size()) - 1;
-  while (right >= 0 && std::isspace(s[right])) right--;
+  ssize_t right = static_cast<ssize_t>(s.size()) - 1;
+  while (right >= 0 && std::isspace(s[right])) --right;
   if (right < 0) return "";
 
   return std::string(s.substr(left, right - left + 1));
@@ -2338,10 +2344,11 @@ inline auto join(It first, It last, char separator) -> std::string {
   std::string result;
   bool repeated = false;
   for (It i = first; i != last; ++i) {
-    if (repeated)
+    if (repeated) {
       result.push_back(separator);
-    else
+    } else {
       repeated = true;
+    }
     result += *i;
   }
   return result;
@@ -2350,12 +2357,14 @@ inline auto join(It first, It last, char separator) -> std::string {
 inline auto split(std::string_view s, char separator) -> std::vector<std::string> {
   std::vector<std::string> result;
   std::string item;
-  for (size_t i = 0; i < s.size(); ++i)
-    if (s[i] == separator) {
+  for (char i : s) {
+    if (i == separator) {
       result.push_back(item);
       item.clear();
-    } else
-      item.push_back(s[i]);
+    } else {
+      item.push_back(i);
+    }
+  }
   result.push_back(item);
   return result;
 }
@@ -2363,12 +2372,14 @@ inline auto split(std::string_view s, char separator) -> std::vector<std::string
 inline auto tokenize(std::string_view s, char separator) -> std::vector<std::string> {
   std::vector<std::string> result;
   std::string item;
-  for (size_t i = 0; i < s.size(); ++i)
-    if (s[i] == separator) {
+  for (char i : s) {
+    if (i == separator) {
       if (!item.empty()) result.push_back(item);
       item.clear();
-    } else
-      item.push_back(s[i]);
+    } else {
+      item.push_back(i);
+    }
+  }
   if (!item.empty()) result.push_back(item);
   return result;
 }
@@ -2376,7 +2387,7 @@ inline auto tokenize(std::string_view s, char separator) -> std::vector<std::str
 // Impl Pattern {{{
 namespace detail {
 inline auto get_regex_err_msg(int err_code, regex_t* re) -> std::string {
-  size_t len = regerror(err_code, re, NULL, 0);
+  size_t len = regerror(err_code, re, nullptr, 0);
   std::string buf(len, 0);
   regerror(err_code, re, buf.data(), len);
   return buf;
@@ -2432,8 +2443,9 @@ inline auto Random::reseed(int argc, char** argv) -> void {
 
   for (int i = 1; i < argc; ++i) {
     size_t le = std::strlen(argv[i]);
-    for (size_t j = 0; j < le; j++)
+    for (size_t j = 0; j < le; ++j) {
       seed = seed * multiplier + static_cast<uint32_t>(argv[i][j]) + addend;
+    }
     seed += multiplier / addend;
   }
 
@@ -2444,16 +2456,20 @@ inline auto Random::engine() -> Engine& { return engine_; }
 
 template <class T>
 inline auto Random::next(T from, T to) -> typename std::enable_if<std::is_integral_v<T>, T>::type {
-  if (from < to)  // Allow range from higher to lower
+  // Allow range from higher to lower
+  if (from < to) {
     return IntegerDist<T>{from, to}(engine());
+  }
   return IntegerDist<T>{to, from}(engine());
 }
 
 template <class T>
 inline auto Random::next(T from, T to) ->
     typename std::enable_if<std::is_floating_point_v<T>, T>::type {
-  if (from < to)  // Allow range from higher to lower
+  // Allow range from higher to lower
+  if (from < to) {
     return RealDist<T>{from, to}(engine());
+  }
   return RealDist<T>{to, from}(engine());
 }
 
@@ -2527,7 +2543,7 @@ namespace detail {
 // https://www.josuttis.com/cppcode/fdstream.html
 class FdOutBuf : public std::streambuf {
  public:
-  FdOutBuf(int fd) : fd_(fd) {
+  explicit FdOutBuf(int fd) : fd_(fd) {
 #ifdef ON_WINDOWS
     _setmode(fd_, _O_BINARY);  // Sets file mode to binary
 #endif
@@ -2535,9 +2551,9 @@ class FdOutBuf : public std::streambuf {
 
  protected:
   // Write one character
-  virtual int_type overflow(int_type c) {
+  auto overflow(int_type c) -> int_type override {
     if (c != EOF) {
-      char z = c;
+      auto z = static_cast<char>(c);
       if (write(fd_, &z, 1) != 1) {
         return EOF;
       }
@@ -2545,7 +2561,9 @@ class FdOutBuf : public std::streambuf {
     return c;
   }
   // Write multiple characters
-  virtual std::streamsize xsputn(const char* s, std::streamsize num) { return write(fd_, s, num); }
+  auto xsputn(const char* s, std::streamsize num) -> std::streamsize override {
+    return write(fd_, s, num);
+  }
 
   int fd_;  // File descriptor
 };
@@ -2566,14 +2584,14 @@ class FdInBuf : public std::streambuf {
 #ifdef ON_WINDOWS
     _setmode(fd_, _O_BINARY);  // Sets file mode to binary
 #endif
-    setg(buf_ + PB_SIZE,   // Beginning of putback area
-         buf_ + PB_SIZE,   // Read position
-         buf_ + PB_SIZE);  // End position
+    setg(buf_.begin() + PB_SIZE,   // Beginning of putback area
+         buf_.begin() + PB_SIZE,   // Read position
+         buf_.begin() + PB_SIZE);  // End position
   }
 
  protected:
   // Insert new characters into the buffer
-  virtual int_type underflow() {
+  auto underflow() -> int_type override {
     // Is read position before end of buffer?
     if (gptr() < egptr()) {
       return traits_type::to_int_type(*gptr());
@@ -2584,25 +2602,25 @@ class FdInBuf : public std::streambuf {
      * - Use number of characters read
      * - But at most size of putback area
      */
-    int num_putback = gptr() - eback();
+    ssize_t num_putback = gptr() - eback();
     if (num_putback > PB_SIZE) {
       num_putback = PB_SIZE;
     }
 
     // Copy up to PB_SIZE characters previously read into the putback area
-    std::memmove(buf_ + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
+    std::memmove(buf_.begin() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
 
     // Read at most bufSize new characters
-    int num = read(fd_, buf_ + PB_SIZE, BUF_SIZE);
+    ssize_t num = read(fd_, buf_.begin() + PB_SIZE, BUF_SIZE);
     if (num <= 0) {
       // Error or EOF
       return EOF;
     }
 
     // Reset buffer pointers
-    setg(buf_ + (PB_SIZE - num_putback),  // Beginning of putback area
-         buf_ + PB_SIZE,                  // Read position
-         buf_ + PB_SIZE + num);           // End of buffer
+    setg(buf_.begin() + (PB_SIZE - num_putback),  // Beginning of putback area
+         buf_.begin() + PB_SIZE,                  // Read position
+         buf_.begin() + PB_SIZE + num);           // End of buffer
 
     // Return next character
     return traits_type::to_int_type(*gptr());
@@ -2614,9 +2632,9 @@ class FdInBuf : public std::streambuf {
    * - At most, pbSize characters in putback area plus
    * - At most, bufSize characters in ordinary read buffer
    */
-  static constexpr int PB_SIZE = 4;       // Size of putback area
-  static constexpr int BUF_SIZE = 65536;  // Size of the data buffer
-  char buf_[BUF_SIZE + PB_SIZE];          // Data buffer
+  static constexpr int PB_SIZE = 4;           // Size of putback area
+  static constexpr int BUF_SIZE = 65536;      // Size of the data buffer
+  std::array<char, BUF_SIZE + PB_SIZE> buf_;  // Data buffer
 };
 }  // namespace detail
 
@@ -2624,10 +2642,8 @@ inline InStream::InStream(std::unique_ptr<std::streambuf> buf, std::string name,
                           FailFunc fail_func)
     : buf_(std::move(buf)),
       name_(std::move(name)),
-      strict_(std::move(strict)),
-      fail_func_(std::move(fail_func)),
-      line_num_(1),
-      col_num_(1) {}
+      strict_(strict),
+      fail_func_(std::move(fail_func)) {}
 
 inline auto InStream::name() const -> std::string_view { return name_; }
 
@@ -2643,10 +2659,11 @@ inline auto InStream::seek() -> int { return buf_->sgetc(); }
 inline auto InStream::read() -> int {
   int c = buf_->sbumpc();
   if (c == EOF) return EOF;
-  if (c == '\n')
+  if (c == '\n') {
     ++line_num_, col_num_ = 1;
-  else
+  } else {
     ++col_num_;
+  }
   return c;
 }
 
@@ -2663,9 +2680,10 @@ inline auto InStream::read_n(size_t n) -> std::string {
 inline auto InStream::is_strict() const -> bool { return strict_; }
 
 inline auto InStream::set_strict(bool b) -> void {
-  if (line_num() != 1 || col_num() != 1)
+  if (line_num() != 1 || col_num() != 1) {
     panic(format("Can't set strict mode of `%s` when not at the beginning of the file",
                  name().data()));
+  }
   strict_ = b;
 }
 
@@ -2689,8 +2707,9 @@ inline auto InStream::seek_eoln() -> bool {
 
 inline auto InStream::next_line() -> void {
   int c;
-  do c = read();
-  while (c != EOF && c != '\n');
+  do {
+    c = read();
+  } while (c != EOF && c != '\n');
 }
 
 inline auto InStream::read_token() -> std::string {
@@ -2699,7 +2718,7 @@ inline auto InStream::read_token() -> std::string {
   std::string token;
   while (true) {
     if (int c = seek(); c == EOF || std::isspace(c)) break;
-    token.push_back(read());
+    token.push_back(static_cast<char>(read()));
   }
   return token;
 }
@@ -2725,8 +2744,9 @@ namespace detail {
 inline auto make_file_reader(std::string_view path, std::string name, bool strict,
                              io::InStream::FailFunc fail_func) -> var::Reader {
   auto buf = std::make_unique<std::filebuf>();
-  if (!buf->open(path.data(), std::ios::binary | std::ios::in))
+  if (!buf->open(path.data(), std::ios::binary | std::ios::in)) {
     panic(format("Can not open file `%s` as input stream", path.data()));
+  }
   return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict,
                                                     std::move(fail_func)));
 }
@@ -2792,7 +2812,7 @@ inline constexpr std::string_view VAR_DEFAULT_NAME("<unnamed>");
 }
 
 template <class T, class D>
-inline Var<T, D>::~Var() {}
+inline Var<T, D>::~Var() = default;
 
 template <class T, class D>
 inline auto Var<T, D>::name() const -> std::string_view {
@@ -2854,11 +2874,12 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
   auto token = in.inner().read_token();
 
   if (token.empty()) {
-    if (in.inner().eof())
+    if (in.inner().eof()) {
       in.fail("Expected an integer, got EOF");
-    else
+    } else {
       in.fail(format("Expected an integer, got whitespace `%s`",
                      cplib::detail::hex_encode(in.inner().seek()).c_str()));
+    }
   }
 
   T result{};
@@ -2901,11 +2922,12 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
   auto token = in.inner().read_token();
 
   if (token.empty()) {
-    if (in.inner().eof())
+    if (in.inner().eof()) {
       in.fail("Expected a float, got EOF");
-    else
+    } else {
       in.fail(format("Expected a float, got whitespace `%s`",
                      cplib::detail::hex_encode(in.inner().seek()).c_str()));
+    }
   }
 
   // `Float<T>` usually uses with non-strict streams, so it should support both fixed format and
@@ -2941,11 +2963,12 @@ inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_
     : Var<T, StrictFloat<T>>(std::move(name)),
       min(std::move(min)),
       max(std::move(max)),
-      min_n_digit(std::move(min_n_digit)),
-      max_n_digit(std::move(max_n_digit)) {
+      min_n_digit(min_n_digit),
+      max_n_digit(max_n_digit) {
   if (min > max) panic("StrictFloat constructor failed: min must be <= max");
-  if (min_n_digit > max_n_digit)
+  if (min_n_digit > max_n_digit) {
     panic("StrictFloat constructor failed: min_n_digit must be <= max_n_digit");
+  }
 }
 
 template <class T>
@@ -2953,16 +2976,17 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
   auto token = in.inner().read_token();
 
   if (token.empty()) {
-    if (in.inner().eof())
+    if (in.inner().eof()) {
       in.fail("Expected a strict float, got EOF");
-    else
+    } else {
       in.fail(format("Expected a strict float, got whitespace `%s`",
                      cplib::detail::hex_encode(in.inner().seek()).c_str()));
+    }
   }
 
-  auto pat = Pattern(min_n_digit == 0
-                         ? format("-?([1-9][0-9]*|0)(\\.[0-9]{,%zu})?", max_n_digit)
-                         : format("-?([1-9][0-9]*|0)\\.[0-9]{%zu,%zu}", min_n_digit, max_n_digit));
+  Pattern pat(min_n_digit == 0
+                  ? format("-?([1-9][0-9]*|0)(\\.[0-9]{,%zu})?", max_n_digit)
+                  : format("-?([1-9][0-9]*|0)\\.[0-9]{%zu,%zu}", min_n_digit, max_n_digit));
 
   if (!pat.match(token)) {
     in.fail(format("Expected a strict float, got `%s`", compress(token).c_str()));
@@ -3005,11 +3029,12 @@ inline auto String::read_from(Reader& in) const -> std::string {
   auto token = in.inner().read_token();
 
   if (token.empty()) {
-    if (in.inner().eof())
+    if (in.inner().eof()) {
       in.fail("Expected a string, got EOF");
-    else
+    } else {
       in.fail(format("Expected a string, got whitespace `%s`",
                      cplib::detail::hex_encode(in.inner().seek()).c_str()));
+    }
   }
 
   if (pat.has_value() && !pat->match(token)) {
@@ -3021,32 +3046,35 @@ inline auto String::read_from(Reader& in) const -> std::string {
 }
 
 // Impl Separator {{{
-inline Separator::Separator(char sep)
-    : Separator(std::move(sep), std::string(detail::VAR_DEFAULT_NAME)) {}
+inline Separator::Separator(char sep) : Separator(sep, std::string(detail::VAR_DEFAULT_NAME)) {}
 
 inline Separator::Separator(char sep, std::string name)
-    : Var<std::nullopt_t, Separator>(std::move(name)), sep(std::move(sep)) {}
+    : Var<std::nullopt_t, Separator>(std::move(name)), sep(sep) {}
 
 inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
-  if (in.inner().eof())
+  if (in.inner().eof()) {
     in.fail(format("Expected a separator `%s`, got EOF", cplib::detail::hex_encode(sep).c_str()));
+  }
 
   if (in.inner().is_strict()) {
     auto got = in.inner().read();
-    if (got != sep)
+    if (got != sep) {
       in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
                      cplib::detail::hex_encode(got).c_str()));
+    }
   } else if (std::isspace(sep)) {
     auto got = in.inner().read();
-    if (!std::isspace(got))
+    if (!std::isspace(got)) {
       in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
                      cplib::detail::hex_encode(got).c_str()));
+    }
   } else {
     in.inner().skip_blanks();
     auto got = in.inner().read();
-    if (got != sep)
+    if (got != sep) {
       in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
                      cplib::detail::hex_encode(got).c_str()));
+    }
   }
 
   return std::nullopt;
@@ -3084,7 +3112,7 @@ template <class T>
 inline Vec<T>::Vec(T element, size_t len, Separator sep)
     : Var<std::vector<typename T::Var::Target>, Vec<T>>(std::string(element.name())),
       element(std::move(element)),
-      len(std::move(len)),
+      len(len),
       sep(std::move(sep)) {}
 
 template <class T>
@@ -3104,8 +3132,8 @@ template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1, Separator sep0, Separator sep1)
     : Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>>(std::string(element.name())),
       element(std::move(element)),
-      len0(std::move(len0)),
-      len1(std::move(len1)),
+      len0(len0),
+      len1(len1),
       sep0(std::move(sep0)),
       sep1(std::move(sep1)) {}
 
@@ -3242,7 +3270,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
 }
 
 inline Report::Report(Report::Status status, double score, std::string message)
-    : status(std::move(status)), score(std::move(score)), message(std::move(message)) {}
+    : status(status), score(score), message(std::move(message)) {}
 
 // Impl State {{{
 inline State::State(Initializer initializer)
@@ -3251,9 +3279,7 @@ inline State::State(Initializer initializer)
       ouf(var::Reader(nullptr)),
       ans(var::Reader(nullptr)),
       initializer(std::move(initializer)),
-      reporter(json_reporter),
-      exited_(false),
-      check_dirt_(true) {
+      reporter(json_reporter) {
   cplib::detail::panic_impl = [this](std::string_view msg) {
     quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
   };
@@ -3314,12 +3340,13 @@ inline auto print_help_message(std::string_view program_name) -> void {
 }
 
 inline auto detect_reporter(State& state) -> void {
-  if (!isatty(fileno(stderr)))
+  if (!isatty(fileno(stderr))) {
     state.reporter = json_reporter;
-  else if (cplib::detail::has_colors())
+  } else if (cplib::detail::has_colors()) {
     state.reporter = colored_text_reporter;
-  else
+  } else {
     state.reporter = plain_text_reporter;
+  }
 }
 
 // Set the report format of `state` according to the string `format`.
@@ -3331,10 +3358,11 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   } else if (format == "json") {
     state.reporter = json_reporter;
   } else if (format == "text") {
-    if (cplib::detail::has_colors())
+    if (cplib::detail::has_colors()) {
       state.reporter = colored_text_reporter;
-    else
+    } else {
       state.reporter = plain_text_reporter;
+    }
   } else {
     return false;
   }
@@ -3343,8 +3371,9 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 
 inline auto parse_command_line_arguments(State& state, int argc, char** argv)
     -> std::array<std::string_view, 3> {
-  if (argc < 4)
+  if (argc < 4) {
     panic("Program must be run with the following arguments:\n  " + std::string(ARGS_USAGE));
+  }
 
   for (int i = 4; i < argc; ++i) {
     auto arg = std::string_view(argv[i]);
@@ -3417,7 +3446,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }  // namespace detail
 
 inline auto json_reporter(const Report& report) -> void {
-  auto msg = format("{\"status\": \"%s\", \"score\": %.3f, \"message\": \"%s\"}",
+  auto msg = format(R"({"status": "%s", "score": %.3f, "message": "%s"})",
                     report.status.to_string().data(), report.score,
                     cplib::detail::json_string_encode(report.message).c_str());
   std::clog << msg << '\n';
@@ -3468,7 +3497,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
 }
 
 inline Report::Report(Report::Status status, double score, std::string message)
-    : status(std::move(status)), score(std::move(score)), message(std::move(message)) {}
+    : status(status), score(score), message(std::move(message)) {}
 
 // Impl State {{{
 inline State::State(Initializer initializer)
@@ -3478,9 +3507,7 @@ inline State::State(Initializer initializer)
       to_user(std::ostream(nullptr)),
       to_user_buf(nullptr),
       initializer(std::move(initializer)),
-      reporter(json_reporter),
-      exited_(false),
-      check_dirt_(true) {
+      reporter(json_reporter) {
   cplib::detail::panic_impl = [this](std::string_view msg) {
     quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
   };
@@ -3540,12 +3567,13 @@ inline auto print_help_message(std::string_view program_name) -> void {
 }
 
 inline auto detect_reporter(State& state) -> void {
-  if (!isatty(fileno(stderr)))
+  if (!isatty(fileno(stderr))) {
     state.reporter = json_reporter;
-  else if (cplib::detail::has_colors())
+  } else if (cplib::detail::has_colors()) {
     state.reporter = colored_text_reporter;
-  else
+  } else {
     state.reporter = plain_text_reporter;
+  }
 }
 
 // Set the report format of `state` according to the string `format`.
@@ -3557,10 +3585,11 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   } else if (format == "json") {
     state.reporter = json_reporter;
   } else if (format == "text") {
-    if (cplib::detail::has_colors())
+    if (cplib::detail::has_colors()) {
       state.reporter = colored_text_reporter;
-    else
+    } else {
       state.reporter = plain_text_reporter;
+    }
   } else {
     return false;
   }
@@ -3568,8 +3597,9 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 
 inline auto parse_command_line_arguments(State& state, int argc, char** argv) -> std::string_view {
-  if (argc < 2)
+  if (argc < 2) {
     panic("Program must be run with the following arguments:\n  " + std::string(ARGS_USAGE));
+  }
 
   for (int i = 2; i < argc; ++i) {
     auto arg = std::string_view(argv[i]);
@@ -3658,7 +3688,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }  // namespace detail
 
 inline auto json_reporter(const Report& report) -> void {
-  auto msg = format("{\"status\": \"%s\", \"score\": %.3f, \"message\": \"%s\"}",
+  auto msg = format(R"({"status": "%s", "score": %.3f, "message": "%s"})",
                     report.status.to_string().data(), report.score,
                     cplib::detail::json_string_encode(report.message).c_str());
   std::clog << msg << '\n';
@@ -3707,7 +3737,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
 }
 
 inline Report::Report(Report::Status status, std::string message)
-    : status(std::move(status)), message(std::move(message)) {}
+    : status(status), message(std::move(message)) {}
 
 inline Trait::Trait(std::string name, CheckFunc check_func)
     : Trait(std::move(name), std::move(check_func), {}) {}
@@ -3724,11 +3754,11 @@ namespace detail {
  * If `fn` returns false, nodes reachable by the current node will no longer be visited.
  */
 inline auto topo_sort(const std::vector<std::vector<size_t>>& edges,
-                      std::function<auto(size_t)->bool> callback) -> void {
+                      const std::function<auto(size_t)->bool>& callback) -> void {
   std::vector<size_t> degree(edges.size(), 0);
 
-  for (size_t i = 0; i < edges.size(); ++i) {
-    for (auto to : edges[i]) ++degree[to];
+  for (const auto& edge : edges) {
+    for (auto to : edge) ++degree[to];
   }
 
   std::queue<size_t> queue;
@@ -3820,7 +3850,7 @@ inline State::State(Initializer initializer)
       inf(var::Reader(nullptr)),
       initializer(std::move(initializer)),
       reporter(json_reporter),
-      exited_(false),
+
       traits_(),
       trait_edges_() {
   cplib::detail::panic_impl = [this](std::string_view msg) {
@@ -3887,12 +3917,13 @@ inline auto print_help_message(std::string_view program_name) -> void {
 }
 
 inline auto detect_reporter(State& state) -> void {
-  if (!isatty(fileno(stderr)))
+  if (!isatty(fileno(stderr))) {
     state.reporter = json_reporter;
-  else if (cplib::detail::has_colors())
+  } else if (cplib::detail::has_colors()) {
     state.reporter = colored_text_reporter;
-  else
+  } else {
     state.reporter = plain_text_reporter;
+  }
 }
 
 // Set the report format of `state` according to the string `format`.
@@ -3904,10 +3935,11 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   } else if (format == "json") {
     state.reporter = json_reporter;
   } else if (format == "text") {
-    if (cplib::detail::has_colors())
+    if (cplib::detail::has_colors()) {
       state.reporter = colored_text_reporter;
-    else
+    } else {
       state.reporter = plain_text_reporter;
+    }
   } else {
     return false;
   }
@@ -3918,10 +3950,11 @@ inline auto parse_command_line_arguments(State& state, int argc, char** argv) ->
   std::string_view inf_path;
   int opts_args_start = 2;
 
-  if (argc < 2 || argv[1][0] == '\0' || argv[1][0] == '-')
+  if (argc < 2 || argv[1][0] == '\0' || argv[1][0] == '-') {
     opts_args_start = 1;
-  else
+  } else {
     inf_path = argv[1];
+  }
 
   for (int i = opts_args_start; i < argc; ++i) {
     auto arg = std::string_view(argv[i]);
@@ -3995,7 +4028,7 @@ inline auto json_reporter(const Report& report, const std::map<std::string, bool
     -> void {
   std::clog << std::boolalpha;
 
-  std::clog << "{\"status\": \"" << report.status.to_string() << "\", \"message\": \""
+  std::clog << R"({"status": ")" << report.status.to_string() << R"(", "message": ")"
             << cplib::detail::json_string_encode(report.message) << "\"";
 
   if (report.status == Report::Status::VALID) {
@@ -4030,10 +4063,11 @@ inline auto plain_text_reporter(const Report& report,
 
     std::vector<std::string> satisfied, dissatisfied;
     for (auto [name, satisfaction] : trait_status) {
-      if (satisfaction)
+      if (satisfaction) {
         satisfied.push_back(name);
-      else
+      } else {
         dissatisfied.push_back(name);
+      }
     }
 
     for (const auto& name : satisfied) {
@@ -4060,10 +4094,11 @@ inline auto colored_text_reporter(const Report& report,
 
     std::vector<std::string> satisfied, dissatisfied;
     for (auto [name, satisfaction] : trait_status) {
-      if (satisfaction)
+      if (satisfaction) {
         satisfied.push_back(name);
-      else
+      } else {
         dissatisfied.push_back(name);
+      }
     }
 
     for (const auto& name : satisfied) {
@@ -4097,7 +4132,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
 }
 
 inline Report::Report(Report::Status status, std::string message)
-    : status(std::move(status)), message(std::move(message)) {}
+    : status(status), message(std::move(message)) {}
 
 // Impl State {{{
 inline State::State(Initializer initializer)
@@ -4107,8 +4142,7 @@ inline State::State(Initializer initializer)
       required_flag_args(),
       required_var_args(),
       flag_parsers(),
-      var_parsers(),
-      exited_(false) {
+      var_parsers() {
   cplib::detail::panic_impl = [this](std::string_view msg) {
     quit(Report(Report::Status::INTERNAL_ERROR, std::string(msg)));
   };
@@ -4119,7 +4153,7 @@ inline State::~State() {
   if (!exited_) panic("Generator must exit by calling method `State::quit*`");
 }
 
-inline auto State::quit(Report report) -> void {
+inline auto State::quit(const Report& report) -> void {
   exited_ = true;
 
   reporter(report);
@@ -4159,12 +4193,13 @@ inline auto print_help_message(std::string_view program_name, std::string_view a
 }
 
 inline auto detect_reporter(State& state) -> void {
-  if (!isatty(fileno(stderr)))
+  if (!isatty(fileno(stderr))) {
     state.reporter = json_reporter;
-  else if (cplib::detail::has_colors())
+  } else if (cplib::detail::has_colors()) {
     state.reporter = colored_text_reporter;
-  else
+  } else {
     state.reporter = plain_text_reporter;
+  }
 }
 
 // Set the report format of `state` according to the string `format`.
@@ -4176,10 +4211,11 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   } else if (format == "json") {
     state.reporter = json_reporter;
   } else if (format == "text") {
-    if (cplib::detail::has_colors())
+    if (cplib::detail::has_colors()) {
       state.reporter = colored_text_reporter;
-    else
+    } else {
       state.reporter = plain_text_reporter;
+    }
   } else {
     return false;
   }
@@ -4236,6 +4272,7 @@ inline auto validate_required_arguments(const State& state,
 inline auto get_args_usage(const State& state) {
   using namespace std::string_literals;
   std::vector<std::string> builder;
+  builder.reserve(state.required_flag_args.size() + state.required_var_args.size());
   for (const auto& arg : state.required_flag_args) builder.push_back("[--"s + arg + "]"s);
   for (const auto& arg : state.required_var_args) builder.push_back("--"s + arg + "=<value>"s);
   builder.push_back("[--report-format={auto|json|text}]"s);
@@ -4300,7 +4337,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 inline auto json_reporter(const Report& report) -> void {
   std::clog << std::boolalpha;
 
-  std::clog << "{\"status\": \"" << report.status.to_string() << "\", \"message\": \""
+  std::clog << R"({"status": ")" << report.status.to_string() << R"(", "message": ")"
             << cplib::detail::json_string_encode(report.message) << "\"}";
 
   std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
