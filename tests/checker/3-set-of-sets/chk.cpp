@@ -6,7 +6,7 @@
  * Run test with:
  *
  * ```bash
- * pnpm gulp test --kind checker --match "^3-set-of-sets$"
+ * pnpm test -- --kind checker --match "^3-set-of-sets$"
  * ```
  */
 

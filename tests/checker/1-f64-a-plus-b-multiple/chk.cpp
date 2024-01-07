@@ -7,7 +7,7 @@
  * Run test with:
  *
  * ```bash
- * pnpm gulp test --kind checker --match "^1-f64-a-plus-b-multiple$"
+ * pnpm test -- --kind checker --match "^1-f64-a-plus-b-multiple$"
  * ```
  */
 

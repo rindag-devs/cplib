@@ -4,7 +4,7 @@
  * Run test with:
  *
  * ```bash
- * pnpm gulp test --kind checker --match "^2-shortest-path$"
+ * pnpm test -- --kind checker --match "^2-shortest-path$"
  * ```
  */
 

@@ -4,7 +4,7 @@
  * Run test with:
  *
  * ```bash
- * pnpm gulp test --kind interactor --match "^0-guessing-number$"
+ * pnpm test -- --kind interactor --match "^0-guessing-number$"
  * ```
  */
 

@@ -4,7 +4,7 @@
  * Run test with:
  *
  * ```bash
- * pnpm gulp test --kind checker --match "^0-i32-a-plus-b$"
+ * pnpm test -- --kind checker --match "^0-i32-a-plus-b$"
  * ```
  */
 

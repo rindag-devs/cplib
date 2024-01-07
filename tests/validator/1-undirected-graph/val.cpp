@@ -4,7 +4,7 @@
  * Run test with:
  *
  * ```bash
- * pnpm gulp test --kind validator --match "^1-undirected-graph$"
+ * pnpm test -- --kind validator --match "^1-undirected-graph$"
  * ```
  */
 
