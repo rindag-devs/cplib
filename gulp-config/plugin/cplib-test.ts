@@ -11,7 +11,7 @@ import { gulpPlugin } from "gulp-plugin-extras";
 import _ from "lodash";
 import pupa from "pupa";
 import { promisify } from "util";
-import { stripExtension } from "./util.js";
+import { stripExtension } from "../util.js";
 
 export interface Options {
   prog: string;
@@ -23,7 +23,7 @@ export interface Options {
   expectedStderrExt?: string;
 }
 
-export function gulpTest(options: Options) {
+export function gulpCplibTest(options: Options) {
   const {
     prog,
     interactWith,
@@ -36,7 +36,7 @@ export function gulpTest(options: Options) {
   const tests: Record<string, Record<string, BufferFile>> = {};
 
   return gulpPlugin(
-    "gulp-test",
+    "gulp-cplib-test",
     async (file: BufferFile) => {
       const testId = stripExtension(file.basename);
       tests[testId] = {
@@ -58,12 +58,12 @@ export function gulpTest(options: Options) {
                     .toString()
                     .split("\n")
                     .filter((x) => x)
-                : (progArgs as string[])
+                : progArgs!
             ).map((arg) => pupa(arg, filePaths));
 
             const result = await (interactWith
               ? executeInteractive(prog, interactWith, args)
-              : execute(prog, stdinExt ? files[stdinExt as string]?.contents : undefined, args));
+              : execute(prog, stdinExt ? files[stdinExt]?.contents : undefined, args));
 
             if (expectedStdoutExt) {
               const expected = files[expectedStdoutExt].contents;
@@ -91,14 +91,22 @@ export function gulpTest(options: Options) {
     throw error;
   }
 
-  async function execute(prog: string, stdinBuf: Buffer | undefined, args: readonly string[]) {
+  async function execute(
+    prog: string,
+    stdinBuf: Buffer | undefined,
+    args: readonly string[],
+  ): Promise<{ stdout: Buffer; stderr: Buffer }> {
     const promise = promisify(execFile)(prog, args, { encoding: "buffer" });
     if (stdinBuf) promise.child.stdin?.end(stdinBuf);
-    const { stdout, stderr } = await promise.catch((e) => e);
+    const { stdout, stderr } = await promise.catch((e: { stdout: Buffer; stderr: Buffer }) => e);
     return { stdout, stderr };
   }
 
-  async function executeInteractive(prog: string, interactWith: string, args: readonly string[]) {
+  async function executeInteractive(
+    prog: string,
+    interactWith: string,
+    args: readonly string[],
+  ): Promise<{ stdout: Buffer; stderr: Buffer }> {
     const execFilePromisified = promisify(execFile);
 
     const intrPromise = execFilePromisified(prog, args, { encoding: "buffer" });
@@ -108,7 +116,10 @@ export function gulpTest(options: Options) {
     stdPromise.child.stdout?.pipe(intrPromise.child.stdin as NodeJS.WritableStream);
 
     const { stdout, stderr } = (
-      await Promise.all([intrPromise.catch((e) => e), stdPromise.catch((e) => e)])
+      await Promise.all([
+        intrPromise.catch((e: { stdout: Buffer; stderr: Buffer }) => e),
+        stdPromise.catch((e: { stdout: Buffer; stderr: Buffer }) => e),
+      ])
     )[0];
 
     return { stdout, stderr };

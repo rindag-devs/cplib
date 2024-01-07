@@ -5,13 +5,14 @@
   "scripts": {
     "clean": "NODE_OPTIONS=\"--import tsx/esm\" gulp clean",
     "test": "NODE_OPTIONS=\"--import tsx/esm\" gulp test",
-    "lint": "tsc --noEmit && eslint gulpfile.ts gulp-config/**.ts"
+    "lint-ts": "NODE_OPTIONS=\"--import tsx/esm\" gulp lintTs"
   },
   "type": "module",
   "devDependencies": {
     "@babel/core": "^7.23.7",
     "@babel/eslint-parser": "^7.23.3",
     "@tsconfig/node16": "^16.1.1",
+    "@types/fancy-log": "^2.0.2",
     "@types/gulp": "^4.0.17",
     "@types/lodash": "^4.14.202",
     "@types/minimist": "^1.2.5",
@@ -21,7 +22,9 @@
     "del": "^7.1.0",
     "eslint": "^8.56.0",
     "eslint-config-alloy": "^5.1.2",
+    "fancy-log": "^2.0.0",
     "gulp": "^4.0.2",
+    "gulp-eslint-new": "^1.9.0",
     "gulp-plugin-extras": "^0.3.0",
     "lodash": "^4.17.21",
     "minimist": "^1.2.8",

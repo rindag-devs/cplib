@@ -7,3 +7,4 @@
 
 export { clean } from "./gulp-config/cmd/clean.js";
 export { test } from "./gulp-config/cmd/test.js";
+export { lintTs } from "./gulp-config/cmd/lint-ts.js";

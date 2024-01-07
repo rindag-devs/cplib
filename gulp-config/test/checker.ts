@@ -9,7 +9,7 @@ import { readdir } from "fs/promises";
 import gulp from "gulp";
 import parseArgs from "minimist";
 import { gxxCompileFile } from "../compile.js";
-import { gulpTest } from "../test_plugin.js";
+import { gulpCplibTest } from "../plugin/cplib-test.js";
 
 const argv = parseArgs(process.argv.slice(2));
 
@@ -36,7 +36,7 @@ function test(testName: string) {
     gulp
       .src(`tests/checker/${testName}/data/*.{in,out,ans,json}`)
       .pipe(
-        gulpTest({
+        gulpCplibTest({
           prog: `out/tests/checker/${testName}/chk`,
           progArgs: ["{in}", "{out}", "{ans}", "--report-format=json"],
           expectedStderrExt: "json",
