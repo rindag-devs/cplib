@@ -1,0 +1,2 @@
+CompileFlags:
+  Add: ['-Wall', '-Wextra', '-Wno-xor-used-as-pow', '-DCLANGD=1']
