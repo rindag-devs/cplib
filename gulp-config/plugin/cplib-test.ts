@@ -23,7 +23,7 @@ export interface Options {
   expectedStderrExt?: string;
 }
 
-export function gulpCplibTest(options: Options) {
+export function gulpCplibTest(options: Options): NodeJS.ReadableStream & NodeJS.WritableStream {
   const {
     prog,
     interactWith,
@@ -37,13 +37,12 @@ export function gulpCplibTest(options: Options) {
 
   return gulpPlugin(
     "gulp-cplib-test",
-    async (file: BufferFile) => {
+    async (file: BufferFile): Promise<any> => {
       const testId = stripExtension(file.basename);
       tests[testId] = {
         ...tests[testId],
         [file.extname.substring(1)]: file,
       };
-      return file;
     },
     {
       supportsDirectories: false,
@@ -80,7 +79,7 @@ export function gulpCplibTest(options: Options) {
     },
   ) as NodeJS.ReadableStream & NodeJS.WritableStream;
 
-  function compareResult(id: string, expected: Buffer, result: Buffer, streamName: string) {
+  function compareResult(id: string, expected: Buffer, result: Buffer, streamName: string): void {
     if (expected.equals(result)) return;
     const error = new Error(
       `Failed on ${id}: ${streamName} did not match.\nExpected:\n${expected}\nGot:\n${result}`,

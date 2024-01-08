@@ -15,9 +15,8 @@ export function gulpTypescriptLint(): NodeJS.ReadableStream & NodeJS.WritableStr
 
   return gulpPlugin(
     "gulp-typescript-lint",
-    async (file: BufferFile) => {
+    async (file: BufferFile): Promise<any> => {
       files.push(file);
-      return file;
     },
     {
       supportsDirectories: false,

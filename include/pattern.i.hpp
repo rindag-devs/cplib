@@ -5,7 +5,8 @@
  * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
  */
 
-#if defined(CLANGD) || defined(IWYU)
+/* cplib_embed_ignore start */
+#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
 #include "pattern.hpp"  // IWYU pragma: associated
 #else
@@ -13,6 +14,7 @@
 #error "Must be included from pattern.hpp"
 #endif
 #endif
+/* cplib_embed_ignore end */
 
 #include <regex.h>  // for regex_t, regerror, regcomp, regexec, regfree
 

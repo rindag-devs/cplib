@@ -13,7 +13,7 @@ import { gulpCplibTest } from "../plugin/cplib-test.js";
 
 const argv = parseArgs(process.argv.slice(2));
 
-export async function testAll() {
+export async function testAll(): Promise<gulp.TaskFunction> {
   let testNames = (await readdir("tests/generator/", { withFileTypes: true }))
     .filter((dirent) => dirent.isDirectory())
     .map((dirent) => dirent.name);
@@ -27,15 +27,15 @@ export async function testAll() {
   return gulp.parallel(...testTasks);
 }
 
-function compile(testName: string) {
+function compile(testName: string): gulp.TaskFunction {
   return gxxCompileFile(
     `tests/generator/${testName}/gen.cpp`,
     `out/tests/generator/${testName}/gen`,
   );
 }
 
-function test(testName: string) {
-  const task = (cb: gulp.TaskFunctionCallback) => {
+function test(testName: string): gulp.TaskFunction {
+  const task = (cb: gulp.TaskFunctionCallback): void => {
     gulp
       .src(`tests/generator/${testName}/data/*.{args,in}`)
       .pipe(

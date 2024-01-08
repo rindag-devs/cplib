@@ -1,4 +1,4 @@
-#include "../../cplib.hpp"
+#include "cplib.hpp"
 
 CPLIB_REGISTER_CHECKER(chk);
 

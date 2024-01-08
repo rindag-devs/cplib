@@ -15,7 +15,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../../cplib.hpp"
+#include "cplib.hpp"
 
 using namespace cplib;
 

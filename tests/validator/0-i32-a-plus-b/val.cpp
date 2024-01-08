@@ -10,7 +10,7 @@
 
 #include <cstdint>
 
-#include "../../../cplib.hpp"
+#include "cplib.hpp"
 
 using namespace cplib;
 

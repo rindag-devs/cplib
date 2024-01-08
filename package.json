@@ -5,7 +5,8 @@
   "scripts": {
     "clean": "NODE_OPTIONS=\"--import tsx/esm\" gulp clean",
     "test": "NODE_OPTIONS=\"--import tsx/esm\" gulp test",
-    "lint-ts": "NODE_OPTIONS=\"--import tsx/esm\" gulp lintTs"
+    "lint-ts": "NODE_OPTIONS=\"--import tsx/esm\" gulp lintTs",
+    "build-single-header": "NODE_OPTIONS=\"--import tsx/esm\" gulp buildSingleHeader"
   },
   "type": "module",
   "devDependencies": {

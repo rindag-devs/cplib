@@ -14,7 +14,7 @@ import { testAll as validatorTestAll } from "../test/validator.js";
 
 const argv = parseArgs(process.argv.slice(2));
 
-export const test = await (async () => {
+export const test = await (async (): Promise<gulp.TaskFunction> => {
   const tasks: gulp.TaskFunction[] = [];
 
   if (!argv.kind || argv.kind === "checker") {

@@ -5,6 +5,17 @@
  * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
  */
 
+/* cplib_embed_ignore start */
+#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
+#pragma once
+#include "validator.hpp"  // IWYU pragma: associated
+#else
+#ifndef CPLIB_VALIDATOR_HPP_
+#error "Must be included from validator.hpp"
+#endif
+#endif
+/* cplib_embed_ignore end */
+
 #include <algorithm>          // for copy, max, sort, unique, fill_n, lower_...
 #include <cstdint>            // for uint8_t
 #include <cstdio>             // for fileno, stderr
@@ -26,15 +37,6 @@
 #include "macros.hpp"  // for isatty, CPLIB_VERSION
 #include "utils.hpp"   // for panic, format, has_colors, hex_encode
 /* cplib_embed_ignore end */
-
-#if defined(CLANGD) || defined(IWYU)
-#pragma once
-#include "validator.hpp"  // IWYU pragma: associated
-#else
-#ifndef CPLIB_VALIDATOR_HPP_
-#error "Must be included from validator.hpp"
-#endif
-#endif
 
 namespace cplib::validator {
 inline constexpr Report::Status::Status(Value value) : value_(value) {}
