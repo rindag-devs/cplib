@@ -1,0 +1,45 @@
+name: Build single header
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build single header
+        run: pnpm build-single-header
+
+      - name: Dump git commit SHA
+        run: echo "${GITHUB_SHA}" > git_commit_sha.txt
+        shell: bash
+        working-directory: ./out/single-header/
+
+      - name: Commit single-header-snapshot
+        uses: nicholasgriffintn/github-branch-deployment-action@1.0.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BRANCH: single-header-snapshot
+          FOLDER: ./out/single-header
+          MESSAGE: "build: ({sha}) {msg}"
