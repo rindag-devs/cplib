@@ -150,12 +150,12 @@ inline auto have_loop(const std::vector<std::vector<size_t>>& edges) -> bool {
 }
 
 inline auto validate_traits(const std::vector<Trait>& traits,
-                            const std::vector<std::vector<size_t>>& edges)
+                            const std::vector<std::vector<std::size_t>>& edges)
     -> std::map<std::string, bool> {
   std::map<std::string, bool> results;
   for (const auto& trait : traits) results[trait.name] = false;
 
-  topo_sort(edges, [&](size_t id) {
+  topo_sort(edges, [&](std::size_t id) {
     auto& node = traits[id];
     auto result = node.check_func();
     results.at(node.name) = result;
@@ -202,7 +202,11 @@ inline auto State::quit(Report report) -> void {
     report = Report(Report::Status::INVALID, "Extra content in the input file");
   }
 
-  auto trait_status = detail::validate_traits(traits_, trait_edges_);
+  std::map<std::string, bool> trait_status;
+  if (report.status == Report::Status::VALID) {
+    trait_status = detail::validate_traits(traits_, trait_edges_);
+  }
+
   reporter(report, trait_status);
 
   std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
