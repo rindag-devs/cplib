@@ -9,7 +9,6 @@
 #define CPLIB_VALIDATOR_HPP_
 
 #include <cstddef>      // for size_t
-#include <functional>   // for function
 #include <map>          // for map
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view
@@ -17,6 +16,7 @@
 
 /* cplib_embed_ignore start */
 #include "random.hpp"  // for Random
+#include "utils.hpp"   // for UniqueFunction, UniqueFunction<>::UniqueFunct...
 #include "var.hpp"     // for Reader
 /* cplib_embed_ignore end */
 
@@ -124,10 +124,10 @@ struct Trait {
 class State {
  public:
   /// The type of function used to initialize the state.
-  using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+  using Initializer = UniqueFunction<auto(State& state, int argc, char** argv)->void>;
 
   /// The type of function used for reporting.
-  using Reporter = std::function<
+  using Reporter = UniqueFunction<
       auto(const Report& report, const std::map<std::string, bool>& trait_status)->void>;
 
   /// Random number generator.
@@ -194,13 +194,18 @@ class State {
 };
 
 /**
- * Initialize state according to default behavior.
- *
- * @param state The state object to be initialized.
- * @param argc The number of command line arguments.
- * @param argv The command line arguments.
+ * Default initializer of validator.
  */
-auto default_initializer(State& state, int argc, char** argv) -> void;
+struct DefaultInitializer {
+  /**
+   * Initialize state according to default behavior.
+   *
+   * @param state The state object to be initialized.
+   * @param argc The number of command line arguments.
+   * @param argv The command line arguments.
+   */
+  auto operator()(State& state, int argc, char** argv) -> void;
+};
 
 /**
  * Report the given report in JSON format.
@@ -235,7 +240,7 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
  * @param initializer_ The initializer function.
  */
 #define CPLIB_REGISTER_VALIDATOR_OPT(var_, initializer_) \
-  ::cplib::validator::State var_(initializer_);          \
+  auto var_ = ::cplib::validator::State(initializer_);   \
   auto main(signed argc, char** argv)->signed {          \
     var_.initializer(var_, argc, argv);                  \
     auto validator_main(void)->void;                     \
@@ -249,7 +254,7 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
  * @param var The variable name of state object to be initialized.
  */
 #define CPLIB_REGISTER_VALIDATOR(var) \
-  CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::default_initializer)
+  CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::DefaultInitializer())
 }  // namespace cplib::validator
 
 #include "validator.i.hpp"  // IWYU pragma: export

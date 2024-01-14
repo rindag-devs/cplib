@@ -19,7 +19,6 @@
 #include <array>        // for array
 #include <cstdio>       // for fileno, stderr
 #include <cstdlib>      // for exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <functional>   // for function
 #include <iomanip>      // for operator<<, setprecision
 #include <iostream>     // for basic_ostream, operator<<, clog, fixed
 #include <memory>       // for unique_ptr
@@ -104,7 +103,7 @@ inline auto State::quit_pc(double points, std::string_view message) -> void {
 }
 // /Impl State }}}
 
-// Impl default_initializer {{{
+// Impl DefaultInitializer {{{
 namespace detail {
 constexpr std::string_view ARGS_USAGE =
     "<input_file> <output_file> <answer_file> [--report-format={auto|json|text}]";
@@ -177,7 +176,7 @@ inline auto parse_command_line_arguments(State& state, int argc, char** argv)
 }
 }  // namespace detail
 
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
+inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) -> void {
   detail::detect_reporter(state);
 
   if (argc > 1 && std::string_view("--help") == argv[1]) {
@@ -193,7 +192,7 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
   state.ans = var::detail::make_file_reader(ans_path, "ans", false,
                                             [](std::string_view msg) { panic(msg); });
 }
-// /Impl default_initializer }}}
+// /Impl DefaultInitializer }}}
 
 // Impl reporters {{{
 namespace detail {

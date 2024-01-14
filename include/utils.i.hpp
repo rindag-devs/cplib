@@ -16,19 +16,21 @@
 #endif
 /* cplib_embed_ignore end */
 
+#include <algorithm>    // for min, max
 #include <cctype>       // for isspace, isprint
 #include <cmath>        // for isinf, isnan
 #include <cstdarg>      // for va_list, va_end, va_copy, va_start
 #include <cstdio>       // for vsnprintf, fileno, stderr
 #include <cstdlib>      // for getenv, abs, exit, EXIT_FAILURE
-#include <functional>   // for function
-#include <iostream>     // for basic_ostream, ptrdiff_t, operator<<, clog
-#include <string>       // for basic_string, allocator, string, char_traits
+#include <iostream>     // for basic_ostream, operator<<, clog
+#include <memory>       // for allocator, make_unique
+#include <string>       // for basic_string, string, char_traits, operator+
 #include <string_view>  // for string_view, operator<<, basic_string_view
+#include <utility>      // for forward, move
 #include <vector>       // for vector
 
 /* cplib_embed_ignore start */
-#include "macros.hpp"  // for CPLIB_PRINTF_LIKE
+#include "macros.hpp"  // for isatty, CPLIB_PRINTF_LIKE
 /* cplib_embed_ignore end */
 
 namespace cplib {
@@ -95,7 +97,7 @@ inline auto hex_encode(std::string_view s) -> std::string {
 
 // Impl panic {{{
 namespace detail {
-inline std::function<auto(std::string_view)->void> panic_impl = [](std::string_view s) {
+inline UniqueFunction<auto(std::string_view)->void> panic_impl = [](std::string_view s) {
   std::clog << "Unrecoverable error: " << s << '\n';
   exit(EXIT_FAILURE);
 };
@@ -230,6 +232,29 @@ inline auto tokenize(std::string_view s, char separator) -> std::vector<std::str
   }
   if (!item.empty()) result.push_back(item);
   return result;
+}
+
+template <typename Ret, typename... Args>
+inline UniqueFunction<Ret(Args...)>::UniqueFunction(std::nullptr_t) : ptr(nullptr){};
+
+template <typename Ret, typename... Args>
+template <class T>
+inline UniqueFunction<Ret(Args...)>::UniqueFunction(T t)
+    : ptr(std::make_unique<Data<T>>(std::move(t))){};
+
+template <typename Ret, typename... Args>
+auto UniqueFunction<Ret(Args...)>::operator()(Args... args) const -> Ret {
+  return (*ptr)(std::forward<Args>(args)...);
+}
+
+template <typename Ret, typename... Args>
+template <class T>
+UniqueFunction<Ret(Args...)>::Data<T>::Data(T&& t) : func(std::forward<T>(t)) {}
+
+template <typename Ret, typename... Args>
+template <class T>
+auto UniqueFunction<Ret(Args...)>::Data<T>::operator()(Args&&... args) -> Ret {
+  return func(std::forward<Args>(args)...);
 }
 
 // Impl get_work_mode {{{

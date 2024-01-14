@@ -152,13 +152,18 @@ class State {
 };
 
 /**
- * Initialize state according to default behavior.
- *
- * @param state The state object to be initialized.
- * @param argc The number of command line arguments.
- * @param argv The command line arguments.
+ * Default initializer of generator.
  */
-auto default_initializer(State& state, int argc, char** argv) -> void;
+struct DefaultInitializer {
+  /**
+   * Initialize state according to default behavior.
+   *
+   * @param state The state object to be initialized.
+   * @param argc The number of command line arguments.
+   * @param argv The command line arguments.
+   */
+  auto operator()(State& state, int argc, char** argv) -> void;
+};
 
 /**
  * Report the given report in JSON format.
@@ -191,7 +196,7 @@ auto colored_text_reporter(const Report& report) -> void;
  */
 #define CPLIB_REGISTER_GENERATOR_OPT(state_var_name_, initializer_, args_struct_name_,     \
                                      args_struct_impl_)                                    \
-  ::cplib::generator::State state_var_name_(initializer_);                                 \
+  auto state_var_name_ = ::cplib::generator::State(initializer_);                          \
   namespace args_detail_ {                                                                 \
   struct Flag {                                                                            \
     std::string name;                                                                      \
@@ -244,8 +249,8 @@ auto colored_text_reporter(const Report& report) -> void;
  * @param args_struct_name_ The name of the command line arguments struct.
  * @param args_struct_impl_ The implementation of the command line arguments struct.
  */
-#define CPLIB_REGISTER_GENERATOR(var, args_struct_name, args_struct_impl)                      \
-  CPLIB_REGISTER_GENERATOR_OPT(var, ::cplib::generator::default_initializer, args_struct_name, \
+#define CPLIB_REGISTER_GENERATOR(var, args_struct_name, args_struct_impl)                       \
+  CPLIB_REGISTER_GENERATOR_OPT(var, ::cplib::generator::DefaultInitializer(), args_struct_name, \
                                args_struct_impl)
 }  // namespace cplib::generator
 

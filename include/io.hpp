@@ -9,12 +9,15 @@
 #define CPLIB_IO_HPP_
 
 #include <cstdio>       // for size_t
-#include <functional>   // for function
 #include <ios>          // for streambuf, basic_streambuf
 #include <memory>       // for unique_ptr
 #include <optional>     // for optional
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view
+
+/* cplib_embed_ignore start */
+#include "utils.hpp"  // for UniqueFunction, UniqueFunction<>::UniqueFunct...
+/* cplib_embed_ignore end */
 
 namespace cplib::io {
 /**
@@ -22,7 +25,7 @@ namespace cplib::io {
  */
 class InStream {
  public:
-  using FailFunc = std::function<auto(std::string_view)->void>;
+  using FailFunc = UniqueFunction<auto(std::string_view)->void>;
 
   /**
    * Constructs an InStream object.

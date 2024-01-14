@@ -220,7 +220,7 @@ inline auto State::quit_invalid(std::string_view message) -> void {
 }
 // /Impl State }}}
 
-// Impl default_initializer {{{
+// Impl DefaultInitializer {{{
 namespace detail {
 constexpr std::string_view ARGS_USAGE = "[<input_file>] [--report-format={auto|json|text}]";
 
@@ -298,7 +298,7 @@ inline auto parse_command_line_arguments(State& state, int argc, char** argv) ->
 }
 }  // namespace detail
 
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
+inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) -> void {
   detail::detect_reporter(state);
 
   if (argc > 1 && std::string_view("--help") == argv[1]) {
@@ -316,7 +316,7 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
         inf_path, "inf", true, [&state](std::string_view msg) { state.quit_invalid(msg); });
   }
 }
-// /Impl default_initializer }}}
+// /Impl DefaultInitializer }}}
 
 // Impl reporters {{{
 namespace detail {

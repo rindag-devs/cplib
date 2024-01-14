@@ -11,7 +11,8 @@
 #include <cstdint>      // for int16_t, int32_t, int64_t, int8_t, uint16_t
 #include <cstdio>       // for size_t
 #include <functional>   // for function
-#include <memory>       // for allocator, unique_ptr
+#include <iterator>     // for pair
+#include <memory>       // for unique_ptr, allocator
 #include <optional>     // for optional, nullopt_t
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view

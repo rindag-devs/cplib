@@ -58,7 +58,6 @@ inline State::State(Initializer initializer)
       inf(var::Reader(nullptr)),
       from_user(var::Reader(nullptr)),
       to_user(std::ostream(nullptr)),
-      to_user_buf(nullptr),
       initializer(std::move(initializer)),
       reporter(json_reporter) {
   cplib::detail::panic_impl = [this](std::string_view msg) {
@@ -100,7 +99,7 @@ inline auto State::quit_pc(double points, std::string_view message) -> void {
 }
 // /Impl State }}}
 
-// Impl default_initializer {{{
+// Impl DefaultInitializer {{{
 namespace detail {
 constexpr std::string_view ARGS_USAGE = "<input_file> [--report-format={auto|json|text}]";
 
@@ -186,7 +185,7 @@ inline auto disable_stdio() -> void {
 }
 }  // namespace detail
 
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
+inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) -> void {
   detail::detect_reporter(state);
 
   if (argc > 1 && std::string_view("--help") == argv[1]) {
@@ -201,9 +200,9 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
   state.from_user = var::detail::make_stdin_reader(
       "from_user", false, [&state](std::string_view msg) { state.quit_wa(msg); });
 
-  var::detail::make_stdout_ostream(state.to_user_buf, state.to_user);
+  var::detail::make_stdout_ostream(to_user_buf, state.to_user);
 }
-// /Impl default_initializer }}}
+// /Impl DefaultInitializer }}}
 
 // Impl reporters {{{
 namespace detail {

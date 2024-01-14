@@ -19,7 +19,6 @@
 #include <algorithm>    // for binary_search, sort
 #include <cstdio>       // for fileno, stderr
 #include <cstdlib>      // for exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <functional>   // for function
 #include <iostream>     // for basic_ostream, operator<<, clog, boolalpha
 #include <map>          // for map, _Rb_tree_iterator, operator!=
 #include <optional>     // for optional, nullopt
@@ -85,7 +84,7 @@ inline auto State::quit(const Report& report) -> void {
 inline auto State::quit_ok() -> void { quit(Report(Report::Status::OK, "")); }
 // /Impl State }}}
 
-// Impl default_initializer {{{
+// Impl DefaultInitializer {{{
 namespace detail {
 inline auto parse_arg(std::string_view arg) -> std::pair<std::string, std::optional<std::string>> {
   constexpr std::string_view prefix = "--";
@@ -201,7 +200,7 @@ inline auto get_args_usage(const State& state) {
 }
 }  // namespace detail
 
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
+inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) -> void {
   std::sort(state.required_flag_args.begin(), state.required_flag_args.end());
   std::sort(state.required_var_args.begin(), state.required_var_args.end());
 
@@ -225,7 +224,7 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
 
   state.rnd.reseed(argc, argv);
 }
-// /Impl default_initializer }}}
+// /Impl DefaultInitializer }}}
 
 // Impl reporters {{{
 namespace detail {

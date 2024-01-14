@@ -21,7 +21,6 @@
 #include <cstdio>       // for EOF, size_t
 #include <cstdlib>      // for exit, EXIT_FAILURE
 #include <cstring>      // for memmove
-#include <functional>   // for function
 #include <memory>       // for unique_ptr
 #include <optional>     // for optional, nullopt
 #include <string>       // for basic_string, string, char_traits
@@ -29,8 +28,8 @@
 #include <utility>      // for move
 
 /* cplib_embed_ignore start */
-#include "macros.hpp"
-#include "utils.hpp"
+#include "macros.hpp"  // for write, read
+#include "utils.hpp"   // for UniqueFunction<>::operator(), format, panic
 /* cplib_embed_ignore end */
 
 namespace cplib::io {
@@ -99,7 +98,7 @@ class FdInBuf : public std::streambuf {
      * - Use number of characters read
      * - But at most size of putback area
      */
-    ssize_t num_putback = gptr() - eback();
+    std::ptrdiff_t num_putback = gptr() - eback();
     if (num_putback > PB_SIZE) {
       num_putback = PB_SIZE;
     }
@@ -108,7 +107,7 @@ class FdInBuf : public std::streambuf {
     std::memmove(buf_.begin() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
 
     // Read at most bufSize new characters
-    ssize_t num = read(fd_, buf_.begin() + PB_SIZE, BUF_SIZE);
+    std::ptrdiff_t num = read(fd_, buf_.begin() + PB_SIZE, BUF_SIZE);
     if (num <= 0) {
       // Error or EOF
       return EOF;
@@ -164,10 +163,10 @@ inline auto InStream::read() -> int {
   return c;
 }
 
-inline auto InStream::read_n(size_t n) -> std::string {
+inline auto InStream::read_n(std::size_t n) -> std::string {
   std::string buf;
   buf.reserve(n);
-  for (size_t i = 0; i < n; ++i) {
+  for (std::size_t i = 0; i < n; ++i) {
     if (eof()) break;
     buf.push_back(static_cast<char>(read()));
   }
@@ -184,9 +183,9 @@ inline auto InStream::set_strict(bool b) -> void {
   strict_ = b;
 }
 
-inline auto InStream::line_num() const -> size_t { return line_num_; }
+inline auto InStream::line_num() const -> std::size_t { return line_num_; }
 
-inline auto InStream::col_num() const -> size_t { return col_num_; }
+inline auto InStream::col_num() const -> std::size_t { return col_num_; }
 
 inline auto InStream::eof() -> bool { return seek() == EOF; }
 
