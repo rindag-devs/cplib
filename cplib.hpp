@@ -59,12 +59,14 @@
 #ifndef CPLIB_UTILS_HPP_
 #define CPLIB_UTILS_HPP_
 
+#include <iosfwd>       // for nullptr_t
+#include <memory>       // for unique_ptr
 #include <string>       // for string
 #include <string_view>  // for string_view
 #include <vector>       // for vector
 
 
-  
+  // for CPLIB_PRINTF_LIKE
 
 
 namespace cplib {
@@ -85,7 +87,7 @@ namespace cplib {
  * @param ... The variadic arguments to be formatted.
  * @return The formatted string.
  */
-CPLIB_PRINTF_LIKE(1, 2) auto format(const char* fmt, ...) -> std::string;
+CPLIB_PRINTF_LIKE(1, 2) auto format(const char *fmt, ...) -> std::string;
 
 /**
  * Determine whether the two floating-point values are equals within the accuracy range.
@@ -158,6 +160,95 @@ auto split(std::string_view s, char separator) -> std::vector<std::string>;
 auto tokenize(std::string_view s, char separator) -> std::vector<std::string>;
 
 /**
+ * `UniqueFunction` is similar to `std::function`, it is a wrapper for functions.
+ *
+ * The difference between it and `std::function` is that `std::function` requires the wrapped object
+ * to be copy-assignable, but `UniqueFunction` only requires it to be move-assignable.
+ *
+ * In the same way, `UniqueFunction` itself cannot be copy-assignable, but can only be
+ * move-assignable.
+ *
+ * @tparam T The type of the stored function.
+ */
+template <typename T>
+class UniqueFunction;
+
+/**
+ * Template specialization for Ret(Args...) type.
+ *
+ * @tparam Ret The return type of the stored function.
+ * @tparam Args The argument types of the stored function.
+ */
+template <typename Ret, typename... Args>
+class UniqueFunction<Ret(Args...)> {
+ public:
+  /**
+   * Creates an empty UniqueFunction.
+   */
+  UniqueFunction() = default;
+
+  /**
+   * Creates an empty UniqueFunction.
+   */
+  explicit UniqueFunction(std::nullptr_t);
+
+  /**
+   * Constructor.
+   *
+   * @param t The function to be stored.
+   * @tparam T The type of the function to be stored.
+   */
+  template <class T>
+  UniqueFunction(T t);  // NOLINT(google-explicit-constructor)
+
+  /**
+   * Function call operator.
+   *
+   * @param args The arguments to be passed to the stored function.
+   * @return The return value of the stored function.
+   */
+  auto operator()(Args... args) const -> Ret;
+
+ private:
+  /**
+   * Base class for polymorphism.
+   */
+  struct Base {
+    virtual ~Base() = default;
+
+    /**
+     * Function call operator for derived classes.
+     *
+     * @param args The arguments to be passed to the derived function.
+     * @return The return value of the derived function.
+     */
+    virtual auto operator()(Args &&...args) -> Ret = 0;
+  };
+
+  /**
+   * Data class storing the actual function.
+   *
+   * @tparam T The type of the stored function.
+   */
+  template <typename T>
+  struct Data : Base {
+    T func;
+
+    explicit Data(T &&t);
+
+    /**
+     * Function call operator implementation.
+     *
+     * @param args The arguments to be passed to the stored function.
+     * @return The return value of the stored function.
+     */
+    auto operator()(Args &&...args) -> Ret override;
+  };
+
+  std::unique_ptr<Base> ptr{nullptr};
+};
+
+/**
  * `WorkMode` indicates the current mode of cplib.
  */
 enum class WorkMode {
@@ -194,19 +285,21 @@ auto get_work_mode() -> WorkMode;
 #endif
 
 
+#include <algorithm>    // for min, max
 #include <cctype>       // for isspace, isprint
 #include <cmath>        // for isinf, isnan
 #include <cstdarg>      // for va_list, va_end, va_copy, va_start
 #include <cstdio>       // for vsnprintf, fileno, stderr
 #include <cstdlib>      // for getenv, abs, exit, EXIT_FAILURE
-#include <functional>   // for function
-#include <iostream>     // for basic_ostream, ptrdiff_t, operator<<, clog
-#include <string>       // for basic_string, allocator, string, char_traits
+#include <iostream>     // for basic_ostream, operator<<, clog
+#include <memory>       // for allocator, make_unique
+#include <string>       // for basic_string, string, char_traits, operator+
 #include <string_view>  // for string_view, operator<<, basic_string_view
+#include <utility>      // for forward, move
 #include <vector>       // for vector
 
 
-  // for CPLIB_PRINTF_LIKE
+  // for isatty, CPLIB_PRINTF_LIKE
 
 
 namespace cplib {
@@ -273,7 +366,7 @@ inline auto hex_encode(std::string_view s) -> std::string {
 
 // Impl panic {{{
 namespace detail {
-inline std::function<auto(std::string_view)->void> panic_impl = [](std::string_view s) {
+inline UniqueFunction<auto(std::string_view)->void> panic_impl = [](std::string_view s) {
   std::clog << "Unrecoverable error: " << s << '\n';
   exit(EXIT_FAILURE);
 };
@@ -408,6 +501,29 @@ inline auto tokenize(std::string_view s, char separator) -> std::vector<std::str
   }
   if (!item.empty()) result.push_back(item);
   return result;
+}
+
+template <typename Ret, typename... Args>
+inline UniqueFunction<Ret(Args...)>::UniqueFunction(std::nullptr_t) : ptr(nullptr){};
+
+template <typename Ret, typename... Args>
+template <class T>
+inline UniqueFunction<Ret(Args...)>::UniqueFunction(T t)
+    : ptr(std::make_unique<Data<T>>(std::move(t))){};
+
+template <typename Ret, typename... Args>
+auto UniqueFunction<Ret(Args...)>::operator()(Args... args) const -> Ret {
+  return (*ptr)(std::forward<Args>(args)...);
+}
+
+template <typename Ret, typename... Args>
+template <class T>
+UniqueFunction<Ret(Args...)>::Data<T>::Data(T&& t) : func(std::forward<T>(t)) {}
+
+template <typename Ret, typename... Args>
+template <class T>
+auto UniqueFunction<Ret(Args...)>::Data<T>::operator()(Args&&... args) -> Ret {
+  return func(std::forward<Args>(args)...);
 }
 
 // Impl get_work_mode {{{
@@ -935,12 +1051,15 @@ inline auto Random::shuffle(Container& container) -> void {
 #define CPLIB_IO_HPP_
 
 #include <cstdio>       // for size_t
-#include <functional>   // for function
 #include <ios>          // for streambuf, basic_streambuf
 #include <memory>       // for unique_ptr
 #include <optional>     // for optional
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view
+
+
+  // for UniqueFunction, UniqueFunction<>::UniqueFunct...
+
 
 namespace cplib::io {
 /**
@@ -948,7 +1067,7 @@ namespace cplib::io {
  */
 class InStream {
  public:
-  using FailFunc = std::function<auto(std::string_view)->void>;
+  using FailFunc = UniqueFunction<auto(std::string_view)->void>;
 
   /**
    * Constructs an InStream object.
@@ -1116,7 +1235,6 @@ class InStream {
 #include <cstdio>       // for EOF, size_t
 #include <cstdlib>      // for exit, EXIT_FAILURE
 #include <cstring>      // for memmove
-#include <functional>   // for function
 #include <memory>       // for unique_ptr
 #include <optional>     // for optional, nullopt
 #include <string>       // for basic_string, string, char_traits
@@ -1124,8 +1242,8 @@ class InStream {
 #include <utility>      // for move
 
 
-
-
+  // for write, read
+   // for UniqueFunction<>::operator(), format, panic
 
 
 namespace cplib::io {
@@ -1194,7 +1312,7 @@ class FdInBuf : public std::streambuf {
      * - Use number of characters read
      * - But at most size of putback area
      */
-    ssize_t num_putback = gptr() - eback();
+    std::ptrdiff_t num_putback = gptr() - eback();
     if (num_putback > PB_SIZE) {
       num_putback = PB_SIZE;
     }
@@ -1203,7 +1321,7 @@ class FdInBuf : public std::streambuf {
     std::memmove(buf_.begin() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
 
     // Read at most bufSize new characters
-    ssize_t num = read(fd_, buf_.begin() + PB_SIZE, BUF_SIZE);
+    std::ptrdiff_t num = read(fd_, buf_.begin() + PB_SIZE, BUF_SIZE);
     if (num <= 0) {
       // Error or EOF
       return EOF;
@@ -1259,10 +1377,10 @@ inline auto InStream::read() -> int {
   return c;
 }
 
-inline auto InStream::read_n(size_t n) -> std::string {
+inline auto InStream::read_n(std::size_t n) -> std::string {
   std::string buf;
   buf.reserve(n);
-  for (size_t i = 0; i < n; ++i) {
+  for (std::size_t i = 0; i < n; ++i) {
     if (eof()) break;
     buf.push_back(static_cast<char>(read()));
   }
@@ -1279,9 +1397,9 @@ inline auto InStream::set_strict(bool b) -> void {
   strict_ = b;
 }
 
-inline auto InStream::line_num() const -> size_t { return line_num_; }
+inline auto InStream::line_num() const -> std::size_t { return line_num_; }
 
-inline auto InStream::col_num() const -> size_t { return col_num_; }
+inline auto InStream::col_num() const -> std::size_t { return col_num_; }
 
 inline auto InStream::eof() -> bool { return seek() == EOF; }
 
@@ -1348,7 +1466,8 @@ inline auto InStream::fail(std::string_view message) -> void {
 #include <cstdint>      // for int16_t, int32_t, int64_t, int8_t, uint16_t
 #include <cstdio>       // for size_t
 #include <functional>   // for function
-#include <memory>       // for allocator, unique_ptr
+#include <iterator>     // for pair
+#include <memory>       // for unique_ptr, allocator
 #include <optional>     // for optional, nullopt_t
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view
@@ -2656,12 +2775,12 @@ inline auto ExtVar<T>::read_from(Reader& in) const -> T {
 #ifndef CPLIB_CHECKER_HPP_
 #define CPLIB_CHECKER_HPP_
 
-#include <functional>   // for function
-#include <string>       // for string, basic_string
+#include <string>       // for basic_string, string
 #include <string_view>  // for string_view
 
 
   // for Random
+   // for UniqueFunction, UniqueFunction<>::UniqueFunct...
      // for Reader
 
 
@@ -2747,10 +2866,10 @@ struct Report {
 class State {
  public:
   /// The type of function used to initialize the state.
-  using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+  using Initializer = UniqueFunction<auto(State& state, int argc, char** argv)->void>;
 
   /// The type of function used for reporting.
-  using Reporter = std::function<auto(const Report& report)->void>;
+  using Reporter = UniqueFunction<auto(const Report& report)->void>;
 
   /// Random number generator.
   Random rnd;
@@ -2824,13 +2943,18 @@ class State {
 };
 
 /**
- * Initialize state according to default behavior.
- *
- * @param state The state object to be initialized.
- * @param argc The number of command line arguments.
- * @param argv The command line arguments.
+ * Default initializer of checker.
  */
-auto default_initializer(State& state, int argc, char** argv) -> void;
+struct DefaultInitializer {
+  /**
+   * Initialize state according to default behavior.
+   *
+   * @param state The state object to be initialized.
+   * @param argc The number of command line arguments.
+   * @param argv The command line arguments.
+   */
+  auto operator()(State& state, int argc, char** argv) -> void;
+};
 
 /**
  * Report the given report in JSON format.
@@ -2860,7 +2984,7 @@ auto colored_text_reporter(const Report& report) -> void;
  * @param initializer_ The initializer function.
  */
 #define CPLIB_REGISTER_CHECKER_OPT(var_, initializer_) \
-  ::cplib::checker::State var_(initializer_);          \
+  auto var_ = ::cplib::checker::State(initializer_);   \
   auto main(signed argc, char** argv)->signed {        \
     var_.initializer(var_, argc, argv);                \
     auto checker_main(void)->void;                     \
@@ -2874,7 +2998,7 @@ auto colored_text_reporter(const Report& report) -> void;
  * @param var The variable name of state object to be initialized.
  */
 #define CPLIB_REGISTER_CHECKER(var) \
-  CPLIB_REGISTER_CHECKER_OPT(var, ::cplib::checker::default_initializer)
+  CPLIB_REGISTER_CHECKER_OPT(var, ::cplib::checker::DefaultInitializer())
 }  // namespace cplib::checker
 
 /*
@@ -2898,7 +3022,6 @@ auto colored_text_reporter(const Report& report) -> void;
 #include <array>        // for array
 #include <cstdio>       // for fileno, stderr
 #include <cstdlib>      // for exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <functional>   // for function
 #include <iomanip>      // for operator<<, setprecision
 #include <iostream>     // for basic_ostream, operator<<, clog, fixed
 #include <memory>       // for unique_ptr
@@ -2983,7 +3106,7 @@ inline auto State::quit_pc(double points, std::string_view message) -> void {
 }
 // /Impl State }}}
 
-// Impl default_initializer {{{
+// Impl DefaultInitializer {{{
 namespace detail {
 constexpr std::string_view ARGS_USAGE =
     "<input_file> <output_file> <answer_file> [--report-format={auto|json|text}]";
@@ -3056,7 +3179,7 @@ inline auto parse_command_line_arguments(State& state, int argc, char** argv)
 }
 }  // namespace detail
 
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
+inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) -> void {
   detail::detect_reporter(state);
 
   if (argc > 1 && std::string_view("--help") == argv[1]) {
@@ -3072,7 +3195,7 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
   state.ans = var::detail::make_file_reader(ans_path, "ans", false,
                                             [](std::string_view msg) { panic(msg); });
 }
-// /Impl default_initializer }}}
+// /Impl DefaultInitializer }}}
 
 // Impl reporters {{{
 namespace detail {
@@ -3152,14 +3275,14 @@ inline auto colored_text_reporter(const Report& report) -> void {
 #ifndef CPLIB_INTERACTOR_HPP_
 #define CPLIB_INTERACTOR_HPP_
 
-#include <functional>   // for function
 #include <memory>       // for unique_ptr
 #include <ostream>      // for basic_ostream, ostream, streambuf
-#include <string>       // for string, basic_string
+#include <string>       // for basic_string, string
 #include <string_view>  // for string_view
 
 
   // for Random
+   // for UniqueFunction, UniqueFunction<>::UniqueFunct...
      // for Reader
 
 
@@ -3245,10 +3368,10 @@ struct Report {
 class State {
  public:
   /// The type of function used to initialize the state.
-  using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+  using Initializer = UniqueFunction<auto(State& state, int argc, char** argv)->void>;
 
   /// The type of function used for reporting.
-  using Reporter = std::function<auto(const Report& report)->void>;
+  using Reporter = UniqueFunction<auto(const Report& report)->void>;
 
   /// Random number generator.
   Random rnd;
@@ -3261,9 +3384,6 @@ class State {
 
   /// Output stream used to send information to user program stdin.
   std::ostream to_user;
-
-  /// Stream buffer of `to_user`.
-  std::unique_ptr<std::streambuf> to_user_buf;
 
   /// Initializer is a function parsing command line arguments and initializing `interactor::State`
   Initializer initializer;
@@ -3325,13 +3445,20 @@ class State {
 };
 
 /**
- * Initialize state according to default behavior.
- *
- * @param state The state object to be initialized.
- * @param argc The number of command line arguments.
- * @param argv The command line arguments.
+ * Default initializer of interactor.
  */
-auto default_initializer(State& state, int argc, char** argv) -> void;
+struct DefaultInitializer {
+  std::unique_ptr<std::streambuf> to_user_buf;
+
+  /**
+   * Initialize state according to default behavior.
+   *
+   * @param state The state object to be initialized.
+   * @param argc The number of command line arguments.
+   * @param argv The command line arguments.
+   */
+  auto operator()(State& state, int argc, char** argv) -> void;
+};
 
 /**
  * Report the given report in JSON format.
@@ -3361,7 +3488,7 @@ auto colored_text_reporter(const Report& report) -> void;
  * @param initializer_ The initializer function.
  */
 #define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_) \
-  ::cplib::interactor::State var_(initializer_);          \
+  auto var_ = ::cplib::interactor::State(initializer_);   \
   auto main(signed argc, char** argv)->signed {           \
     var_.initializer(var_, argc, argv);                   \
     auto interactor_main(void)->void;                     \
@@ -3375,7 +3502,7 @@ auto colored_text_reporter(const Report& report) -> void;
  * @param var The variable name of state object to be initialized.
  */
 #define CPLIB_REGISTER_INTERACTOR(var) \
-  CPLIB_REGISTER_INTERACTOR_OPT(var, ::cplib::interactor::default_initializer)
+  CPLIB_REGISTER_INTERACTOR_OPT(var, ::cplib::interactor::DefaultInitializer())
 }  // namespace cplib::interactor
 
 /*
@@ -3438,7 +3565,6 @@ inline State::State(Initializer initializer)
       inf(var::Reader(nullptr)),
       from_user(var::Reader(nullptr)),
       to_user(std::ostream(nullptr)),
-      to_user_buf(nullptr),
       initializer(std::move(initializer)),
       reporter(json_reporter) {
   cplib::detail::panic_impl = [this](std::string_view msg) {
@@ -3480,7 +3606,7 @@ inline auto State::quit_pc(double points, std::string_view message) -> void {
 }
 // /Impl State }}}
 
-// Impl default_initializer {{{
+// Impl DefaultInitializer {{{
 namespace detail {
 constexpr std::string_view ARGS_USAGE = "<input_file> [--report-format={auto|json|text}]";
 
@@ -3566,7 +3692,7 @@ inline auto disable_stdio() -> void {
 }
 }  // namespace detail
 
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
+inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) -> void {
   detail::detect_reporter(state);
 
   if (argc > 1 && std::string_view("--help") == argv[1]) {
@@ -3581,9 +3707,9 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
   state.from_user = var::detail::make_stdin_reader(
       "from_user", false, [&state](std::string_view msg) { state.quit_wa(msg); });
 
-  var::detail::make_stdout_ostream(state.to_user_buf, state.to_user);
+  var::detail::make_stdout_ostream(to_user_buf, state.to_user);
 }
-// /Impl default_initializer }}}
+// /Impl DefaultInitializer }}}
 
 // Impl reporters {{{
 namespace detail {
@@ -3664,7 +3790,6 @@ inline auto colored_text_reporter(const Report& report) -> void {
 #define CPLIB_VALIDATOR_HPP_
 
 #include <cstddef>      // for size_t
-#include <functional>   // for function
 #include <map>          // for map
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view
@@ -3672,6 +3797,7 @@ inline auto colored_text_reporter(const Report& report) -> void {
 
 
   // for Random
+   // for UniqueFunction, UniqueFunction<>::UniqueFunct...
      // for Reader
 
 
@@ -3779,10 +3905,10 @@ struct Trait {
 class State {
  public:
   /// The type of function used to initialize the state.
-  using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
+  using Initializer = UniqueFunction<auto(State& state, int argc, char** argv)->void>;
 
   /// The type of function used for reporting.
-  using Reporter = std::function<
+  using Reporter = UniqueFunction<
       auto(const Report& report, const std::map<std::string, bool>& trait_status)->void>;
 
   /// Random number generator.
@@ -3849,13 +3975,18 @@ class State {
 };
 
 /**
- * Initialize state according to default behavior.
- *
- * @param state The state object to be initialized.
- * @param argc The number of command line arguments.
- * @param argv The command line arguments.
+ * Default initializer of validator.
  */
-auto default_initializer(State& state, int argc, char** argv) -> void;
+struct DefaultInitializer {
+  /**
+   * Initialize state according to default behavior.
+   *
+   * @param state The state object to be initialized.
+   * @param argc The number of command line arguments.
+   * @param argv The command line arguments.
+   */
+  auto operator()(State& state, int argc, char** argv) -> void;
+};
 
 /**
  * Report the given report in JSON format.
@@ -3890,7 +4021,7 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
  * @param initializer_ The initializer function.
  */
 #define CPLIB_REGISTER_VALIDATOR_OPT(var_, initializer_) \
-  ::cplib::validator::State var_(initializer_);          \
+  auto var_ = ::cplib::validator::State(initializer_);   \
   auto main(signed argc, char** argv)->signed {          \
     var_.initializer(var_, argc, argv);                  \
     auto validator_main(void)->void;                     \
@@ -3904,7 +4035,7 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
  * @param var The variable name of state object to be initialized.
  */
 #define CPLIB_REGISTER_VALIDATOR(var) \
-  CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::default_initializer)
+  CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::DefaultInitializer())
 }  // namespace cplib::validator
 
 /*
@@ -4059,12 +4190,12 @@ inline auto have_loop(const std::vector<std::vector<size_t>>& edges) -> bool {
 }
 
 inline auto validate_traits(const std::vector<Trait>& traits,
-                            const std::vector<std::vector<size_t>>& edges)
+                            const std::vector<std::vector<std::size_t>>& edges)
     -> std::map<std::string, bool> {
   std::map<std::string, bool> results;
   for (const auto& trait : traits) results[trait.name] = false;
 
-  topo_sort(edges, [&](size_t id) {
+  topo_sort(edges, [&](std::size_t id) {
     auto& node = traits[id];
     auto result = node.check_func();
     results.at(node.name) = result;
@@ -4111,7 +4242,11 @@ inline auto State::quit(Report report) -> void {
     report = Report(Report::Status::INVALID, "Extra content in the input file");
   }
 
-  auto trait_status = detail::validate_traits(traits_, trait_edges_);
+  std::map<std::string, bool> trait_status;
+  if (report.status == Report::Status::VALID) {
+    trait_status = detail::validate_traits(traits_, trait_edges_);
+  }
+
   reporter(report, trait_status);
 
   std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
@@ -4125,7 +4260,7 @@ inline auto State::quit_invalid(std::string_view message) -> void {
 }
 // /Impl State }}}
 
-// Impl default_initializer {{{
+// Impl DefaultInitializer {{{
 namespace detail {
 constexpr std::string_view ARGS_USAGE = "[<input_file>] [--report-format={auto|json|text}]";
 
@@ -4203,7 +4338,7 @@ inline auto parse_command_line_arguments(State& state, int argc, char** argv) ->
 }
 }  // namespace detail
 
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
+inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) -> void {
   detail::detect_reporter(state);
 
   if (argc > 1 && std::string_view("--help") == argv[1]) {
@@ -4221,7 +4356,7 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
         inf_path, "inf", true, [&state](std::string_view msg) { state.quit_invalid(msg); });
   }
 }
-// /Impl default_initializer }}}
+// /Impl DefaultInitializer }}}
 
 // Impl reporters {{{
 namespace detail {
@@ -4501,13 +4636,18 @@ class State {
 };
 
 /**
- * Initialize state according to default behavior.
- *
- * @param state The state object to be initialized.
- * @param argc The number of command line arguments.
- * @param argv The command line arguments.
+ * Default initializer of generator.
  */
-auto default_initializer(State& state, int argc, char** argv) -> void;
+struct DefaultInitializer {
+  /**
+   * Initialize state according to default behavior.
+   *
+   * @param state The state object to be initialized.
+   * @param argc The number of command line arguments.
+   * @param argv The command line arguments.
+   */
+  auto operator()(State& state, int argc, char** argv) -> void;
+};
 
 /**
  * Report the given report in JSON format.
@@ -4540,7 +4680,7 @@ auto colored_text_reporter(const Report& report) -> void;
  */
 #define CPLIB_REGISTER_GENERATOR_OPT(state_var_name_, initializer_, args_struct_name_,     \
                                      args_struct_impl_)                                    \
-  ::cplib::generator::State state_var_name_(initializer_);                                 \
+  auto state_var_name_ = ::cplib::generator::State(initializer_);                          \
   namespace args_detail_ {                                                                 \
   struct Flag {                                                                            \
     std::string name;                                                                      \
@@ -4593,8 +4733,8 @@ auto colored_text_reporter(const Report& report) -> void;
  * @param args_struct_name_ The name of the command line arguments struct.
  * @param args_struct_impl_ The implementation of the command line arguments struct.
  */
-#define CPLIB_REGISTER_GENERATOR(var, args_struct_name, args_struct_impl)                      \
-  CPLIB_REGISTER_GENERATOR_OPT(var, ::cplib::generator::default_initializer, args_struct_name, \
+#define CPLIB_REGISTER_GENERATOR(var, args_struct_name, args_struct_impl)                       \
+  CPLIB_REGISTER_GENERATOR_OPT(var, ::cplib::generator::DefaultInitializer(), args_struct_name, \
                                args_struct_impl)
 }  // namespace cplib::generator
 
@@ -4619,7 +4759,6 @@ auto colored_text_reporter(const Report& report) -> void;
 #include <algorithm>    // for binary_search, sort
 #include <cstdio>       // for fileno, stderr
 #include <cstdlib>      // for exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <functional>   // for function
 #include <iostream>     // for basic_ostream, operator<<, clog, boolalpha
 #include <map>          // for map, _Rb_tree_iterator, operator!=
 #include <optional>     // for optional, nullopt
@@ -4685,7 +4824,7 @@ inline auto State::quit(const Report& report) -> void {
 inline auto State::quit_ok() -> void { quit(Report(Report::Status::OK, "")); }
 // /Impl State }}}
 
-// Impl default_initializer {{{
+// Impl DefaultInitializer {{{
 namespace detail {
 inline auto parse_arg(std::string_view arg) -> std::pair<std::string, std::optional<std::string>> {
   constexpr std::string_view prefix = "--";
@@ -4801,7 +4940,7 @@ inline auto get_args_usage(const State& state) {
 }
 }  // namespace detail
 
-inline auto default_initializer(State& state, int argc, char** argv) -> void {
+inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) -> void {
   std::sort(state.required_flag_args.begin(), state.required_flag_args.end());
   std::sort(state.required_var_args.begin(), state.required_var_args.end());
 
@@ -4825,7 +4964,7 @@ inline auto default_initializer(State& state, int argc, char** argv) -> void {
 
   state.rnd.reseed(argc, argv);
 }
-// /Impl default_initializer }}}
+// /Impl DefaultInitializer }}}
 
 // Impl reporters {{{
 namespace detail {
