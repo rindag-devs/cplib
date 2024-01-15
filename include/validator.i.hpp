@@ -16,21 +16,20 @@
 #endif
 /* cplib_embed_ignore end */
 
-#include <algorithm>          // for copy, max, sort, unique, fill_n, lower_...
-#include <cstdint>            // for uint8_t
-#include <cstdio>             // for fileno, stderr
-#include <cstdlib>            // for exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <ext/type_traits.h>  // for __enable_if
-#include <functional>         // for function
-#include <iostream>           // for basic_ostream, operator<<, clog, boolalpha
-#include <map>                // for map, operator!=, _Rb_tree_const_iterator
-#include <memory>             // for unique_ptr
-#include <optional>           // for optional, nullopt
-#include <queue>              // for queue
-#include <string>             // for basic_string, char_traits, string, allo...
-#include <string_view>        // for string_view, operator==, basic_string_view
-#include <utility>            // for move, pair
-#include <vector>             // for vector
+#include <algorithm>    // for copy, max, sort, unique, fill_n, lower_...
+#include <cstdint>      // for uint8_t
+#include <cstdio>       // for fileno, stderr
+#include <cstdlib>      // for exit, EXIT_FAILURE, EXIT_SUCCESS
+#include <functional>   // for function
+#include <iostream>     // for basic_ostream, operator<<, clog, boolalpha
+#include <map>          // for map, operator!=, _Rb_tree_const_iterator
+#include <memory>       // for unique_ptr
+#include <optional>     // for optional, nullopt
+#include <queue>        // for queue
+#include <string>       // for basic_string, char_traits, string, allo...
+#include <string_view>  // for string_view, operator==, basic_string_view
+#include <utility>      // for move, pair
+#include <vector>       // for vector
 
 /* cplib_embed_ignore start */
 #include "io.hpp"      // for InStream, InStream::eof

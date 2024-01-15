@@ -18,7 +18,8 @@
 #else
 #include <unistd.h>  // IWYU pragma: export
 #endif
-#include <io.h>  // IWYU pragma: export
+#include <fcntl.h>  // IWYU pragma: export
+#include <io.h>     // IWYU pragma: export
 #define ON_WINDOWS
 #if defined(_MSC_VER) && _MSC_VER > 1400
 #pragma warning(disable : 4127)

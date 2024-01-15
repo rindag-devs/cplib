@@ -685,7 +685,7 @@ template <class F>
 class FnVar : public Var<typename std::function<F>::result_type, FnVar<F>> {
  public:
   /// The inner function.
-  std::function<auto(Reader& in)->typename std::function<F>::result_type> inner;
+  std::function<typename std::function<F>::result_type(Reader& in)> inner;
 
   /**
    * Constructor.

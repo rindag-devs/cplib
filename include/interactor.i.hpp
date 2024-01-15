@@ -172,8 +172,9 @@ inline auto parse_command_line_arguments(State& state, int argc, char** argv) ->
 // Disable stdin & stdout
 inline auto disable_stdio() -> void {
   std::ios_base::sync_with_stdio(false);
-  stdin = nullptr;
-  stdout = nullptr;
+  /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
+  // stdin = nullptr;
+  // stdout = nullptr;
   std::cin.rdbuf(nullptr);
   std::cout.rdbuf(nullptr);
   std::cin.tie(nullptr);

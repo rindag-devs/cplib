@@ -80,9 +80,9 @@ class FdInBuf : public std::streambuf {
 #ifdef ON_WINDOWS
     _setmode(fd_, _O_BINARY);  // Sets file mode to binary
 #endif
-    setg(buf_.begin() + PB_SIZE,   // Beginning of putback area
-         buf_.begin() + PB_SIZE,   // Read position
-         buf_.begin() + PB_SIZE);  // End position
+    setg(buf_.data() + PB_SIZE,   // Beginning of putback area
+         buf_.data() + PB_SIZE,   // Read position
+         buf_.data() + PB_SIZE);  // End position
   }
 
  protected:
@@ -104,19 +104,19 @@ class FdInBuf : public std::streambuf {
     }
 
     // Copy up to PB_SIZE characters previously read into the putback area
-    std::memmove(buf_.begin() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
+    std::memmove(buf_.data() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
 
     // Read at most bufSize new characters
-    std::ptrdiff_t num = read(fd_, buf_.begin() + PB_SIZE, BUF_SIZE);
+    std::ptrdiff_t num = read(fd_, buf_.data() + PB_SIZE, BUF_SIZE);
     if (num <= 0) {
       // Error or EOF
       return EOF;
     }
 
     // Reset buffer pointers
-    setg(buf_.begin() + (PB_SIZE - num_putback),  // Beginning of putback area
-         buf_.begin() + PB_SIZE,                  // Read position
-         buf_.begin() + PB_SIZE + num);           // End of buffer
+    setg(buf_.data() + (PB_SIZE - num_putback),  // Beginning of putback area
+         buf_.data() + PB_SIZE,                  // Read position
+         buf_.data() + PB_SIZE + num);           // End of buffer
 
     // Return next character
     return traits_type::to_int_type(*gptr());

@@ -88,7 +88,8 @@ inline auto make_stdin_reader(std::string name, bool strict, io::InStream::FailF
   auto buf = std::make_unique<io::detail::FdInBuf>(fileno(stdin));
   var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict,
                                                     std::move(fail_func)));
-  stdin = nullptr;
+  /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
+  // stdin = nullptr;
   std::cin.rdbuf(nullptr);
   std::cin.tie(nullptr);
   return reader;
@@ -99,7 +100,8 @@ inline auto make_stdout_ostream(std::unique_ptr<std::streambuf>& buf, std::ostre
     -> void {
   buf = std::make_unique<io::detail::FdOutBuf>(fileno(stdout));
   stream.rdbuf(buf.get());
-  stdout = nullptr;
+  /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
+  // stdout = nullptr;
   std::cout.rdbuf(nullptr);
   std::cin.tie(nullptr);
   std::cerr.tie(nullptr);
