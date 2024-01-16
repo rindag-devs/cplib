@@ -295,9 +295,6 @@ class Float : public Var<T, Float<T>> {
 template <class T>
 class StrictFloat : public Var<T, StrictFloat<T>> {
  public:
-  T min, max;
-  std::size_t min_n_digit, max_n_digit;
-
   /**
    * Constructor with min, max range, and digit count restrictions parameters.
    *
@@ -328,6 +325,10 @@ class StrictFloat : public Var<T, StrictFloat<T>> {
    * @return The value read from the input reader.
    */
   auto read_from(Reader& in) const -> T override;
+
+ private:
+  T min_, max_;
+  Pattern pat_;
 };
 
 /**
