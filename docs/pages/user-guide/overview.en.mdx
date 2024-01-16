@@ -41,7 +41,7 @@ CPLib also has more modernized handling of some functional details. For example,
 
 ### Scalability
 
-CPLib's scalability is mainly reflected in two points: the design of the variable input template "cplib::var::Var" and customization for various evaluation platforms.
+CPLib's scalability is mainly reflected in two points: the design of the variable input template `cplib::var::Var` and customization for various evaluation platforms.
 
 CPLib's variable input is based on the "variable input template", rather than Testlib-style `readXYZ()` series of functions that apply to various basic types. This makes it more convenient for CPLib to extend and combine input types, making the program more modular.
 
@@ -72,13 +72,13 @@ struct Graph {
 
 CPLib's design encourages users to split complex input of a problem into several structures that implement static `read` functions, making the program simpler and easier to read.
 
-On the other hand, CPLib takes into account the differences in some interfaces of various evaluation platforms and allows the use of "initializer" and "reporter" to customize the program's initialization and reporting methods. This way, you can achieve compatibility with upper-level evaluation platforms without modifying the CPLib source code.
+On the other hand, CPLib takes into account the differences in some interfaces of various evaluation platforms and allows the use of `initializer` and `reporter` to customize the program's initialization and reporting methods. This way, you can achieve compatibility with upper-level evaluation platforms without modifying the CPLib source code.
 
 ### Efficiency
 
 ![benchmark_result](/img/benchmark_result.svg)
 
-The table above was tested using an AMD Ryzen 7 6800H @ 3.2GHz, with the compiler being openSUSE Linux's g++ (GCC) 12.3.0 using stdlibc++. The compilation option "-O2" was enabled. After ten rounds of testing, Testlib efficiency was recorded as 100%, and CPLib's corresponding efficiency was calculated based on this value.
+The table above was tested using an AMD Ryzen 7 6800H @ 3.2GHz, with the compiler being openSUSE Linux's g++ (GCC) 12.3.0 using stdlibc++. The compilation option `-O2` was enabled. After ten rounds of testing, Testlib efficiency was recorded as 100%, and CPLib's corresponding efficiency was calculated based on this value.
 
 The dataset used for testing can be found in the [GitHub repository](https://github.com/rindag-devs/cplib/tree/main/benchmark).
 
