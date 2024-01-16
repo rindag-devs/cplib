@@ -30,7 +30,8 @@
 #else
 #include <unistd.h>  
 #endif
-#include <io.h>  
+#include <fcntl.h>  
+#include <io.h>     
 #define ON_WINDOWS
 #if defined(_MSC_VER) && _MSC_VER > 1400
 #pragma warning(disable : 4127)
@@ -1294,9 +1295,9 @@ class FdInBuf : public std::streambuf {
 #ifdef ON_WINDOWS
     _setmode(fd_, _O_BINARY);  // Sets file mode to binary
 #endif
-    setg(buf_.begin() + PB_SIZE,   // Beginning of putback area
-         buf_.begin() + PB_SIZE,   // Read position
-         buf_.begin() + PB_SIZE);  // End position
+    setg(buf_.data() + PB_SIZE,   // Beginning of putback area
+         buf_.data() + PB_SIZE,   // Read position
+         buf_.data() + PB_SIZE);  // End position
   }
 
  protected:
@@ -1318,19 +1319,19 @@ class FdInBuf : public std::streambuf {
     }
 
     // Copy up to PB_SIZE characters previously read into the putback area
-    std::memmove(buf_.begin() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
+    std::memmove(buf_.data() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
 
     // Read at most bufSize new characters
-    std::ptrdiff_t num = read(fd_, buf_.begin() + PB_SIZE, BUF_SIZE);
+    std::ptrdiff_t num = read(fd_, buf_.data() + PB_SIZE, BUF_SIZE);
     if (num <= 0) {
       // Error or EOF
       return EOF;
     }
 
     // Reset buffer pointers
-    setg(buf_.begin() + (PB_SIZE - num_putback),  // Beginning of putback area
-         buf_.begin() + PB_SIZE,                  // Read position
-         buf_.begin() + PB_SIZE + num);           // End of buffer
+    setg(buf_.data() + (PB_SIZE - num_putback),  // Beginning of putback area
+         buf_.data() + PB_SIZE,                  // Read position
+         buf_.data() + PB_SIZE + num);           // End of buffer
 
     // Return next character
     return traits_type::to_int_type(*gptr());
@@ -2140,7 +2141,7 @@ template <class F>
 class FnVar : public Var<typename std::function<F>::result_type, FnVar<F>> {
  public:
   /// The inner function.
-  std::function<auto(Reader& in)->typename std::function<F>::result_type> inner;
+  std::function<typename std::function<F>::result_type(Reader& in)> inner;
 
   /**
    * Constructor.
@@ -2311,7 +2312,8 @@ inline auto make_stdin_reader(std::string name, bool strict, io::InStream::FailF
   auto buf = std::make_unique<io::detail::FdInBuf>(fileno(stdin));
   var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict,
                                                     std::move(fail_func)));
-  stdin = nullptr;
+  /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
+  // stdin = nullptr;
   std::cin.rdbuf(nullptr);
   std::cin.tie(nullptr);
   return reader;
@@ -2322,7 +2324,8 @@ inline auto make_stdout_ostream(std::unique_ptr<std::streambuf>& buf, std::ostre
     -> void {
   buf = std::make_unique<io::detail::FdOutBuf>(fileno(stdout));
   stream.rdbuf(buf.get());
-  stdout = nullptr;
+  /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
+  // stdout = nullptr;
   std::cout.rdbuf(nullptr);
   std::cin.tie(nullptr);
   std::cerr.tie(nullptr);
@@ -3679,8 +3682,9 @@ inline auto parse_command_line_arguments(State& state, int argc, char** argv) ->
 // Disable stdin & stdout
 inline auto disable_stdio() -> void {
   std::ios_base::sync_with_stdio(false);
-  stdin = nullptr;
-  stdout = nullptr;
+  /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
+  // stdin = nullptr;
+  // stdout = nullptr;
   std::cin.rdbuf(nullptr);
   std::cout.rdbuf(nullptr);
   std::cin.tie(nullptr);
@@ -4056,21 +4060,20 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
 #endif
 
 
-#include <algorithm>          // for copy, max, sort, unique, fill_n, lower_...
-#include <cstdint>            // for uint8_t
-#include <cstdio>             // for fileno, stderr
-#include <cstdlib>            // for exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <ext/type_traits.h>  // for __enable_if
-#include <functional>         // for function
-#include <iostream>           // for basic_ostream, operator<<, clog, boolalpha
-#include <map>                // for map, operator!=, _Rb_tree_const_iterator
-#include <memory>             // for unique_ptr
-#include <optional>           // for optional, nullopt
-#include <queue>              // for queue
-#include <string>             // for basic_string, char_traits, string, allo...
-#include <string_view>        // for string_view, operator==, basic_string_view
-#include <utility>            // for move, pair
-#include <vector>             // for vector
+#include <algorithm>    // for copy, max, sort, unique, fill_n, lower_...
+#include <cstdint>      // for uint8_t
+#include <cstdio>       // for fileno, stderr
+#include <cstdlib>      // for exit, EXIT_FAILURE, EXIT_SUCCESS
+#include <functional>   // for function
+#include <iostream>     // for basic_ostream, operator<<, clog, boolalpha
+#include <map>          // for map, operator!=, _Rb_tree_const_iterator
+#include <memory>       // for unique_ptr
+#include <optional>     // for optional, nullopt
+#include <queue>        // for queue
+#include <string>       // for basic_string, char_traits, string, allo...
+#include <string_view>  // for string_view, operator==, basic_string_view
+#include <utility>      // for move, pair
+#include <vector>       // for vector
 
 
       // for InStream, InStream::eof
