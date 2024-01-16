@@ -10,10 +10,41 @@
 [license]: https://github.com/rindag-devs/cplib/blob/main/LICENSE
 [docs]: https://cplib.vercel.app/
 
-CPLib is a library written in C++ for Competitive Programming. By using CPLib, you can write clear and efficient checkers, interactors, validators, and generators.
+## Getting Started
 
-Compared to other popular libraries with similar functionalities, such as [Testlib](https://github.com/MikeMirzayanov/testlib), CPLib is more modern, extensible, and efficient.
+Visit the [documentation home page][docs] to learn more.
 
-One of the main purposes of CPLib is to replace Testlib and become the "universal tool" for problem setting.
+## Introduction
 
-This project is still in its early stages, so there may be many shortcomings in terms of functionality and stability. We appreciate your understanding.
+CPLib is a library written in C++ for processing test data of competitive programming problems. It helps you write clear and efficient checkers, interactors, validators, and generators.
+
+Here is a basic example of a checker using CPLib:
+
+```cpp filename="chk.cpp" copy showLineNumbers
+#include "cplib.hpp"
+
+using namespace cplib;
+
+CPLIB_REGISTER_CHECKER(chk);
+
+void checker_main() {
+  auto var_ans = var::i32(-2000, 2000, "ans");
+
+  int ouf_output = chk.ouf.read(var_ans);
+  int ans_output = chk.ans.read(var_ans);
+
+  if (ouf_output != ans_output) {
+    chk.quit_wa(format("Expected %d, got %d", ans_output, ouf_output));
+  }
+
+  chk.quit_ac();
+}
+```
+
+The above example demonstrates a core logic of CPLib: "variable input template". Using the "variable input template", you can save and reuse the logic of reading variables with the same restrictions. At the same time, based on the hierarchy of variable input, CPLib generates concise input stack information in case of errors.
+
+## License
+
+[MPL-2.0][license]
+
+Copyright (c) 2023-present, rindag-devs
