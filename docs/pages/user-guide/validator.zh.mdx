@@ -109,7 +109,7 @@ void validator_main() {
 CPLIB_REGISTER_VALIDATOR(val);
 ```
 
-类似于 Checker，Validator 需要调用 `CPLIB_REGISTER_VALIDATOR` 宏将程序注册成一个 CPLib Checker，并将 Checker 的状态保存至全局变量，此处变量名为 `val`．
+类似于 Checker，Validator 需要调用 `CPLIB_REGISTER_VALIDATOR` 宏将程序注册成一个 CPLib Validator，并将 Validator 的状态保存至全局变量，此处变量名为 `val`．
 
 ```cpp
     auto [u, _, v] = in(var::i32(1, n, "u"), var::space, var::i32(1, n, "v"));

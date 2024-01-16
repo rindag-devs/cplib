@@ -1,1 +1,169 @@
+import { Callout } from "nextra-theme-docs";
+
 # Interactor
+
+Before reading this chapter, please make sure you have read the [Checker](/user-guide/checker) chapter and are familiar with the basic usage of `cplib::var::Var`. This chapter will not repeat the introduction to this part.
+
+The interactor is used to interact with the standard input/output of the participant program in stdio interactive problems.
+
+In CPLib, interactor performs both "interacting with the participant program" and "checking whether the answer is correct", instead of having two separate programs like Testlib or Polygon's design. 
+
+Interactor usually needs to deal with two input streams:
+
+- The input file of the test point (`inf`): contains information about the test point. Note: In interactive problems, this file is **not equivalent** to the standard input of the participant program.
+- User input stream (`from_user`): connects to the standard output of the participant program, used to read the output information of the participant.
+
+And one output stream:
+
+- User output stream (`to_user`): used to send data to the standard input of the participant program.
+
+The input stream is wrapped using `cplib::var::Reader`, and the output stream is wrapped using `std::ostream`.
+
+The interaction process of CPLib interactor is roughly as follows:
+
+1. Interactor reads the test point information from the test point input file (`inf`) and extracts the part that can be known to the participant program, then sends it to the standard input of the participant program through the user output stream (`to_user`) according to the given format.
+2. The participant program sends several operations to interactor, which interactor reads and parses through the user input stream (`from_user`). The return value of the operation is sent to the standard input of the participant program through the user output stream (`to_user`). In some problems, an error code should also be sent to indicate whether the participant program should continue to interact or exit the program.
+3. Use the `quit*` function series to exit the program and return the result of this interaction.
+
+<Callout type="info">
+The related code for this section can be found on the [GitHub repository](https://github.com/rindag-devs/cplib/tree/main/tests/interactor/0-guessing-number).
+</Callout>
+
+Let's start with a simple problem to explain how to write and use the interactor.
+
+> **Problem Description**: Given an integer $n$ ($1 \le n \le 10^9$), the interaction library will select an integer $m$ in $[1,n]$, and you should write a program to guess it. You can perform two operations: `Q x`: ask whether the integer $x$ is greater than, less than, or equal to $m$. The interaction library returns a character indicating the answer: `>` if $x>m$, `=` if $x=m$, `<` if $x<m$. This operation cannot be called more than $50$ times; `A x`: report that the value of $m$ is $x$, this operation has no return value, and the program must exit immediately after executing this operation.
+
+## Implementation
+
+First, start with an empty working directory, copy `cplib.hpp` into the working directory, and then create a file named `intr.cpp` with the following code:
+
+```cpp filename="intr.cpp" copy showLineNumbers
+#include "cplib.hpp"
+
+using namespace cplib;
+
+CPLIB_REGISTER_INTERACTOR(intr);
+
+struct Input {
+  int n, m;
+  static Input read(var::Reader& in) {
+    auto [n, m] = in(var::i32("n"), var::i32("A"));
+    return {n, m};
+  }
+};
+
+struct Query {
+  int x;
+  static Query read(var::Reader& in, const Input& input) {
+    auto x = in.read(var::i32(1, input.n, "x"));
+    return {x};
+  }
+};
+
+struct Answer {
+  int x;
+  static Answer read(var::Reader& in, const Input& input) {
+    auto x = in.read(var::i32(1, input.n, "x"));
+    return {x};
+  }
+};
+
+struct Operate : std::variant<Query, Answer> {
+  static Operate read(var::Reader& in, const Input& input) {
+    auto op = in.read(var::String(Pattern("[QA]"), "type"));
+    if (op == "Q") {
+      return {in.read(var::ExtVar<Query>("Q", input))};
+    } else {
+      return {in.read(var::ExtVar<Answer>("A", input))};
+    }
+  }
+};
+
+void interactor_main() {
+  auto input = intr.inf.read(var::ExtVar<Input>("input"));
+
+  intr.to_user << input.n << "\n";
+
+  int use_cnt = 0;
+  while (true) {
+    auto op = intr.from_user.read(var::ExtVar<Operate>("operate", input));
+    if (op.index() == 0) {
+      const auto& Q = std::get<0>(op);
+      if (use_cnt >= 50) intr.quit_wa("Too many queries");
+      if (Q.x > input.m)
+        intr.to_user << ">\n";
+      else if (Q.x == input.m)
+        intr.to_user << "=\n";
+      else
+        intr.to_user << "<\n";
+      ++use_cnt;
+    } else {
+      const auto& A = std::get<1>(op);
+      if (A.x == input.m)
+        intr.quit_ac();
+      else
+        intr.quit_wa(format("Expected %d, got %d", input.m, A.x));
+    }
+  }
+}
+```
+
+As you can see, the general structure of interactor is similar to that of checker, and it will not be explained in detail in this chapter.
+
+For convenience in code writing, the `to_user` stream adopts a design without a buffer area, and all data output to this stream will be sent to the standard input of the contestant program immediately. Therefore, the syntax for flushing the buffer area of the `to_user` stream, such as `intr.to_user.flush()`, is not used in the code.
+
+## Usage
+
+Switch to the working directory and compile `intr.cpp` into an executable file. Store the test point input file in `data/0.in`. Then run the executable file in the terminal to simulate the interaction between the contestant program and the interactor through standard input/output.
+
+For data with a large amount of interaction, manually simulating interaction will be very time-consuming. At this time, we can write a script to automatically connect the input/output of the contestant program and interactor to test the program.
+
+This tutorial uses Python 3 scripts for demonstration. Create a file `run.py` in the working directory, and then enter the following code:
+
+```py filename="run.py" copy showLineNumbers
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import sys
+import subprocess
+import threading
+
+BIN_INTR = "./intr"
+BIN_STD = "./std"
+
+
+class SubprocessThread(threading.Thread):
+    def __init__(self, args, stdin_pipe, stdout_pipe, stderr_pipe):
+        threading.Thread.__init__(self)
+        self.p = subprocess.Popen(args, stdin=stdin_pipe, stdout=stdout_pipe, stderr=stderr_pipe)
+
+    def run(self):
+        self.p.wait()
+
+
+def main():
+    inf = sys.argv[1]
+    t_sol = SubprocessThread([BIN_STD], subprocess.PIPE, subprocess.PIPE, subprocess.DEVNULL)
+    t_judge = SubprocessThread([BIN_INTR, inf], t_sol.p.stdout, t_sol.p.stdin, sys.stderr)
+
+    t_sol.start()
+    t_judge.start()
+    t_sol.join()
+    t_judge.join()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+The values of the constants `BIN_INTR` and `BIN_STD` in the code are the commands required to execute interactor and the contestant program, usually the relative path of the executable file obtained by compiling interactor and the contestant program. For example, on Windows, it should be `.\intr.exe` and `.\std.exe`.
+
+Then execute the command `python3 run.py data/0.in` in the terminal (on Windows, you may need to replace the slash `/` in the path with a backslash `\`) to get the output result of interactor.
+
+## Suggestions
+
+In summary, when writing more complex interactors, we recommend the following suggestions:
+
+- Use `std::variant` to describe different operations of the contestant.
+- Use `intr.from_user` and `intr.to_user` to communicate with the contestant program in any case. **Do not** use `std::cin` / `std::cout` or C-style input functions to read from `stdin` / `stdout` for input and output. These functions usually do not have the error handling mechanism required by interactor, and using these functions will also destroy the internal state of `intr.from_user` and `intr.to_user`, leading to unpredictable behavior.
+- And all the suggestions mentioned in the chapter [Checker](/user-guide/checker#suggestions).

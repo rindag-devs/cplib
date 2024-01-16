@@ -52,7 +52,6 @@ void checker_main() {
 
 我们将逐行讲解这段代码．
 
-
 ```cpp
 using namespace cplib;
 ```
@@ -163,7 +162,7 @@ CPLib 所需的最低 C++ 标准为 C++ 17．
 
 </Tab>
 <Tab>
-打开 cmd.exe，切换到刚才建立的工作目录．执行编译命令来编译 Checker，它通常类似于这样：
+打开 cmd.exe 或 Windows Terminal 程序，切换到刚才建立的工作目录．执行编译命令来编译 Checker，它通常类似于这样：
 
 ```cmd
 g++ chk.cpp -o chk.exe -std=c++17
@@ -206,7 +205,6 @@ Windows 10 [自 v1511 起](https://www.reddit.com/r/Windows10/comments/44czox/wi
 - 使用其他支持 ANSI 颜色的终端模拟器．
 - 设置 `NO_COLOR=1` 环境变量，这会直接禁用 Checker 的颜色输出．
 </Callout>
-
 </Tab>
 </Tabs>
 
@@ -328,7 +326,7 @@ CPLib 提供了 `cplib::var::Vec` 来创建 `std::vector` 的变量读入模板�
 
 检查完「有效性」之后，下一步就是检查选手输出和标准答案的「等价性」，我们推荐你在每个需要进行比较的类型上实现一个静态的 `check(expected, result)` 方法，并在 `checker_main` 中调用最外层类型 `Output` 的 `check` 方法．最后在 `check` 均通过后调用 `chk.quit_ac`．
 
-### 建议
+## 建议
 
 综上所述，在编写较为复杂的 Checker 时，我们推荐你遵循如下建议：
 

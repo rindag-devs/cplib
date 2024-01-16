@@ -1,0 +1,32 @@
+import { Tab, Tabs } from "nextra-theme-docs";
+
+# Quick Start
+
+## Get CPLib
+
+CPLib is a library that consists only of header files. This means you don't have to worry about linking issues. The recommended way to use CPLib is to include the preprocessed single-header file. You can find the latest snapshot of the single-header file based on the main branch on [GitHub](https://github.com/rindag-devs/cplib/blob/single-header-snapshot/cplib.hpp).
+
+Alternatively, you can download CPLib to a local folder using terminal commands.
+
+<Tabs items={['UNIX-like', 'Windows']} storageKey="selected-os">
+<Tab>
+Open the terminal and enter the following command:
+
+```bash
+curl -o cplib.hpp -L https://github.com/rindag-devs/cplib/raw/single-header-snapshot/cplib.hpp
+```
+</Tab>
+<Tab>
+Launch PowerShell and enter the following command:
+
+```powershell
+Invoke-WebRequest -Uri "https://github.com/rindag-devs/cplib/raw/single-header-snapshot/cplib.hpp" -OutFile "cplib.hpp"
+```
+</Tab>
+</Tabs>
+
+This will download the latest snapshot of the single-header file based on the main branch and save it as `cplib.hpp` in the current directory.
+
+## Start Learning
+
+This document will explain how to use CPLib with examples. Additionally, whether you have prior experience using libraries like Testlib for development or not, it is recommended to start reading from the [Checker](/user-guide/checker) chapter.

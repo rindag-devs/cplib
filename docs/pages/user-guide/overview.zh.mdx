@@ -1,10 +1,96 @@
 # 总览
 
+## 什么是 CPLib？
+
+CPLib 是使用 C++ 编写的，用于处理算法竞赛测试数据的库．帮助你编写清晰且高效的 Checker、Interactor、Validator 和 Generator．
+
+下面是一个基本的 Checker 示例：
+
+```cpp filename="chk.cpp" copy showLineNumbers
+#include "cplib.hpp"
+
+using namespace cplib;
+
+CPLIB_REGISTER_CHECKER(chk);
+
+void checker_main() {
+  auto var_ans = var::i32(-2000, 2000, "ans");
+
+  int ouf_output = chk.ouf.read(var_ans);
+  int ans_output = chk.ans.read(var_ans);
+
+  if (ouf_output != ans_output) {
+    chk.quit_wa(format("Expected %d, got %d", ans_output, ouf_output));
+  }
+
+  chk.quit_ac();
+}
+```
+
+上面的实例展示了 CPLib 的一个核心逻辑：「变量读入模板」．通过「变量读入模板」，你可以将限制相同的变量读入逻辑进行保存和复用．同时根据变量之间的读入层次关系，在错误时生成简洁的读入栈信息．
+
+## 为什么要使用 CPLib？
+
+CPLib 项目与其他定位类似的库的优点主要体现在以下几点．
+
+### 现代性
+
+CPLib 的开发使用较新的 C++ 17 标准，并在代码中较多使用现代 C++ 新语法．现代 C++ 的标准库及特性为 CPLib 提供了众多语法糖和快速的实现．同时，CPLib 偏向于优先使用标准库而非另做实现，使得它可更好的与其他库进行兼容．
+
+CPLib 在一些功能细节的处理也更加现代化．例如，读入错误时，CPLib 会返回完整的读入栈 Trace；输出报告至文件时，采用更为流行的 JSON 格式而非 Testlib 使用的 XML 格式．
+
+### 扩展性
+
+CPLib 扩展性主要体现在两点：变量读入模板 `cplib::var::Var` 的设计，以及对用于各大评测平台的定制性．
+
+CPLib 的变量读入基于「变量读入模板」，而非 Testlib 风格的、适用于各种基本类型的 `readXYZ()` 系列函数．这使得 CPLib 可以更加方便地扩展与组合读入类型，从而使得程序更加模块化．
+
+下面是一个简单的示例，展示了通过将 `cplib::var::Var` 进行组合与扩展的方式，完成读取有向图的任务．
+
+```cpp
+struct Edge {
+  int32_t from, to;
+
+  static auto read(var::Reader &in, int32_t n) -> Edge {
+    auto [from, to] = in(var::i32(1, n, "from"), var::i32(1, n, "to"));
+    if (from == to) in.fail("Self-loops are not allowed");
+    return {from, to};
+  }
+};
+
+struct Graph {
+  int32_t n, m;
+  std::vector<Edge> edges;
+
+  static auto read(var::Reader &in) -> Graph {
+    auto [n, m] = in(var::i32("n"), var::i32("m"));
+    auto edges = in.read(var::ExtVar<Edge>("edge", n) * m);
+    return {n, m, edges};
+  }
+};
+```
+
+CPLib 的设计引导使用者将一道题目复杂的读入拆分为若干个实现了静态 `read` 函数的结构体，使程序更加简单易读．
+
+另一方面，CPLib 考虑到了各大评测平台部分接口的差异，允许使用 `initializer` 和 `reporter` 来定制程序的初始化与报告方式，不需要修改 CPLib 源代码就能做到与上层评测平台的兼容性．
+
+### 高效性
+
+![benchmark_result](/img/benchmark_result.svg)
+
+上表中使用 AMD Ryzen 7 6800H @ 3.2GHz 进行测试，编译器为 openSUSE Linux 下的、使用 stdlibc++ 的 g++ (GCC) 12.3.0，并开启编译选项 `-O2`．取十轮平均值后，记录 Testlib 效率为 100\%，并以此折算出 CPLib 对应的效率．
+
+测试使用的数据集可以在 [GitHub 仓库](https://github.com/rindag-devs/cplib/tree/main/benchmark) 中找到．
+
+## 适用环境
+
 CPLib 为四种环境提供帮助：
 
-- Checker，也就是自定义判分器．如果你的题目需要细化得分需求，可以使用它实现．
+- Checker，也就是自定义判分器．如果你的题目正确答案不唯一或需要细化得分需求，可以使用它实现．
 - Interactor，也就是交互库．你可以使用它实现交互题的库．
-- Validator，也就是数据校验器．在 **严格模式** 下，你可以将用户提供的数据识别精度达到每一个字符．
+- Validator，也就是数据校验器．在严格模式下，你可以将用户提供的数据识别精度达到每一个字符．
 - Generator，也就是数据生成器．用于批量生成数据．
 
-本文档将会以结合实例的方式讲解 CPLib 的用法．另外，不论你之前是否有使用过 Testlib 或其他定位类似的库进行开发的经验，都建议你从 [Checker](/user-guide/checker) 部分开始阅读．
+## 存在问题？
+
+请查看我们的 [FAQ](faq)．

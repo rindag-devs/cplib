@@ -1,0 +1,32 @@
+import { Tab, Tabs } from "nextra-theme-docs";
+
+# 快速上手
+
+## 获取 CPLib
+
+CPLib 是一个仅包含头文件的库．也就是说你基本无需担心链接问题．使用 CPLib 的推荐方式是使用预处理后的单文件头．你可以在 [GitHub](https://github.com/rindag-devs/cplib/blob/single-header-snapshot/cplib.hpp) 找到基于主分支最新提交生成的单文件头快照．
+
+或者，你也可以使用终端命令将 CPLib 下载至本地文件夹．
+
+<Tabs items={['UNIX-like', 'Windows']} storageKey="selected-os">
+<Tab>
+打开终端，输入以下命令：
+
+```bash
+curl -o cplib.hpp -L https://github.com/rindag-devs/cplib/raw/single-header-snapshot/cplib.hpp
+```
+</Tab>
+<Tab>
+启动 PowerShell，并输入以下命令：
+
+```powershell
+Invoke-WebRequest -Uri "https://github.com/rindag-devs/cplib/raw/single-header-snapshot/cplib.hpp" -OutFile "cplib.hpp"
+```
+</Tab>
+</Tabs>
+
+这将会下载基于主分支最新提交生成的单文件头快照，并保存至当前目录下的 `cplib.hpp` 文件．
+
+## 开始学习
+
+本文档将会以结合实例的方式讲解 CPLib 的用法．另外，不论你之前是否有使用过 Testlib 等其他定位类似的库进行开发的经验，都建议你从 [Checker](/user-guide/checker) 章节开始阅读．

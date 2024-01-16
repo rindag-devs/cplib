@@ -10,3 +10,17 @@ code, kbd, samp, pre {
   font-family: "Fira Code", "SF Mono", "Consolas", monospace;
   font-size: 1em;
 }
+
+.tagline {
+  font-weight: 800;
+  font-size: 4em;
+  text-align: center;
+  line-height: 1.2em;
+}
+
+.description {
+  font-size: 1.25em;
+  text-align: center;
+  color: darkgray;
+  margin-top: 2em;
+}

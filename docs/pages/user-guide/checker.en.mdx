@@ -1,1 +1,350 @@
+import { Callout, FileTree, Tab, Tabs } from "nextra-theme-docs";
+
 # Checker
+
+The checker is usually used to check the answers of participants in cases where there are multiple correct answers, or when more detailed scoring requirements are needed.
+
+Checkers usually need to process three files:
+
+- Input file of the test point (`inf`): This is the file used as input when the participant's program runs.
+- Participant's output file (`ouf`): This is the output file generated when the participant's program runs.
+- Standard answer file (`ans`): This file stores the correct answer. In most cases, it is equivalent to the output file generated when the standard program (std) runs.
+
+Checkers usually need to check two conditions:
+
+- Based on the input file of the test point, determine whether the participant's output is "valid".
+- Compare the participant's output with the standard answer and check if they are "equivalent".
+
+## Basics
+
+<Callout type="info">
+The relevant code for this section can be found in the [GitHub repository](https://github.com/rindag-devs/cplib/tree/main/tests/checker/0-i32-a-plus-b).
+</Callout>
+
+Let's start with a simple example to explain how to write and use the checker.
+
+> **Problem Description**: Given two integers $a$ and $b$ ($-1000 \le a,b \le 1000$), you need to output the sum of $a$ and $b$.
+
+### Implementation
+
+First, start with an empty working directory, copy `cplib.hpp` into the working directory, and then create a file named `chk.cpp` with the following code:
+
+```cpp filename="chk.cpp" copy showLineNumbers
+#include "cplib.hpp"
+
+using namespace cplib;
+
+CPLIB_REGISTER_CHECKER(chk);
+
+void checker_main() {
+  auto var_ans = var::i32(-2000, 2000, "ans");
+
+  int ouf_output = chk.ouf.read(var_ans);
+  int ans_output = chk.ans.read(var_ans);
+
+  if (ouf_output != ans_output) {
+    chk.quit_wa(format("Expected %d, got %d", ans_output, ouf_output));
+  }
+
+  chk.quit_ac();
+}
+```
+
+We will explain each line of this code step by step.
+
+```cpp
+using namespace cplib;
+```
+
+The main functionalities of CPLib are stored in the namespace `cplib`. Since programs used in Competitive Programming are generally short, to a certain extent, `using namespace cplib;` greatly optimizes development efficiency.
+
+```cpp
+CPLIB_REGISTER_CHECKER(chk);
+```
+
+The `CPLIB_REGISTER_CHECKER(name)` macro registers the program as a CPLib checker and saves the state of the checker in a global variable named `name` (in the code, the name is `chk`). `name` can be replaced with any variable name that complies with C++ syntax. However, for readability and conciseness, we will use `chk` as the global state variable name in this document.
+
+```cpp
+void checker_main() {
+```
+
+`checker_main` is the main function of a program registered as a CPLib checker, which will be called once CPLib completes initialization, similar to the `main` function in a regular C++ program. The actual `main` function will be implemented by CPLib.
+
+```cpp
+  auto var_ans = var::i32(-2000, 2000, "ans");
+```
+
+Declare a **variable reading template**. The type is `i32` (32-bit signed integer), and it is named `ans`. A variable reading template is responsible for specifying how to read a variable of a given type according to the given method.
+
+<Callout type="info">
+`cplib::var::i32` is an alias for `cplib::var::Int<int32_t>`. The constructor declaration of `cplib::var::Int<T>` is as follows:
+
+- `explicit Int();`
+- `explicit Int(std::string name);`
+- `explicit Int(std::optional<T> min, std::optional<T> max);`
+- `explicit Int(std::optional<T> min, std::optional<T> max, std::string name);`
+
+Where `min` and `max` respectively specify the minimum and maximum values of the integer. In this problem, the minimum value is $(-1000) + (-1000) = -2000$, and the maximum value is $1000 + 1000 = 2000$. `name` specifies the name of the variable. When an error occurs during reading, the name of the erroneous variable will be displayed in the error message along with the reading stack trace. You can use an overload of the constructor without the `name` parameter to omit the name parameter. However, doing so will make the error report less readable, so we **strongly discourage** you from doing so.
+</Callout>
+
+```cpp
+  int ouf_output = chk.ouf.read(var_ans);
+  int ans_output = chk.ans.read(var_ans);
+```
+
+Based on the variable reading template defined just now, read an integer from both the participant's output file and the standard answer file. We don't need to worry about the correctness of the reading format and the range of the integers, as CPLib will automatically perform the above checks.
+
+When the participant's output does not meet the conditions, CPLib will immediately exit the program and report "Wrong Answer", while generating a clear reading stack trace information for reference.
+
+When the standard answer does not meet the conditions, CPLib's behavior is roughly similar to when the participant's output is incorrect. The difference is that in this case, the result returned is "Internal Error". Of course, in actual problems, it is essential to prevent such cases of incorrect standard answers.
+
+```cpp
+  if (ouf_output != ans_output) {
+    chk.quit_wa(format("Expected %d, got %d", ans_output, ouf_output));
+  }
+```
+
+When it is found that the participant's output and the standard answer are not consistent, the `chk.quit_wa` function needs to be called to report "Wrong Answer" and exit the program. We recommend providing clear information when using the `chk.quit_wa` series of functions. Here, the `cplib::format` function is used to format the error message. This function uses a format similar to `printf`, making it convenient to format strings.
+
+```cpp
+  chk.quit_ac();
+```
+
+`chk.quit_ac` reports "Accepted", meaning there are no errors, and then exits the program.
+
+<Callout type="info">
+When your answer is wrong, it is necessary to explain why it is wrong. However, when your answer is correct, there is no need to explain why it is correct. Therefore, CPLib does not provide, nor intend to provide, an overloaded `chk.quit_ac` function for outputting custom information. However, everything should consider extensibility. If you do have such a need, please refer to the documentation of the [chk.quit]() function.
+</Callout>
+
+<Callout type="warning">
+Programs registered as CPLib programs must use the `chk.quit*` series of functions to exit, and it is **not allowed** to directly use functions like `std::exit` to exit.
+</Callout>
+
+### Usage
+
+<Tabs items={['UNIX-like', 'Windows']} storageKey="selected-os">
+<Tab>
+Open the terminal, navigate to the working directory you just created, and execute the compilation command to compile the checker, which is typically similar to this:
+
+```bash
+g++ chk.cpp -o chk -std=c++17
+```
+
+<Callout type="warning">
+The minimum C++ standard required by CPLib is C++ 17.
+</Callout>
+
+Next, create a folder named `data/` in the working directory to store the test points used by the checker and place the test data inside. In this example, we use `data/0.in`, `data/0.out`, and `data/0.ans` as the names of the test data.
+
+At this point, your working directory structure should look like this:
+
+<FileTree>
+  <FileTree.Folder name="data" defaultOpen>
+    <FileTree.File name="0.ans" />
+    <FileTree.File name="0.in" />
+    <FileTree.File name="0.out" />
+  </FileTree.Folder>
+  <FileTree.File name="chk.cpp" />
+  <FileTree.File name="cplib.hpp" />
+</FileTree>
+
+Execute the following command in the terminal to test your checker:
+
+```bash
+./chk data/0.in data/0.out data/0.ans
+```
+
+If everything is normal up to this point, you will see the following results from the checker:
+
+```ansi
+[0;32mAccepted[0m, scores [0;33m100.0[0m of 100.
+```
+
+</Tab>
+<Tab>
+Start `cmd.exe` or Windows Terminal app, navigate to the working directory you just created, and execute the compilation command to compile the checker, which is typically similar to this:
+
+```cmd
+g++ chk.cpp -o chk.exe -std=c++17
+```
+
+<Callout type="warning">
+The minimum C++ standard required by CPLib is C++ 17.
+</Callout>
+
+Next, create a folder named `data/` in the working directory to store the test points used by the checker and place the test data inside. In this example, we use `data/0.in`, `data/0.out`, and `data/0.ans` as the names of the test data.
+
+At this point, your working directory structure should look like this:
+
+<FileTree>
+  <FileTree.Folder name="data" defaultOpen>
+    <FileTree.File name="0.ans" />
+    <FileTree.File name="0.in" />
+    <FileTree.File name="0.out" />
+  </FileTree.Folder>
+  <FileTree.File name="chk.cpp" />
+  <FileTree.File name="cplib.hpp" />
+</FileTree>
+
+Execute the following command in the terminal to test your checker:
+
+```cmd
+.\chk data\0.in data\0.out data\0.ans
+```
+
+If everything is normal up to this point, you will see the following results from the checker:
+
+```ansi
+[0;32mAccepted[0m, scores [0;33m100.0[0m of 100.
+```
+
+<Callout type="warning">
+Windows 10 supports ANSI colors [since v1511](https://www.reddit.com/r/Windows10/comments/44czox/windows_10_v1511_adds_support_for_ansi_escape/). If you encounter unreadable characters in the output of the checker, and you are using an earlier version of Windows that does not support ANSI color, you can try the following solutions:
+
+- Install [ANSICON](https://github.com/adoxa/ansicon), which enables ANSI color in cmd.exe.
+- Use other terminal emulators that support ANSI color.
+- Set the environment variable `NO_COLOR=1` to disable the color output of the checker directly.
+</Callout>
+</Tab>
+</Tabs>
+
+<Callout>
+If you want to experiment on your own, you can:
+
+- Try changing the content of your test point input file, participant's output file, and standard answer file, and observe the changes in the output of the checker.
+- Run `./chk --help` and observe the impact of changing the `--report-format` command-line parameter and setting `NO_COLOR=1` or `CLICOLOR_FORCE=1` environment variables on the output of the checker.
+</Callout>
+
+## Advanced
+
+<Callout type="info">
+The relevant code for this section can be found in the [GitHub repository](https://github.com/rindag-devs/cplib/tree/main/tests/checker/2-shortest-path).
+</Callout>
+
+In actual problems encountered in Competitive Programming, the problems are not as simple as A+B. Let's look at a slightly more complex example.
+
+> **Problem Description**: Given an undirected connected simple graph with $n$ nodes ($1 \le n \le 100$) and $m$ edges ($1 \le n \le 100$), where the endpoints of the $i$-th edge are $u_i$ and $v_i$ ($1 \le u_i, v_i \le n$), and the edge weight is $w_i$ ($1 \le w_i \le 100$). You need to solve two problems: find the sum of the weights of the shortest path from $1$ to $n$, and output any one shortest path.
+
+> **Input Format**: The first line contains two integers $n$ and $m$. Next, there are $m$ lines, each containing three integers $u_i,v_i,w_i$.
+
+> **Output Format**: The first line outputs an integer $\mathit{sum}$, representing the answer to the first problem. The second line first outputs an integer $\mathit{len}$ in the range $[1,n^2]$, representing the number of nodes traversed in the shortest path. Then it outputs $\mathit{len}$ integers, representing the node numbers traversed in the shortest path (including the starting node $1$ and the ending node $n$).
+
+When writing a more complex checker, it is a **very wrong** choice to include all the logic in `checker_main`. Below is a more readable and maintainable implementation of a checker:
+
+```cpp filename="chk.cpp" copy showLineNumbers
+#include <map>
+#include <utility>
+#include <vector>
+
+#include "cplib.hpp"
+
+using namespace cplib;
+
+CPLIB_REGISTER_CHECKER(chk);
+
+struct Edge {
+  int u, v, w;
+
+  static Edge read(var::Reader& in) {
+    auto [u, v, w] = in(var::i32("u"), var::i32("v"), var::i32("w"));
+    return {u, v, w};
+  }
+};
+
+struct Input {
+  int n, m;
+  std::map<std::pair<int, int>, int> graph;
+
+  static Input read(var::Reader& in) {
+    auto [n, m] = in(var::i32("n"), var::i32("m"));
+    auto edges = in.read(var::ExtVar<Edge>("edges") * m);
+
+    std::map<std::pair<int, int>, int> graph;
+    for (auto [u, v, w] : edges) {
+      graph[{u, v}] = w;
+      graph[{v, u}] = w;
+    }
+
+    return {n, m, graph};
+  }
+};
+
+struct Output {
+  int sum, len;
+  std::vector<int> plan;
+
+  static Output read(var::Reader& in, const Input& input) {
+    auto [sum, len] = in(var::i32(0, std::nullopt, "sum"), var::i32(1, std::nullopt, "len"));
+    auto plan = in.read(var::i32(1, input.n, "plan") * len);
+
+    if (plan.front() != 1) in.fail("Plan should begin with 1");
+    if (plan.back() != input.n) in.fail("Plan should end with n");
+    int result_sum = 0;
+    for (int i = 1; i < (int)plan.size(); ++i) {
+      if (!input.graph.count({plan[i - 1], plan[i]}))
+        in.fail(format("Edge %d <-> %d does not exist", plan[i - 1], plan[i]));
+      result_sum += input.graph.at({plan[i - 1], plan[i]});
+    }
+    if (result_sum != sum) in.fail("Plan and shortest path length do not match");
+
+    return {sum, len, plan};
+  }
+
+  static void check(const Output& expected, const Output& result) {
+    if (result.sum < expected.sum)
+      chk.quit_wa(format("Wrong sum, expected %d, got %d", expected.sum, result.sum));
+
+    if (result.sum > expected.sum)
+      panic(format("Contestant answers are better than standard answers, expected %d, got %d",
+                   expected.sum, result.sum));
+  }
+};
+
+void checker_main() {
+  auto input = chk.inf.read(var::ExtVar<Input>("input"));
+
+  auto output = var::ExtVar<Output>("output", input);
+  auto ouf_output = chk.ouf.read(output);
+  auto ans_output = chk.ans.read(output);
+
+  Output::check(ans_output, ouf_output);
+  chk.quit_ac();
+}
+```
+
+This example demonstrates how to use variable reading templates for custom types.
+
+First, define the structure `Edge` to describe an edge. The simplest way to create a variable reading template for reading `Edge` is to use `cplib::var::ExtVar`. Before using it, you need to write a public static method named `read` for the `Edge` structure. The first parameter type of this method must be `cplib::var::Reader&`: that is, a reference to the type corresponding to the objects `chk.inf`, `chk.ouf`, `chk.ans` introduced in the previous section. Subsequent parameters can be defined arbitrarily.
+
+The code from the previous section shows the `.read` method of the `cplib::var::Reader` type, and the implementation of `Edge::read` uses its `operator()` operator overloading. This operator sequentially calls `.read` method with instances of multiple variable reading templates as parameters and packs all the results into a `std::tuple` in order. When reading multiple variables with **no dependency relationship**, using `operator()` can make the code shorter.
+
+CPLib provides `cplib::var::Vec` for creating variable reading templates for `std::vector`, and also overloads `operator*(size_t)` for `cplib::var::Var`. Using a syntax similar to the one in the `Input::read` method in the code, you can quickly create a `cplib::var::Vec` by multiplying any object of a subclass of `cplib::var::Var` with an integer.
+
+After writing `Edge::read`, we can use `cplib::var::ExtVar<Edge>` to create a variable reading template for reading an `Edge` type. When instantiating a `cplib::var::ExtVar<T>` for a target reading type `T`, if the number of parameters for `T::read` is greater than or equal to $2$, you need to pass arguments to the constructor of `cplib::var::ExtVar<T>` based on the second to last parameter of `T::read`. For types like the `Edge` type in this example, whose `Edge::read` method has only one parameter, the constructor does not need to pass any arguments.
+
+When it is possible to check whether the participant's output is "valid" before reading all the participant's output, we recommend that you write the logic for checking "validity" in the corresponding type's `read` method, as shown in the implementation of `Output::read` in this example. If there is a case of reading that does not meet the requirements of the problem, the `in.fail(message)` function should be used to report the error. This function generates an error report based on the input parameter `message` and the current reading stack trace, and exits the program. Different input streams corresponding to `Reader` determine different types of error reports. For example, calling `fail` on `chk.inf` and `chk.ans` streams in the checker will result in an error type of "Internal Error", while on the `chk.ouf` stream, it will result in "Wrong Answer".
+
+After checking for "validity", the next step is to check for the "equivalence" between the participant's output and the standard answer. We recommend that you implement a static `check(expected, result)` method on each type that needs to be compared, and call the `check` method of the outermost type `Output` in `checker_main`. Finally, after all the checks pass in `check`, call `chk.quit_ac`.
+
+## Suggestions
+
+In summary, when writing more complex checkers, we recommend the following suggestions:
+
+- Use custom types and `cplib::var::ExtVar` to encapsulate your code, instead of using basic type reading entirely.
+- When checking the "validity" of `T`, consider implementing it in `T::read` first. Next, consider separately checking the `result` parameter in `T::check`.
+- When checking the "equivalence" of `T`, consider implementing it in `T::check`, and only call the `check` method of the outermost variable in `checker_main`.
+- For types that only appear in the test point input file, it is not necessary to implement "validity" checks for them: you should do this in the Validator.
+
+<Callout>
+If you want to experiment on your own, you can:
+
+Try writing a checker for the following problem.
+
+**Problem Description**: For a graph with $n$ ($1 \le n \le 10^5$) nodes and $m$ ($1 \le m \le 10^5$) undirected edges, output the number of edge biconnected components and output each edge biconnected component.
+
+**Input Format**: The first line contains two integers $n$ and $m$. Next, there are $m$ lines, each containing two integers $u,v$, representing an undirected edge.
+
+**Output Format**: The first line contains an integer $x$ representing the number of edge biconnected components. The following $x$ lines each start with an integer $a$ representing the number of nodes in the component, followed by $a$ integers describing an edge biconnected component. You can output the edge biconnected components and the nodes within them in any order.
+
+For the example implementation, see the [GitHub repository](https://github.com/rindag-devs/cplib/tree/main/tests/checker/3-set-of-sets).
+</Callout>

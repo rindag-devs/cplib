@@ -16,5 +16,6 @@
     "max-params": "off",
     "require-yield": "off",
     "@typescript-eslint/explicit-function-return-type": "error"
-  }
+  },
+  "ignorePatterns": ["docs/**/*"]
 }

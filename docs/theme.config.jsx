@@ -20,4 +20,19 @@ export default {
     { locale: "en", text: "English" },
     { locale: "zh", text: "中文" },
   ],
+  footer: {
+    text: (
+      <div style={{ width: "100%", textAlign: "left" }}>
+        CPLib made by{" "}
+        <a
+          style={{ textDecoration: "underline" }}
+          href="https://github.com/rindag-devs"
+          target="_blank"
+          rel="noopener"
+        >
+          rindag-devs
+        </a>
+      </div>
+    ),
+  },
 };

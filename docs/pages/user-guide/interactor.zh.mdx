@@ -4,9 +4,9 @@ import { Callout } from "nextra-theme-docs";
 
 阅读本章之前，请保证你已阅读过 [Checker](/user-guide/checker) 章节并掌握 `cplib::var::Var` 的基本用法．本章中将不再在对这一部分重复介绍．
 
-Interactor，即「交互器」，用于在 STDIO 交互题与选手程序交互．
+Interactor，即「交互器」，用于在 stdio 交互题与选手程序交互．
 
-CPLib 中 Interactor 同时担任「与选手程序交互」和「检验答案是否正确」两个功能，而不是像 Testlib/Polygon 的设计那样，两个功能由 Interactor 和 Checker 两个单独的程序实现．
+CPLib 中 Interactor 同时担任「与选手程序交互」和「检验答案是否正确」两个功能，而不是像 Testlib 或 Polygon 的设计那样，两个功能由 Interactor 和 Checker 两个单独的程序实现．
 
 Interactor 通常需要处理两个输入流：
 
@@ -155,7 +155,8 @@ def main():
 if __name__ == "__main__":
     main()
 ```
-其中代码中常量 `BIN_INTR` 和 `BIN_STD` 的值为执行 Interactor 和选手程序所需的命令，通常为编译 Interactor 和选手程序得到的可执行文件的相对路径．例如 Windows 下，应为 `.\intr.exe` 和 `.\std.exe`．
+
+代码中常量 `BIN_INTR` 和 `BIN_STD` 的值为执行 Interactor 和选手程序所需的命令，通常为编译 Interactor 和选手程序得到的可执行文件的相对路径．例如 Windows 下，应为 `.\intr.exe` 和 `.\std.exe`．
 
 接下来在终端中执行命令 `python3 run.py data/0.in`（在 Windows 下，可能需要路径中的斜杠 `/` 替换为反斜杠 `\`），即可得到 Interactor 的输出结果．
 
