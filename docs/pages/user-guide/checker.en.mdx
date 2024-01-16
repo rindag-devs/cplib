@@ -333,7 +333,7 @@ In summary, when writing more complex checkers, we recommend the following sugge
 - Use custom types and `cplib::var::ExtVar` to encapsulate your code, instead of using basic type reading entirely.
 - When checking the "validity" of `T`, consider implementing it in `T::read` first. Next, consider separately checking the `result` parameter in `T::check`.
 - When checking the "equivalence" of `T`, consider implementing it in `T::check`, and only call the `check` method of the outermost variable in `checker_main`.
-- For types that only appear in the test point input file, it is not necessary to implement "validity" checks for them: you should do this in the Validator.
+- For types that only appear in the test point input file, it is not necessary to implement "validity" checks for them: you should do this in the validator.
 
 <Callout>
 If you want to experiment on your own, you can:

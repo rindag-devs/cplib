@@ -1,8 +1,9 @@
 import { Tab, Tabs } from "nextra-theme-docs";
+import { Steps } from 'nextra/components'
 
 # 快速上手
 
-## 获取 CPLib
+## 从快照获取 CPLib
 
 CPLib 是一个仅包含头文件的库．也就是说你基本无需担心链接问题．使用 CPLib 的推荐方式是使用预处理后的单文件头．你可以在 [GitHub](https://github.com/rindag-devs/cplib/blob/single-header-snapshot/cplib.hpp) 找到基于主分支最新提交生成的单文件头快照．
 
@@ -26,6 +27,35 @@ Invoke-WebRequest -Uri "https://github.com/rindag-devs/cplib/raw/single-header-s
 </Tabs>
 
 这将会下载基于主分支最新提交生成的单文件头快照，并保存至当前目录下的 `cplib.hpp` 文件．
+
+## 从源代码构建
+
+除了直接使用快照，从源代码构建是另一种获得单文件头的方式．
+
+<Steps>
+### 克隆 Git 仓库
+
+```bash
+git clone https://github.com/rindag-devs/cplib.git --depth=1
+cd cplib
+```
+
+### 安装 PNPM 依赖
+
+```bash
+pnpm install
+```
+
+### 构建单文件头
+
+```bash
+pnpm build-single-header
+```
+
+### 查看生成文件
+
+你将会得到 `out/single-header/cplib.hpp` 文件．
+</Steps>
 
 ## 开始学习
 

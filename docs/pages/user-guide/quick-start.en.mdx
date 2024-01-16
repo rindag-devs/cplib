@@ -1,8 +1,9 @@
 import { Tab, Tabs } from "nextra-theme-docs";
+import { Steps } from 'nextra/components'
 
 # Quick Start
 
-## Get CPLib
+## Get CPLib from Snapshot
 
 CPLib is a library that consists only of header files. This means you don't have to worry about linking issues. The recommended way to use CPLib is to include the preprocessed single-header file. You can find the latest snapshot of the single-header file based on the main branch on [GitHub](https://github.com/rindag-devs/cplib/blob/single-header-snapshot/cplib.hpp).
 
@@ -26,6 +27,35 @@ Invoke-WebRequest -Uri "https://github.com/rindag-devs/cplib/raw/single-header-s
 </Tabs>
 
 This will download the latest snapshot of the single-header file based on the main branch and save it as `cplib.hpp` in the current directory.
+
+## Build from Source
+
+In addition to using snapshots directly, building from source is another way to obtain a single file header.
+
+<Steps>
+### Clone Git Repo
+
+```bash
+git clone https://github.com/rindag-devs/cplib.git --depth=1
+cd cplib
+```
+
+### Install PNPM dependencies
+
+```bash
+pnpm install
+```
+
+### Build Single Header File
+
+```bash
+pnpm build-single-header
+```
+
+### Get Output File
+
+You will get `out/single-header/cplib.hpp`.
+</Steps>
 
 ## Start Learning
 
