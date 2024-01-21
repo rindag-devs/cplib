@@ -201,7 +201,7 @@ auto colored_text_reporter(const Report& report) -> void;
   struct Flag {                                                                            \
     std::string name;                                                                      \
     bool value{false};                                                                     \
-    Flag(std::string name_) : name(name_) {                                                \
+    explicit Flag(std::string name_) : name(std::move(name_)) {                            \
       state_var_name_.required_flag_args.emplace_back(name);                               \
       state_var_name_.flag_parsers.emplace_back(                                           \
           [&](const std::set<std::string>& flag_args) { value = flag_args.count(name); }); \
@@ -212,7 +212,7 @@ auto colored_text_reporter(const Report& report) -> void;
   struct Var {                                                                             \
     T var;                                                                                 \
     typename T::Target value;                                                              \
-    Var(T var_) : var(std::move(var_)), value(typename T::Target()) {                      \
+    explicit Var(T var_) : var(std::move(var_)), value(typename T::Target()) {             \
       state_var_name_.required_var_args.emplace_back(var.name());                          \
       state_var_name_.var_parsers.emplace_back(                                            \
           [this](const std::map<std::string, std::string>& var_args) {                     \
