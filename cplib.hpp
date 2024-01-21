@@ -1751,9 +1751,6 @@ class Float : public Var<T, Float<T>> {
 template <class T>
 class StrictFloat : public Var<T, StrictFloat<T>> {
  public:
-  T min, max;
-  std::size_t min_n_digit, max_n_digit;
-
   /**
    * Constructor with min, max range, and digit count restrictions parameters.
    *
@@ -1784,6 +1781,10 @@ class StrictFloat : public Var<T, StrictFloat<T>> {
    * @return The value read from the input reader.
    */
   auto read_from(Reader& in) const -> T override;
+
+ private:
+  T min_, max_;
+  Pattern pat_;
 };
 
 /**
@@ -2485,15 +2486,14 @@ inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_
 template <class T>
 inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_n_digit,
                                    std::string name)
-    : Var<T, StrictFloat<T>>(std::move(name)),
-      min(std::move(min)),
-      max(std::move(max)),
-      min_n_digit(min_n_digit),
-      max_n_digit(max_n_digit) {
+    : Var<T, StrictFloat<T>>(std::move(name)), min_(std::move(min)), max_(std::move(max)) {
   if (min > max) panic("StrictFloat constructor failed: min must be <= max");
   if (min_n_digit > max_n_digit) {
     panic("StrictFloat constructor failed: min_n_digit must be <= max_n_digit");
   }
+  pat_ = Pattern(min_n_digit == 0
+                     ? format("-?([1-9][0-9]*|0)(\\.[0-9]{,%zu})?", max_n_digit)
+                     : format("-?([1-9][0-9]*|0)\\.[0-9]{%zu,%zu}", min_n_digit, max_n_digit));
 }
 
 template <class T>
@@ -2509,11 +2509,7 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
     }
   }
 
-  Pattern pat(min_n_digit == 0
-                  ? format("-?([1-9][0-9]*|0)(\\.[0-9]{,%zu})?", max_n_digit)
-                  : format("-?([1-9][0-9]*|0)\\.[0-9]{%zu,%zu}", min_n_digit, max_n_digit));
-
-  if (!pat.match(token)) {
+  if (!pat_.match(token)) {
     in.fail(format("Expected a strict float, got `%s`", compress(token).c_str()));
   }
 
@@ -2526,13 +2522,13 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
     in.fail(format("Expected a strict float, got `%s`", compress(token).c_str()));
   }
 
-  if (result < min) {
-    in.fail(format("Expected a strict float >= %s, got `%s`", std::to_string(min).c_str(),
+  if (result < min_) {
+    in.fail(format("Expected a strict float >= %s, got `%s`", std::to_string(min_).c_str(),
                    compress(token).c_str()));
   }
 
-  if (result > max) {
-    in.fail(format("Expected a strict float <= %s, got `%s`", std::to_string(max).c_str(),
+  if (result > max_) {
+    in.fail(format("Expected a strict float <= %s, got `%s`", std::to_string(max_).c_str(),
                    compress(token).c_str()));
   }
 
