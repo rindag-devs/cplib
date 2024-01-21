@@ -1,1 +1,23 @@
 # FAQ
+
+## 缺少 `<regex.h>`
+
+CPLib 依赖 [C POSIX Library](https://en.wikipedia.org/wiki/C_POSIX_library) 中的 `regex.h` 头文件．如果你正在使用非 POSIX 环境下的标准库（例如 Windows 下的 MinGW 或 MSVC 默认安装时使用的标准库），则该文件很可能会不存在或损坏．你可以使用 [musl regex.h standalone](https://github.com/rindag-devs/musl-regex-standalone) 项目来解决这个问题．
+
+在 [该项目 GitHub 仓库](https://github.com/rindag-devs/musl-regex-standalone/blob/main/regex.h) 处可以获取一个单头文件的 `regex.h` 实现．你可以将其放入系统的 include 文件夹或替换原有且损坏的 `regex.h`．
+
+## 正则表达式过大
+
+如果你使用类似于 `[a-z]{1,1000000}` 的正则表达式去匹配长度在 $1$ 和 $10^6$ 之间的字符串，程序会以「Internal Error」的状态退出，并包含形如 `pattern constructor failed: Invalid contents of {}` 或 `pattern constructor failed: Regular expression too big` 的错误信息．这是因为大多数基于 [NFA](https://en.wikipedia.org/wiki/Nondeterministic_finite_automaton) 的正则表达式库在对模式串 $S$ 和文本串 $T$ 进行匹配时，空间复杂度为 $O(|S| \cdot R)$，时间复杂度为 $O(|S| \cdot |T| \cdot R)$．其中 $R$ 为 $S$ 中所有形如 `{n}`、`{n,}`、`{,m}` 或 `{n,m}` 的「区间重复」语法中 $n$ 与 $m$ 的和．在 $R$ 非常大时会出现 `Pattern` 构造失败的情况，即使在某些环境下构造成功也会带来非常慢的匹配效率．因此，如果你想对长文本进行正则表达式匹配，不要在正则表达式中检查字符串的长度．下面的例子展示了如何以正确方式读取并检查长字符串：
+
+```cpp
+// Wrong
+// auto pat = Pattern("[a-z]{1,1000000}");
+
+// Right
+auto pat = Pattern("[a-z]+");
+auto str = some_reader.read(cplib::var::String(pat));
+if (str.size() > 1000000) {
+  // handle error
+}
+```

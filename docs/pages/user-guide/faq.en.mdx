@@ -1,1 +1,23 @@
 # FAQ
+
+## Missing `<regex.h>`
+
+CPLib depends on the `regex.h` header file from the [C POSIX Library](https://en.wikipedia.org/wiki/C_POSIX_library). If you are using a standard library outside of a POSIX environment (such as MinGW on Windows or the default standard library used by MSVC), it is likely that this file does not exist or is corrupted. You can solve this problem by using the [musl regex.h standalone](https://github.com/rindag-devs/musl-regex-standalone) project.
+
+You can obtain a single-header `regex.h` implementation from the [GitHub repository](https://github.com/rindag-devs/musl-regex-standalone/blob/main/regex.h) of this project. You can place it in the system's include folder or replace the existing and corrupted `regex.h`.
+
+## Regular Expression Too Big
+
+If you use a regular expression like `[a-z]{1,1000000}` to match strings with lengths between $1$ and $10^6$, the program will quit with an "Internal Error", along with an error message such as `pattern constructor failed: Invalid contents of {}` or `pattern constructor failed: Regular expression too big`. This is because most regular expression libraries based on [NFA](https://en.wikipedia.org/wiki/Nondeterministic_finite_automaton) have a space complexity of $O(|S| \cdot R)$ and a time complexity of $O(|S| \cdot |T| \cdot R)$ when matching a pattern string $S$ against a text string $T$. Here, $R$ represents the sum of values in the interval repetition syntax `{n}`, `{n,}`, `{,m}`, or `{n,m}` within $S$. When $R$ is very large, the pattern construction may fail, and even if it succeeds in some environments, it can result in very slow matching efficiency. Therefore, if you want to match long texts using regular expressions, do not check the length of the string within the regular expression. The following example shows how to correctly read and check a long string:
+
+```cpp
+// Wrong
+// auto pat = Pattern("[a-z]{1,1000000}");
+
+// Right
+auto pat = Pattern("[a-z]+");
+auto str = some_reader.read(cplib::var::String(pat));
+if (str.size() > 1000000) {
+  // handle error
+}
+```
