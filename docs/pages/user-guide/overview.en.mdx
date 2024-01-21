@@ -14,7 +14,7 @@ using namespace cplib;
 CPLIB_REGISTER_CHECKER(chk);
 
 void checker_main() {
-  auto var_ans = var::i32(-2000, 2000, "ans");
+  auto var_ans = var::i32("ans", -2000, 2000);
 
   int ouf_output = chk.ouf.read(var_ans);
   int ans_output = chk.ans.read(var_ans);
@@ -52,7 +52,7 @@ struct Edge {
   int32_t from, to;
 
   static auto read(var::Reader &in, int32_t n) -> Edge {
-    auto [from, to] = in(var::i32(1, n, "from"), var::i32(1, n, "to"));
+    auto [from, to] = in(var::i32("from", 1, n), var::i32("to", 1, n));
     if (from == to) in.fail("Self-loops are not allowed");
     return {from, to};
   }
