@@ -234,7 +234,7 @@ inline auto json_reporter(const Report& report) -> void {
                     report.status.to_string().data(), report.score,
                     cplib::detail::json_string_encode(report.message).c_str());
   std::clog << msg << '\n';
-  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
+  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 inline auto plain_text_reporter(const Report& report) -> void {
@@ -244,7 +244,7 @@ inline auto plain_text_reporter(const Report& report) -> void {
   if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
-  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
+  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 inline auto colored_text_reporter(const Report& report) -> void {
@@ -254,7 +254,7 @@ inline auto colored_text_reporter(const Report& report) -> void {
   if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
-  std::exit(report.status == Report::Status::INTERNAL_ERROR ? EXIT_FAILURE : EXIT_SUCCESS);
+  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 // /Impl reporters }}}
 }  // namespace cplib::checker
