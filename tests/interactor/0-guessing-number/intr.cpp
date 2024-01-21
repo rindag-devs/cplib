@@ -25,7 +25,7 @@ struct Input {
 struct Query {
   int x;
   static Query read(var::Reader& in, const Input& input) {
-    auto x = in.read(var::i32(1, input.n, "x"));
+    auto x = in.read(var::i32("x", 1, input.n));
     return {x};
   }
 };
@@ -33,14 +33,14 @@ struct Query {
 struct Answer {
   int x;
   static Answer read(var::Reader& in, const Input& input) {
-    auto x = in.read(var::i32(1, input.n, "x"));
+    auto x = in.read(var::i32("x", 1, input.n));
     return {x};
   }
 };
 
 struct Operate : std::variant<Query, Answer> {
   static Operate read(var::Reader& in, const Input& input) {
-    auto op = in.read(var::String(Pattern("[QA]"), "type"));
+    auto op = in.read(var::String("type", Pattern("[QA]")));
     if (op == "Q") {
       return {in.read(var::ExtVar<Query>("Q", input))};
     } else {

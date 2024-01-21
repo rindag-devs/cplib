@@ -36,7 +36,7 @@ struct Edge {
   int u, v;
 
   static Edge read(var::Reader& in, int n) {
-    auto [u, _, v] = in(var::i32(1, n, "u"), var::space, var::i32(1, n, "v"));
+    auto [u, _, v] = in(var::i32("u", 1, n), var::space, var::i32("v", 1, n));
     return {u, v};
   }
 };
@@ -46,7 +46,7 @@ struct Input {
   std::vector<Edge> edges;
 
   static Input read(var::Reader& in) {
-    auto [n, _, m, __] = in(var::i32(2, 1000, "n"), var::space, var::i32(1, 1000, "m"), var::eoln);
+    auto [n, _, m, __] = in(var::i32("n", 2, 1000), var::space, var::i32("m", 1, 1000), var::eoln);
     auto edges = in.read(var::Vec(var::ExtVar<Edge>("edges", n), m, var::eoln));
     in.read(var::eoln);
     return {n, m, edges};

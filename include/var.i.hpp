@@ -157,17 +157,17 @@ template <class T, class D>
 inline Var<T, D>::Var(std::string name) : name_(std::move(name)) {}
 
 template <class T>
-inline Int<T>::Int() : Int<T>(std::nullopt, std::nullopt, std::string(detail::VAR_DEFAULT_NAME)) {}
+inline Int<T>::Int() : Int<T>(std::string(detail::VAR_DEFAULT_NAME), std::nullopt, std::nullopt) {}
 
 template <class T>
-inline Int<T>::Int(std::string name) : Int<T>(std::nullopt, std::nullopt, std::move(name)) {}
+inline Int<T>::Int(std::string name) : Int<T>(std::move(name), std::nullopt, std::nullopt) {}
 
 template <class T>
 inline Int<T>::Int(std::optional<T> min, std::optional<T> max)
-    : Int<T>(std::move(min), std::move(max), std::string(detail::VAR_DEFAULT_NAME)) {}
+    : Int<T>(std::string(detail::VAR_DEFAULT_NAME), std::move(min), std::move(max)) {}
 
 template <class T>
-inline Int<T>::Int(std::optional<T> min, std::optional<T> max, std::string name)
+inline Int<T>::Int(std::string name, std::optional<T> min, std::optional<T> max)
     : Var<T, Int<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
 template <class T>
@@ -205,17 +205,17 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
 
 template <class T>
 inline Float<T>::Float()
-    : Float<T>(std::nullopt, std::nullopt, std::string(detail::VAR_DEFAULT_NAME)) {}
+    : Float<T>(std::string(detail::VAR_DEFAULT_NAME), std::nullopt, std::nullopt) {}
 
 template <class T>
-inline Float<T>::Float(std::string name) : Float<T>(std::nullopt, std::nullopt, std::move(name)) {}
+inline Float<T>::Float(std::string name) : Float<T>(std::move(name), std::nullopt, std::nullopt) {}
 
 template <class T>
 inline Float<T>::Float(std::optional<T> min, std::optional<T> max)
-    : Float<T>(std::move(min), std::move(max), std::string(detail::VAR_DEFAULT_NAME)) {}
+    : Float<T>(std::string(detail::VAR_DEFAULT_NAME), std::move(min), std::move(max)) {}
 
 template <class T>
-inline Float<T>::Float(std::optional<T> min, std::optional<T> max, std::string name)
+inline Float<T>::Float(std::string name, std::optional<T> min, std::optional<T> max)
     : Var<T, Float<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
 template <class T>
@@ -256,11 +256,11 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
 
 template <class T>
 inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_n_digit)
-    : StrictFloat<T>(min, max, min_n_digit, max_n_digit, std::string(detail::VAR_DEFAULT_NAME)) {}
+    : StrictFloat<T>(std::string(detail::VAR_DEFAULT_NAME), min, max, min_n_digit, max_n_digit) {}
 
 template <class T>
-inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_n_digit,
-                                   std::string name)
+inline StrictFloat<T>::StrictFloat(std::string name, T min, T max, size_t min_n_digit,
+                                   size_t max_n_digit)
     : Var<T, StrictFloat<T>>(std::move(name)), min_(std::move(min)), max_(std::move(max)) {
   if (min > max) panic("StrictFloat constructor failed: min must be <= max");
   if (min_n_digit > max_n_digit) {
@@ -313,12 +313,12 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
 inline String::String() : String(std::string(detail::VAR_DEFAULT_NAME)) {}
 
 inline String::String(Pattern pat)
-    : String(std::move(pat), std::string(detail::VAR_DEFAULT_NAME)) {}
+    : String(std::string(detail::VAR_DEFAULT_NAME), std::move(pat)) {}
 
 inline String::String(std::string name)
     : Var<std::string, String>(std::move(name)), pat(std::nullopt) {}
 
-inline String::String(Pattern pat, std::string name)
+inline String::String(std::string name, Pattern pat)
     : Var<std::string, String>(std::move(name)), pat(std::move(pat)) {}
 
 inline auto String::read_from(Reader& in) const -> std::string {
@@ -342,9 +342,9 @@ inline auto String::read_from(Reader& in) const -> std::string {
 }
 
 // Impl Separator {{{
-inline Separator::Separator(char sep) : Separator(sep, std::string(detail::VAR_DEFAULT_NAME)) {}
+inline Separator::Separator(char sep) : Separator(std::string(detail::VAR_DEFAULT_NAME), sep) {}
 
-inline Separator::Separator(char sep, std::string name)
+inline Separator::Separator(std::string name, char sep)
     : Var<std::nullopt_t, Separator>(std::move(name)), sep(sep) {}
 
 inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
@@ -379,11 +379,11 @@ inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
 
 inline Line::Line() : Line(std::string(detail::VAR_DEFAULT_NAME)) {}
 
-inline Line::Line(Pattern pat) : Line(std::move(pat), std::string(detail::VAR_DEFAULT_NAME)) {}
+inline Line::Line(Pattern pat) : Line(std::string(detail::VAR_DEFAULT_NAME), std::move(pat)) {}
 
 inline Line::Line(std::string name) : Var<std::string, Line>(std::move(name)), pat(std::nullopt) {}
 
-inline Line::Line(Pattern pat, std::string name)
+inline Line::Line(std::string name, Pattern pat)
     : Var<std::string, Line>(std::move(name)), pat(std::move(pat)) {}
 
 inline auto Line::read_from(Reader& in) const -> std::string {
@@ -422,7 +422,8 @@ inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::
 }
 
 template <class T>
-inline Mat<T>::Mat(T element, size_t len0, size_t len1) : Mat<T>(element, len0, len1, ' ', '\n') {}
+inline Mat<T>::Mat(T element, size_t len0, size_t len1)
+    : Mat<T>(element, len0, len1, var::space, var::eoln) {}
 
 template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1, Separator sep0, Separator sep1)
@@ -450,34 +451,19 @@ inline auto Mat<T>::read_from(Reader& in) const
 }
 
 template <class F, class S>
-inline Pair<F, S>::Pair(F first, S second)
-    : Pair<F, S>(std::move(first), std::move(second), " ", std::string(detail::VAR_DEFAULT_NAME)) {}
-
-template <class F, class S>
-inline Pair<F, S>::Pair(F first, S second, Separator sep)
-    : Pair<F, S>(std::move(first), std::move(second), std::move(sep),
-                 std::string(detail::VAR_DEFAULT_NAME)) {}
-
-template <class F, class S>
-inline Pair<F, S>::Pair(F first, S second, Separator sep, std::string name)
-    : Var<std::pair<typename F::Var::Target, typename S::Var::Target>, Pair<F, S>>(std::move(name)),
-      first(std::move(first)),
-      second(std::move(second)),
-      sep(std::move(sep)) {}
-
-template <class F, class S>
 inline Pair<F, S>::Pair(std::pair<F, S> pr)
-    : Pair<F, S>(std::move(pr.first), std::move(pr.second), " ",
-                 std::string(detail::VAR_DEFAULT_NAME)) {}
+    : Pair<F, S>(std::string(detail::VAR_DEFAULT_NAME), std::move(pr), var::space) {}
 
 template <class F, class S>
 inline Pair<F, S>::Pair(std::pair<F, S> pr, Separator sep)
-    : Pair<F, S>(std::move(pr.first), std::move(pr.second), std::move(sep),
-                 std::string(detail::VAR_DEFAULT_NAME)) {}
+    : Pair<F, S>(std::string(detail::VAR_DEFAULT_NAME), std::move(pr), std::move(sep)) {}
 
 template <class F, class S>
-inline Pair<F, S>::Pair(std::pair<F, S> pr, Separator sep, std::string name)
-    : Pair<F, S>(std::move(pr.first), std::move(pr.second), std::move(sep), std::move(name)) {}
+inline Pair<F, S>::Pair(std::string name, std::pair<F, S> pr, Separator sep)
+    : Var<std::pair<typename F::Var::Target, typename S::Var::Target>, Pair<F, S>>(std::move(name)),
+      first(std::move(pr.first)),
+      second(std::move(pr.second)),
+      sep(std::move(sep)) {}
 
 template <class F, class S>
 inline auto Pair<F, S>::read_from(Reader& in) const
@@ -490,14 +476,14 @@ inline auto Pair<F, S>::read_from(Reader& in) const
 
 template <class... T>
 inline Tuple<T...>::Tuple(std::tuple<T...> elements)
-    : Tuple<T...>(std::move(elements), " ", std::string(detail::VAR_DEFAULT_NAME)) {}
+    : Tuple<T...>(std::string(detail::VAR_DEFAULT_NAME), std::move(elements), var::space) {}
 
 template <class... T>
 inline Tuple<T...>::Tuple(std::tuple<T...> elements, Separator sep)
-    : Tuple<T...>(std::move(elements), std::move(sep), std::string(detail::VAR_DEFAULT_NAME)) {}
+    : Tuple<T...>(std::string(detail::VAR_DEFAULT_NAME), std::move(elements), std::move(sep)) {}
 
 template <class... T>
-inline Tuple<T...>::Tuple(std::tuple<T...> elements, Separator sep, std::string name)
+inline Tuple<T...>::Tuple(std::string name, std::tuple<T...> elements, Separator sep)
     : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>>(std::move(name)),
       elements(std::move(elements)),
       sep(std::move(sep)) {}

@@ -23,8 +23,8 @@ CPLIB_REGISTER_CHECKER(chk);
 
 struct Set : std::vector<int32_t> {
   static Set read(var::Reader& in, int32_t n) {
-    auto len = in.read(var::i32(1, n, "len"));
-    auto result = in.read(var::i32(1, n, "set") * len);
+    auto len = in.read(var::i32("len", 1, n));
+    auto result = in.read(var::i32("set", 1, n) * len);
 
     std::sort(result.begin(), result.end());
     if (std::unique(result.begin(), result.end()) != result.end())
@@ -39,7 +39,7 @@ struct Output {
   std::vector<Set> sets;
 
   static Output read(var::Reader& in, int32_t n) {
-    auto len = in.read(var::i32(0, std::nullopt, "len"));
+    auto len = in.read(var::i32("len", 0, std::nullopt));
     auto sets = in.read(var::ExtVar<Set>("sets", n) * len);
     std::sort(sets.begin(), sets.end());
     return {len, sets};

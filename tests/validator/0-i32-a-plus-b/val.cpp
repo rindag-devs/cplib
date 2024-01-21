@@ -24,7 +24,7 @@ void validator_main() {
   });
 
   std::tie(n, std::ignore, m, std::ignore) =
-      val.inf(var::i32(-1000, 1000, "n"), var::space, var::i32(-1000, 1000, "m"), var::eoln);
+      val.inf(var::i32("n", -1000, 1000), var::space, var::i32("m", -1000, 1000), var::eoln);
 
   val.quit_valid();
 }

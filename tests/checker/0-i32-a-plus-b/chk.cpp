@@ -15,12 +15,14 @@ using namespace cplib;
 CPLIB_REGISTER_CHECKER(chk);
 
 void checker_main() {
-  auto var_ans = var::i32("ans");
+  auto var_ans = var::i32("ans", -2000, 2000);
+
   int ouf_output = chk.ouf.read(var_ans);
   int ans_output = chk.ans.read(var_ans);
 
   if (ouf_output != ans_output) {
     chk.quit_wa(format("Expected %d, got %d", ans_output, ouf_output));
   }
+
   chk.quit_ac();
 }

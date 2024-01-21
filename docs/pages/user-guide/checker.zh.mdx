@@ -37,7 +37,7 @@ using namespace cplib;
 CPLIB_REGISTER_CHECKER(chk);
 
 void checker_main() {
-  auto var_ans = var::i32(-2000, 2000, "ans");
+  auto var_ans = var::i32("ans", -2000, 2000);
 
   int ouf_output = chk.ouf.read(var_ans);
   int ans_output = chk.ans.read(var_ans);
@@ -71,7 +71,7 @@ void checker_main() {
 `checker_main` 是一个被注册为 CPLib Checker 的程序的主函数，该函数将会在 CPLib 完成初始化后调用一次，类似于一般 C++ 程序中的 `main` 函数．而真正的 `main` 函数将会由 CPLib 实现．
 
 ```cpp
-  auto var_ans = var::i32(-2000, 2000, "ans");
+  auto var_ans = var::i32("ans", -2000, 2000);
 ```
 
 声明一个 **变量读入模板**．模板的类型为 `i32`（32 位有符号整数），并给予名称 `ans`．一个变量读入模板负责表述如何按照给定方式读入一个给定类型的变量．
@@ -82,7 +82,7 @@ void checker_main() {
 - `explicit Int();`
 - `explicit Int(std::string name);`
 - `explicit Int(std::optional<T> min, std::optional<T> max);`
-- `explicit Int(std::optional<T> min, std::optional<T> max, std::string name);`
+- `explicit Int(std::string name, std::optional<T> min, std::optional<T> max);`
 
 其中 `min` 与 `max` 分别规定了整数的最小值和最大值．在本题中，最小值为 $(-1000) + (-1000) = -2000$，最大值为 $1000 + 1000 = 2000$．`name` 规定了变量的名称．当读入发生错误时，出错变量的名称将会随着读入栈轨迹（Trace）会显示在错误信息中．你可以使用一个没有 `name` 参数的构造函数重载来省略名称参数．但是这么做会使得发生错误时的报告失去部分阅读性，所以我们 **非常不推荐** 你去这么做．
 </Callout>

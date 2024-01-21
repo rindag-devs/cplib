@@ -224,11 +224,11 @@ class Int : public Var<T, Int<T>> {
   /**
    * Constructor with min, max, and name parameters.
    *
+   * @param name The name of the Int variable.
    * @param min The minimum value of the Int variable.
    * @param max The maximum value of the Int variable.
-   * @param name The name of the Int variable.
    */
-  explicit Int(std::optional<T> min, std::optional<T> max, std::string name);
+  explicit Int(std::string name, std::optional<T> min, std::optional<T> max);
 
  protected:
   /**
@@ -272,11 +272,11 @@ class Float : public Var<T, Float<T>> {
   /**
    * Constructor with min and max range parameters and name parameter.
    *
+   * @param name The name of the Float variable.
    * @param min The minimum value of the Float variable.
    * @param max The maximum value of the Float variable.
-   * @param name The name of the Float variable.
    */
-  explicit Float(std::optional<T> min, std::optional<T> max, std::string name);
+  explicit Float(std::string name, std::optional<T> min, std::optional<T> max);
 
  protected:
   /**
@@ -308,14 +308,14 @@ class StrictFloat : public Var<T, StrictFloat<T>> {
   /**
    * Constructor with min, max range, digit count restrictions parameters, and name parameter.
    *
+   * @param name The name of the StrictFloat variable.
    * @param min The minimum value of the StrictFloat variable.
    * @param max The maximum value of the StrictFloat variable.
    * @param min_n_digit The minimum number of digits of the StrictFloat variable.
    * @param max_n_digit The maximum number of digits of the StrictFloat variable.
-   * @param name The name of the StrictFloat variable.
    */
-  explicit StrictFloat(T min, T max, std::size_t min_n_digit, std::size_t max_n_digit,
-                       std::string name);
+  explicit StrictFloat(std::string name, T min, T max, std::size_t min_n_digit,
+                       std::size_t max_n_digit);
 
  protected:
   /**
@@ -360,10 +360,10 @@ class String : public Var<std::string, String> {
   /**
    * Constructor with pattern and name parameters.
    *
-   * @param pat The pattern of the String variable.
    * @param name The name of the String variable.
+   * @param pat The pattern of the String variable.
    * */
-  explicit String(Pattern pat, std::string name);
+  explicit String(std::string name, Pattern pat);
 
  protected:
   /**
@@ -396,10 +396,10 @@ class Separator : public Var<std::nullopt_t, Separator> {
   /**
    * Constructs a `Separator` object with the specified separator character and name.
    *
-   * @param sep The separator character.
    * @param name The name of the `Separator`.
+   * @param sep The separator character.
    */
-  explicit Separator(char sep, std::string name);
+  explicit Separator(std::string name, char sep);
 
  protected:
   /**
@@ -440,10 +440,10 @@ class Line : public Var<std::string, Line> {
   /**
    * Constructs a `Line` object with the specified pattern and name.
    *
-   * @param pat The pattern to match for the line.
    * @param name The name of the `Line`.
+   * @param pat The pattern to match for the line.
    */
-  explicit Line(Pattern pat, std::string name);
+  explicit Line(std::string name, Pattern pat);
 
  protected:
   /**
@@ -566,33 +566,6 @@ class Pair : public Var<std::pair<typename F::Var::Target, typename S::Var::Targ
   Separator sep;
 
   /**
-   * Constructor.
-   *
-   * @param first The first element of the pair.
-   * @param second The second element of the pair.
-   */
-  explicit Pair(F first, S second);
-
-  /**
-   * Constructor with separator.
-   *
-   * @param first The first element of the pair.
-   * @param second The second element of the pair.
-   * @param sep The separator used when converting to string.
-   */
-  explicit Pair(F first, S second, Separator sep);
-
-  /**
-   * Constructor with separator and name.
-   *
-   * @param first The first element of the pair.
-   * @param second The second element of the pair.
-   * @param sep The separator used when converting to string.
-   * @param name The name of the pair.
-   */
-  explicit Pair(F first, S second, Separator sep, std::string name);
-
-  /**
    * Constructor from std::pair.
    *
    * @param pr The std::pair to initialize the Pair with.
@@ -608,13 +581,21 @@ class Pair : public Var<std::pair<typename F::Var::Target, typename S::Var::Targ
   explicit Pair(std::pair<F, S> pr, Separator sep);
 
   /**
+   * Constructor from std::pair with name.
+   *
+   * @param name The name of the pair.
+   * @param pr The std::pair to initialize the Pair with.
+   */
+  explicit Pair(std::string name, std::pair<F, S> pr);
+
+  /**
    * Constructor from std::pair with separator and name.
    *
+   * @param name The name of the pair.
    * @param pr The std::pair to initialize the Pair with.
    * @param sep The separator used when converting to string.
-   * @param name The name of the pair.
    */
-  explicit Pair(std::pair<F, S> pr, Separator sep, std::string name);
+  explicit Pair(std::string name, std::pair<F, S> pr, Separator sep);
 
  protected:
   /**
@@ -656,13 +637,21 @@ class Tuple : public Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
   explicit Tuple(std::tuple<T...> elements, Separator sep);
 
   /**
+   * Constructor with name.
+   *
+   * @param name The name of the tuple.
+   * @param elements The elements of the tuple.
+   */
+  explicit Tuple(std::string name, std::tuple<T...> elements);
+
+  /**
    * Constructor with separator and name.
    *
+   * @param name The name of the tuple.
    * @param elements The elements of the tuple.
    * @param sep The separator used when converting to string.
-   * @param name The name of the tuple.
    */
-  explicit Tuple(std::tuple<T...> elements, Separator sep, std::string name);
+  explicit Tuple(std::string name, std::tuple<T...> elements, Separator sep);
 
  protected:
   /**
@@ -762,9 +751,9 @@ using f32s = StrictFloat<float>;
 using f64s = StrictFloat<double>;
 using fexts = StrictFloat<long double>;
 
-const auto space = Separator(' ', "space");
-const auto tab = Separator('\t', "tab");
-const auto eoln = Separator('\n', "eoln");
+const auto space = Separator("space", ' ');
+const auto tab = Separator("tab", '\t');
+const auto eoln = Separator("eoln", '\n');
 };  // namespace cplib::var
 
 #include "var.i.hpp"  // IWYU pragma: export

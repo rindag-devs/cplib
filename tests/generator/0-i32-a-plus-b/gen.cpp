@@ -19,7 +19,7 @@ CPLIB_REGISTER_GENERATOR(gen, Args, {
 });
 
 void generator_main(const Args& args) {
-  if (args.n_min.value > args.n_max.value) panic("n_min must be less than n_max");
+  if (args.n_min.value > args.n_max.value) panic("n_min must be <= n_max");
 
   int a = gen.rnd.next(args.n_min.value, args.n_max.value);
   int b = args.same.value ? a : gen.rnd.next(args.n_min.value, args.n_max.value);
