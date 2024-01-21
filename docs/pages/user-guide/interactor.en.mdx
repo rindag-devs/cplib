@@ -4,25 +4,25 @@ import { Callout } from "nextra-theme-docs";
 
 Before reading this chapter, please make sure you have read the [Checker](/user-guide/checker) chapter and are familiar with the basic usage of `cplib::var::Var`. This chapter will not repeat the introduction to this part.
 
-The interactor is used to interact with the standard input/output of the participant program in stdio interactive problems.
+The interactor is used to interact with the standard input/output of the participant's program in "stdio"-interactive problems.
 
-In CPLib, interactor performs both "interacting with the participant program" and "checking whether the answer is correct", instead of having two separate programs like Testlib or Polygon's design. 
+In CPLib, interactor performs both "interacting with the participant's program" and "checking whether the answer is correct", instead of having two separate programs like Testlib or Polygon's design. 
 
 Interactor usually needs to deal with two input streams:
 
-- The input file of the test point (`inf`): contains information about the test point. Note: In interactive problems, this file is **not equivalent** to the standard input of the participant program.
-- User input stream (`from_user`): connects to the standard output of the participant program, used to read the output information of the participant.
+- Test input file (`inf`): Contains information about the test. Note: In interactive problems, this file is **not equivalent** to the standard input of the participant's program.
+- User input stream (`from_user`): Connects to the standard output of the participant's program, used to read the output from participant's program.
 
 And one output stream:
 
-- User output stream (`to_user`): used to send data to the standard input of the participant program.
+- User output stream (`to_user`): Used to send data to the standard input of the participant's program.
 
 The input stream is wrapped using `cplib::var::Reader`, and the output stream is wrapped using `std::ostream`.
 
 The interaction process of CPLib interactor is roughly as follows:
 
-1. Interactor reads the test point information from the test point input file (`inf`) and extracts the part that can be known to the participant program, then sends it to the standard input of the participant program through the user output stream (`to_user`) according to the given format.
-2. The participant program sends several operations to interactor, which interactor reads and parses through the user input stream (`from_user`). The return value of the operation is sent to the standard input of the participant program through the user output stream (`to_user`). In some problems, an error code should also be sent to indicate whether the participant program should continue to interact or exit the program.
+1. Interactor reads the test point information from the test point input file (`inf`) and extracts the part that can be known to the participant's program, then sends it to the standard input of the participant's program through the user output stream (`to_user`) according to the given format.
+2. The participant's program sends several operations to interactor, which interactor reads and parses through the user input stream (`from_user`). The return value of the operation is sent to the standard input of the participant's program through the user output stream (`to_user`). In some problems, an error code should also be sent to indicate whether the participant's program should continue to interact or exit the program.
 3. Use the `quit*` function series to exit the program and return the result of this interaction.
 
 <Callout type="info">

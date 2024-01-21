@@ -1,25 +1,33 @@
+:root,
+html,
 body {
-  font-feature-settings: "rlig" 1,"calt" 1,"chws" 1;
+  font-feature-settings:
+    "rlig" 1,
+    "calt" 1,
+    "chws" 1;
 }
 
-blockquote.nx-italic  {
+blockquote.nx-italic {
   font-style: normal;
 }
 
-code, kbd, samp, pre {
+code,
+kbd,
+samp,
+pre {
   font-family: "Fira Code", "SF Mono", "Consolas", monospace;
   font-size: 1em;
 }
 
 .tagline {
   font-weight: 800;
-  font-size: 4em;
+  font-size: 3em;
   text-align: center;
   line-height: 1.2em;
 }
 
 .description {
-  font-size: 1.25em;
+  font-size: 1em;
   text-align: center;
   color: darkgray;
   margin-top: 2em;

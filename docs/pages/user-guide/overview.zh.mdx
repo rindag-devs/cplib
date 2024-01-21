@@ -78,7 +78,15 @@ CPLib 的设计引导使用者将一道题目复杂的读入拆分为若干个�
 
 ![benchmark_result](/img/benchmark_result.svg)
 
-上表中使用 AMD Ryzen 7 6800H @ 3.2GHz 进行测试，编译器为 openSUSE Linux 下的、使用 stdlibc++ 的 g++ (GCC) 12.3.0，并开启编译选项 `-O2`．取十轮平均值后，记录 Testlib 效率为 100\%，并以此折算出 CPLib 对应的效率．
+测试环境如下：
+
+- CPU：AMD Ryzen 7 6800H @ 3.2GHz．
+- OS：openSUSE Linux．
+- 编译器：g++ (GCC) 12.3.0．
+- 编译选项：`-O2`．
+- C++ 标准库：libstdc++．
+
+取十轮平均值后，记录 Testlib 效率为 100\%，并以此折算出 CPLib 对应的效率．
 
 测试使用的数据集可以在 [GitHub 仓库](https://github.com/rindag-devs/cplib/tree/main/benchmark) 中找到．
 
@@ -87,7 +95,7 @@ CPLib 的设计引导使用者将一道题目复杂的读入拆分为若干个�
 CPLib 为四种环境提供帮助：
 
 - Checker，也就是自定义判分器．如果你的题目正确答案不唯一或需要细化得分需求，可以使用它实现．
-- Interactor，也就是交互库．你可以使用它实现交互题的库．
+- Interactor，也就是交互器．在交互题中，用于与选手程序进行交互．
 - Validator，也就是数据校验器．在严格模式下，你可以将用户提供的数据识别精度达到每一个字符．
 - Generator，也就是数据生成器．用于批量生成数据．
 

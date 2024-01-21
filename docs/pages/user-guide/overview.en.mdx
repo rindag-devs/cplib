@@ -35,7 +35,7 @@ The advantages of the CPLib project over other similarly positioned libraries ar
 
 ### Modernization
 
-CPLib was developed using the newer C++ 17 standard and uses modern C++ new syntax more frequently in the code. The standard library and features of modern C++ provide CPLib with many syntactic sugars and fast implementation. At the same time, CPLib tends to prioritize using the standard library rather than making another implementation, making it more compatible with other libraries.
+CPLib is developed using the newer C++ 17 standard and uses modern C++ syntax more frequently in its code. The standard library and features of modern C++ offer CPLib numerous syntactic sugars and enable fast implementation. Simultaneously, CPLib prioritizes utilizing the standard library instead of creating separate implementations, ensuring better compatibility with other libraries.
 
 CPLib also has more modernized handling of some functional details. For example, when an input error occurs, CPLib returns a complete input stack trace, and when reporting output to a file, it uses the more popular JSON format instead of the XML format used by Testlib.
 
@@ -78,7 +78,15 @@ On the other hand, CPLib takes into account the differences in some interfaces o
 
 ![benchmark_result](/img/benchmark_result.svg)
 
-The table above was tested using an AMD Ryzen 7 6800H @ 3.2GHz, with the compiler being openSUSE Linux's g++ (GCC) 12.3.0 using stdlibc++. The compilation option `-O2` was enabled. After ten rounds of testing, Testlib efficiency was recorded as 100%, and CPLib's corresponding efficiency was calculated based on this value.
+The test environment is as follows:
+
+- CPU: AMD Ryzen 7 6800H @ 3.2GHz.
+- OS: openSUSE Linux.
+- Compiler: g++ (GCC) 12.3.0.
+- Compiler flags: `-O2`.
+- C++ Standard Library: libstdc++.
+
+After $10$ rounds of testing, Testlib efficiency was recorded as 100%, and CPLib's corresponding efficiency was calculated based on this value.
 
 The dataset used for testing can be found in the [GitHub repository](https://github.com/rindag-devs/cplib/tree/main/benchmark).
 
@@ -86,11 +94,10 @@ The dataset used for testing can be found in the [GitHub repository](https://git
 
 CPLib provides assistance in four environments:
 
-- Checker: You can use it to check the answers of participants in cases where there are multiple correct answers, or when more detailed scoring requirements are needed.
-- Interactor: You can use it to implement libraries for interactive problems.
-- Validator: In strict mode, you can have per-character precision when validating user-provided data.
-- Generator: Used to generate data in batches.
-
+- Checker: Checks answers of problem with multiple correct cases or detailed scoring requirements.
+- Interactor: Interact with participant's program in interactive problems.
+- Validator: Validates test input files with per-character precision in strict mode.
+- Generator: Generates data in batches.
 
 ## Got Questions?
 

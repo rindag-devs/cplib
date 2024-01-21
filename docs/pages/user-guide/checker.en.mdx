@@ -6,9 +6,9 @@ The checker is usually used to check the answers of participants in cases where 
 
 Checkers usually need to process three files:
 
-- Input file of the test point (`inf`): This is the file used as input when the participant's program runs.
-- Participant's output file (`ouf`): This is the output file generated when the participant's program runs.
-- Standard answer file (`ans`): This file stores the correct answer. In most cases, it is equivalent to the output file generated when the standard program (std) runs.
+- Input file (`inf`): Input for the participant's program.
+- Output file (`ouf`): Output of the participant's program.
+- Answer file (`ans`): Usually equivalent to the output of the standard (main correct) program.
 
 Checkers usually need to check two conditions:
 
@@ -84,7 +84,7 @@ Declare a **variable reading template**. The type is `i32` (32-bit signed intege
 - `explicit Int(std::optional<T> min, std::optional<T> max);`
 - `explicit Int(std::optional<T> min, std::optional<T> max, std::string name);`
 
-Where `min` and `max` respectively specify the minimum and maximum values of the integer. In this problem, the minimum value is $(-1000) + (-1000) = -2000$, and the maximum value is $1000 + 1000 = 2000$. `name` specifies the name of the variable. When an error occurs during reading, the name of the erroneous variable will be displayed in the error message along with the reading stack trace. You can use an overload of the constructor without the `name` parameter to omit the name parameter. However, doing so will make the error report less readable, so we **strongly discourage** you from doing so.
+Where `min` and `max` specify the minimum and maximum values of the integer. In this problem, the minimum value is $(-1000) + (-1000) = -2000$, and the maximum value is $1000 + 1000 = 2000$. `name` specifies the name of the variable. When an error occurs during reading, the name of the erroneous variable will be displayed in the error message along with the reading stack trace. You can use an overload of the constructor without the `name` parameter to omit the name parameter. However, doing so will make the error report less readable, so we **strongly discourage** you from doing so.
 </Callout>
 
 ```cpp
@@ -229,7 +229,7 @@ In actual problems encountered in Competitive Programming, the problems are not 
 
 > **Output Format**: The first line outputs an integer $\mathit{sum}$, representing the answer to the first problem. The second line first outputs an integer $\mathit{len}$ in the range $[1,n^2]$, representing the number of nodes traversed in the shortest path. Then it outputs $\mathit{len}$ integers, representing the node numbers traversed in the shortest path (including the starting node $1$ and the ending node $n$).
 
-When writing a more complex checker, it is a **very wrong** choice to include all the logic in `checker_main`. Below is a more readable and maintainable implementation of a checker:
+When writing a more complex checker, it is **not** recommended to include all the logic in `checker_main`. Below is a more readable and maintainable implementation of a checker:
 
 ```cpp filename="chk.cpp" copy showLineNumbers
 #include <map>
