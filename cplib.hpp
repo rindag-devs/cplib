@@ -952,8 +952,8 @@ inline CPLIB_CLZ_CONSTEXPR auto scale_int(std::uint64_t x, T size) -> T {
   if (x == (x & -x)) {
     return x & ((T(1) << lg) - 1);
   }
-  if (lg == 63) {
-    return x;
+  if (lg >= 8 * sizeof(T) - 1) {
+    return static_cast<T>(x);
   }
   return x & ((T(1) << (lg + 1)) - 1);
 }
