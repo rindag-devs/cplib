@@ -25,6 +25,7 @@
 #include <iostream>      // for cin, cerr, cout
 #include <memory>        // for make_unique, unique_ptr, allocator
 #include <optional>      // for optional, nullopt, nullopt_t
+#include <sstream>       // for stringbuf
 #include <string>        // for basic_string, string, char_traits, to_string
 #include <string_view>   // for string_view
 #include <system_error>  // for errc
