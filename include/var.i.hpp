@@ -442,7 +442,7 @@ inline auto Mat<T>::read_from(Reader& in) const
   for (size_t i = 0; i < len0; ++i) {
     if (i > 0) in.read(sep0);
     auto name_prefix = std::to_string(i) + "_";
-    for (size_t j = 0; j < len1; ++i) {
+    for (size_t j = 0; j < len1; ++j) {
       if (j > 0) in.read(sep1);
       result[i][j] = in.read(element.renamed(name_prefix + std::to_string(j)));
     }
