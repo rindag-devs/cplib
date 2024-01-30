@@ -274,8 +274,8 @@ struct Output {
   std::vector<int> plan;
 
   static Output read(var::Reader& in, const Input& input) {
-    auto [sum, len] = in(var::i32(0, std::nullopt, "sum"), var::i32(1, std::nullopt, "len"));
-    auto plan = in.read(var::i32(1, input.n, "plan") * len);
+    auto [sum, len] = in(var::i32("sum", 0, std::nullopt), var::i32("len", 1, std::nullopt));
+    auto plan = in.read(var::i32("plan", 1, input.n) * len);
 
     if (plan.front() != 1) in.fail("Plan should begin with 1");
     if (plan.back() != input.n) in.fail("Plan should end with n");
@@ -310,6 +310,7 @@ void checker_main() {
   Output::check(ans_output, ouf_output);
   chk.quit_ac();
 }
+
 ```
 
 这个示例展现了如何对自定义类型使用变量读入模板进行读入．
