@@ -2478,30 +2478,84 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
 
 namespace detail {
 inline constexpr std::size_t MAX_N_SIGNIFICANT = 19;
+inline constexpr std::int64_t MAX_EXPONENT = 32767;
+
+inline constexpr auto char_to_lower(const int c) -> int {
+  return (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c;
+}
+
+inline constexpr auto equals_ignore_case(std::string_view s1, std::string_view s2) -> bool {
+  if (s1.size() != s2.size()) return false;
+  for (auto it1 = s1.begin(), it2 = s2.begin(); it1 != s1.end(); ++it1, ++it2) {
+    if (char_to_lower(*it1) != char_to_lower(*it2)) return false;
+  }
+  return true;
+}
 
 template <class T>
-auto parse_float(std::string_view s, std::size_t* n_after_point_out) -> T {
-  bool has_sign = false, is_after_point = false;
+inline constexpr auto powi(T x, std::int64_t y) -> T {
+  T res{1};
+  while (y) {
+    if (y & 1) res *= x;
+    x *= x;
+    y >>= 1;
+  }
+  return res;
+}
+
+template <class T>
+inline constexpr auto create_float(std::int64_t sign, std::int64_t before_point,
+                                   std::int64_t after_point, std::int64_t exponent_sign,
+                                   std::int64_t exponent, std::size_t n_after_point,
+                                   std::size_t n_tailing_zero) -> T {
+  T result = static_cast<T>(before_point);
+  if (n_tailing_zero != 0) {
+    result *= powi<T>(10.0, n_tailing_zero);
+  }
+  if (after_point != 0) {
+    result += after_point * powi<T>(0.1, n_after_point);
+  }
+  if (exponent != 0) {
+    if (exponent_sign > 0) {
+      result *= powi<T>(10.0, exponent);
+    } else {
+      result *= powi<T>(0.1, exponent);
+    }
+  }
+  return sign * result;
+}
+
+template <class T>
+inline constexpr auto parse_strict_float(std::string_view s, std::size_t* n_after_point_out) -> T {
+  enum class State { SIGN, BEFORE_POINT, AFTER_POINT } state = State::SIGN;
   std::size_t n_significant = 0, n_after_point = 0, n_tailing_zero = 0;
   std::int64_t sign = 1, before_point = 0, after_point = 0;
 
   for (auto c : s) {
-    if (!has_sign && (c == '+' || c == '-')) {
-      has_sign = true;
+    if (state == State::SIGN) {
+      state = State::BEFORE_POINT;
       if (c == '-') {
         sign = -1;
+        continue;
       }
-      continue;
     }
-    if (!is_after_point && c == '.') {
-      is_after_point = true;
+    if (state <= State::BEFORE_POINT && c == '.') {
+      if (n_significant == 0) {
+        // .abc
+        return std::numeric_limits<T>::quiet_NaN();
+      }
+      state = State::AFTER_POINT;
       continue;
     }
     if (!isdigit(c)) {
       return std::numeric_limits<T>::quiet_NaN();
     }
+    if (state <= State::BEFORE_POINT && before_point == 0 && n_significant > 0) {
+      // 0a.bcd
+      return std::numeric_limits<T>::quiet_NaN();
+    }
     if (n_significant >= MAX_N_SIGNIFICANT) {
-      if (!is_after_point) {
+      if (state <= State::BEFORE_POINT) {
         ++n_tailing_zero;
       } else {
         ++n_after_point;
@@ -2509,7 +2563,7 @@ auto parse_float(std::string_view s, std::size_t* n_after_point_out) -> T {
       continue;
     }
     ++n_significant;
-    if (!is_after_point) {
+    if (state <= State::BEFORE_POINT) {
       before_point *= 10;
       before_point += c ^ '0';
     } else {
@@ -2523,14 +2577,85 @@ auto parse_float(std::string_view s, std::size_t* n_after_point_out) -> T {
     *n_after_point_out = n_after_point;
   }
 
-  T result = static_cast<T>(before_point);
-  if (n_tailing_zero != 0) {
-    result *= std::pow<T>(10., n_tailing_zero);
+  return create_float<T>(sign, before_point, after_point, 1, 0, n_after_point, n_tailing_zero);
+}
+
+template <class T>
+inline constexpr auto parse_float(std::string_view s) -> T {
+  if (equals_ignore_case(s, "inf") || equals_ignore_case(s, "infinity")) {
+    return std::numeric_limits<T>::infinity();
   }
-  if (after_point != 0) {
-    result += after_point * std::pow<T>(0.1, n_after_point);
+  if (equals_ignore_case(s, "-inf") || equals_ignore_case(s, "-infinity")) {
+    return -std::numeric_limits<T>::infinity();
   }
-  return sign * result;
+
+  enum class State { SIGN, BEFORE_POINT, AFTER_POINT, EXPONENT_SIGN, EXPONENT } state = State::SIGN;
+
+  std::size_t n_significant = 0, n_after_point = 0, n_tailing_zero = 0;
+  std::int64_t sign = 1, before_point = 0, after_point = 0, exponent_sign = 1, exponent = 0;
+
+  for (auto c : s) {
+    if (state == State::SIGN) {
+      state = State::BEFORE_POINT;
+      if (c == '-') {
+        sign = -1;
+        continue;
+      } else if (c == '+') {
+        continue;
+      }
+    }
+    if (state == State::EXPONENT_SIGN) {
+      state = State::EXPONENT;
+      if (c == '-') {
+        exponent_sign = -1;
+        continue;
+      } else if (c == '+') {
+        continue;
+      }
+    }
+    if (state <= State::BEFORE_POINT && c == '.') {
+      state = State::AFTER_POINT;
+      continue;
+    }
+    if (state < State::EXPONENT && (c == 'e' || c == 'E')) {
+      state = State::EXPONENT_SIGN;
+      continue;
+    }
+    if (!isdigit(c)) {
+      return std::numeric_limits<T>::quiet_NaN();
+    }
+    if (state >= State::EXPONENT_SIGN) {
+      exponent *= 10;
+      exponent += c ^ '0';
+      if (exponent > MAX_EXPONENT) {
+        if (exponent_sign < 0) {
+          return sign * T(0);
+        }
+        return sign * std::numeric_limits<T>::infinity();
+      }
+      continue;
+    }
+    if (n_significant >= MAX_N_SIGNIFICANT) {
+      if (state <= State::BEFORE_POINT) {
+        ++n_tailing_zero;
+      } else {
+        ++n_after_point;
+      }
+      continue;
+    }
+    ++n_significant;
+    if (state <= State::BEFORE_POINT) {
+      before_point *= 10;
+      before_point += c ^ '0';
+    } else {
+      ++n_after_point;
+      after_point *= 10;
+      after_point += c ^ '0';
+    }
+  }
+
+  return create_float<T>(sign, before_point, after_point, exponent_sign, exponent, n_after_point,
+                         n_tailing_zero);
 }
 }  // namespace detail
 
@@ -2564,7 +2689,7 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
 
   // `Float<T>` usually uses with non-strict streams, so it should support both fixed format and
   // scientific.
-  T result = detail::parse_float<T>(token, nullptr);
+  T result = detail::parse_float<T>(token);
 
   if (std::isnan(result)) {
     in.fail(format("Expected a float, got `%s`", compress(token).c_str()));
@@ -2615,7 +2740,7 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
   }
 
   std::size_t n_after_point;
-  T result = detail::parse_float<T>(token, &n_after_point);
+  T result = detail::parse_strict_float<T>(token, &n_after_point);
 
   if (std::isnan(result)) {
     in.fail(format("Expected a strict float, got `%s`", compress(token).c_str()));
