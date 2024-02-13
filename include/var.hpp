@@ -162,8 +162,13 @@ class Var {
    */
   auto operator*(std::size_t len) const -> Vec<D>;
 
-  // Allow the `Reader` class to access the protected member function `read_from`.
-  friend auto Reader::read(const Var<T, D>& v) -> T;
+  /**
+   * Read the value of the variable from a `Reader` object.
+   *
+   * @param in The `Reader` object to read from.
+   * @return The value of the variable.
+   */
+  virtual auto read_from(Reader& in) const -> T = 0;
 
  protected:
   /**
@@ -177,14 +182,6 @@ class Var {
    * @param name The name of the variable.
    */
   explicit Var(std::string name);
-
-  /**
-   * Read the value of the variable from a `Reader` object.
-   *
-   * @param in The `Reader` object to read from.
-   * @return The value of the variable.
-   */
-  virtual auto read_from(Reader& in) const -> T = 0;
 
  private:
   std::string name_;
@@ -230,7 +227,6 @@ class Int : public Var<T, Int<T>> {
    */
   explicit Int(std::string name, std::optional<T> min, std::optional<T> max);
 
- protected:
   /**
    * Read the value of the Int variable from a reader.
    *
@@ -278,7 +274,6 @@ class Float : public Var<T, Float<T>> {
    */
   explicit Float(std::string name, std::optional<T> min, std::optional<T> max);
 
- protected:
   /**
    * Read the value from the input reader.
    *
@@ -295,6 +290,9 @@ class Float : public Var<T, Float<T>> {
 template <class T>
 class StrictFloat : public Var<T, StrictFloat<T>> {
  public:
+  T min, max;
+  std::size_t min_n_digit, max_n_digit;
+
   /**
    * Constructor with min, max range, and digit count restrictions parameters.
    *
@@ -317,7 +315,6 @@ class StrictFloat : public Var<T, StrictFloat<T>> {
   explicit StrictFloat(std::string name, T min, T max, std::size_t min_n_digit,
                        std::size_t max_n_digit);
 
- protected:
   /**
    * Read the value from the input reader.
    *
@@ -325,10 +322,6 @@ class StrictFloat : public Var<T, StrictFloat<T>> {
    * @return The value read from the input reader.
    */
   auto read_from(Reader& in) const -> T override;
-
- private:
-  T min_, max_;
-  Pattern pat_;
 };
 
 /**
@@ -365,7 +358,6 @@ class String : public Var<std::string, String> {
    * */
   explicit String(std::string name, Pattern pat);
 
- protected:
   /**
    * Read the value from the input reader.
    *
@@ -401,7 +393,6 @@ class Separator : public Var<std::nullopt_t, Separator> {
    */
   explicit Separator(std::string name, char sep);
 
- protected:
   /**
    * Reads the separator character from the input reader.
    *
@@ -445,7 +436,6 @@ class Line : public Var<std::string, Line> {
    */
   explicit Line(std::string name, Pattern pat);
 
- protected:
   /**
    * Reads the line from the input reader.
    *
@@ -488,7 +478,6 @@ class Vec : public Var<std::vector<typename T::Var::Target>, Vec<T>> {
    */
   explicit Vec(T element, std::size_t len, Separator sep);
 
- protected:
   /**
    * Read from reader.
    *
@@ -538,7 +527,6 @@ class Mat : public Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>
    */
   explicit Mat(T element, std::size_t len0, std::size_t len1, Separator sep0, Separator sep1);
 
- protected:
   /**
    * Read from reader.
    *
@@ -597,7 +585,6 @@ class Pair : public Var<std::pair<typename F::Var::Target, typename S::Var::Targ
    */
   explicit Pair(std::string name, std::pair<F, S> pr, Separator sep);
 
- protected:
   /**
    * Read from reader.
    *
@@ -653,7 +640,6 @@ class Tuple : public Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
    */
   explicit Tuple(std::string name, std::tuple<T...> elements, Separator sep);
 
- protected:
   /**
    * Read from reader.
    *
@@ -688,7 +674,6 @@ class FnVar : public Var<typename std::function<F>::result_type, FnVar<F>> {
   template <class... Args>
   FnVar(std::string name, std::function<F> f, Args... args);
 
- protected:
   /**
    * Read from reader.
    *
@@ -723,7 +708,6 @@ class ExtVar : public Var<T, ExtVar<T>> {
   template <class... Args>
   explicit ExtVar(std::string name, Args... args);
 
- protected:
   /**
    * Read from reader.
    *

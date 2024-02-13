@@ -17,11 +17,12 @@
 /* cplib_embed_ignore end */
 
 #include <algorithm>         // for shuffle
-#include <cstdint>           // for uint32_t, uint64_t
+#include <cstdint>           // for uint64_t, uint32_t
 #include <cstring>           // for strlen, size_t
 #include <initializer_list>  // for initializer_list
 #include <iterator>          // for distance, iterator_traits, next
-#include <type_traits>       // for enable_if
+#include <limits>            // for numeric_limits
+#include <type_traits>       // for enable_if, make_unsigned
 
 /* cplib_embed_ignore start */
 #include "utils.hpp"

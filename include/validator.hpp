@@ -9,6 +9,7 @@
 #define CPLIB_VALIDATOR_HPP_
 
 #include <cstddef>      // for size_t
+#include <functional>   // for function
 #include <map>          // for map
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view
