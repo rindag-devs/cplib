@@ -910,11 +910,12 @@ class Random {
 
 
 #include <algorithm>         // for shuffle
-#include <cstdint>           // for uint32_t, uint64_t
+#include <cstdint>           // for uint64_t, uint32_t
 #include <cstring>           // for strlen, size_t
 #include <initializer_list>  // for initializer_list
 #include <iterator>          // for distance, iterator_traits, next
-#include <type_traits>       // for enable_if
+#include <limits>            // for numeric_limits
+#include <type_traits>       // for enable_if, make_unsigned
 
 
 
@@ -1691,8 +1692,13 @@ class Var {
    */
   auto operator*(std::size_t len) const -> Vec<D>;
 
-  // Allow the `Reader` class to access the protected member function `read_from`.
-  friend auto Reader::read(const Var<T, D>& v) -> T;
+  /**
+   * Read the value of the variable from a `Reader` object.
+   *
+   * @param in The `Reader` object to read from.
+   * @return The value of the variable.
+   */
+  virtual auto read_from(Reader& in) const -> T = 0;
 
  protected:
   /**
@@ -1706,14 +1712,6 @@ class Var {
    * @param name The name of the variable.
    */
   explicit Var(std::string name);
-
-  /**
-   * Read the value of the variable from a `Reader` object.
-   *
-   * @param in The `Reader` object to read from.
-   * @return The value of the variable.
-   */
-  virtual auto read_from(Reader& in) const -> T = 0;
 
  private:
   std::string name_;
@@ -1759,7 +1757,6 @@ class Int : public Var<T, Int<T>> {
    */
   explicit Int(std::string name, std::optional<T> min, std::optional<T> max);
 
- protected:
   /**
    * Read the value of the Int variable from a reader.
    *
@@ -1807,7 +1804,6 @@ class Float : public Var<T, Float<T>> {
    */
   explicit Float(std::string name, std::optional<T> min, std::optional<T> max);
 
- protected:
   /**
    * Read the value from the input reader.
    *
@@ -1824,6 +1820,9 @@ class Float : public Var<T, Float<T>> {
 template <class T>
 class StrictFloat : public Var<T, StrictFloat<T>> {
  public:
+  T min, max;
+  std::size_t min_n_digit, max_n_digit;
+
   /**
    * Constructor with min, max range, and digit count restrictions parameters.
    *
@@ -1846,7 +1845,6 @@ class StrictFloat : public Var<T, StrictFloat<T>> {
   explicit StrictFloat(std::string name, T min, T max, std::size_t min_n_digit,
                        std::size_t max_n_digit);
 
- protected:
   /**
    * Read the value from the input reader.
    *
@@ -1854,10 +1852,6 @@ class StrictFloat : public Var<T, StrictFloat<T>> {
    * @return The value read from the input reader.
    */
   auto read_from(Reader& in) const -> T override;
-
- private:
-  T min_, max_;
-  Pattern pat_;
 };
 
 /**
@@ -1894,7 +1888,6 @@ class String : public Var<std::string, String> {
    * */
   explicit String(std::string name, Pattern pat);
 
- protected:
   /**
    * Read the value from the input reader.
    *
@@ -1930,7 +1923,6 @@ class Separator : public Var<std::nullopt_t, Separator> {
    */
   explicit Separator(std::string name, char sep);
 
- protected:
   /**
    * Reads the separator character from the input reader.
    *
@@ -1974,7 +1966,6 @@ class Line : public Var<std::string, Line> {
    */
   explicit Line(std::string name, Pattern pat);
 
- protected:
   /**
    * Reads the line from the input reader.
    *
@@ -2017,7 +2008,6 @@ class Vec : public Var<std::vector<typename T::Var::Target>, Vec<T>> {
    */
   explicit Vec(T element, std::size_t len, Separator sep);
 
- protected:
   /**
    * Read from reader.
    *
@@ -2067,7 +2057,6 @@ class Mat : public Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>
    */
   explicit Mat(T element, std::size_t len0, std::size_t len1, Separator sep0, Separator sep1);
 
- protected:
   /**
    * Read from reader.
    *
@@ -2126,7 +2115,6 @@ class Pair : public Var<std::pair<typename F::Var::Target, typename S::Var::Targ
    */
   explicit Pair(std::string name, std::pair<F, S> pr, Separator sep);
 
- protected:
   /**
    * Read from reader.
    *
@@ -2182,7 +2170,6 @@ class Tuple : public Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
    */
   explicit Tuple(std::string name, std::tuple<T...> elements, Separator sep);
 
- protected:
   /**
    * Read from reader.
    *
@@ -2217,7 +2204,6 @@ class FnVar : public Var<typename std::function<F>::result_type, FnVar<F>> {
   template <class... Args>
   FnVar(std::string name, std::function<F> f, Args... args);
 
- protected:
   /**
    * Read from reader.
    *
@@ -2252,7 +2238,6 @@ class ExtVar : public Var<T, ExtVar<T>> {
   template <class... Args>
   explicit ExtVar(std::string name, Args... args);
 
- protected:
   /**
    * Read from reader.
    *
@@ -2303,16 +2288,16 @@ const auto eoln = Separator("eoln", '\n');
 #endif
 
 
-#include <cctype>        // for isspace
-#include <charconv>      // for chars_format, from_chars
-#include <cmath>         // for isfinite
+#include <cctype>        // for isspace, isdigit
+#include <charconv>      // for from_chars
+#include <cmath>         // for isnan, pow
 #include <cstdio>        // for size_t, fileno, stdin, stdout
 #include <fstream>       // for basic_istream, basic_ostream, basic_filebuf
 #include <functional>    // for function
 #include <iostream>      // for cin, cerr, cout
+#include <limits>        // for numeric_limits
 #include <memory>        // for make_unique, unique_ptr, allocator
 #include <optional>      // for optional, nullopt, nullopt_t
-#include <sstream>       // for stringbuf
 #include <string>        // for basic_string, string, char_traits, to_string
 #include <string_view>   // for string_view
 #include <system_error>  // for errc
@@ -2491,6 +2476,64 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
   return result;
 }
 
+namespace detail {
+inline constexpr std::size_t MAX_N_SIGNIFICANT = 19;
+
+template <class T>
+auto parse_float(std::string_view s, std::size_t* n_after_point_out) -> T {
+  bool has_sign = false, is_after_point = false;
+  std::size_t n_significant = 0, n_after_point = 0, n_tailing_zero = 0;
+  std::int64_t sign = 1, before_point = 0, after_point = 0;
+
+  for (auto c : s) {
+    if (!has_sign && (c == '+' || c == '-')) {
+      has_sign = true;
+      if (c == '-') {
+        sign = -1;
+      }
+      continue;
+    }
+    if (!is_after_point && c == '.') {
+      is_after_point = true;
+      continue;
+    }
+    if (!isdigit(c)) {
+      return std::numeric_limits<T>::quiet_NaN();
+    }
+    if (n_significant >= MAX_N_SIGNIFICANT) {
+      if (!is_after_point) {
+        ++n_tailing_zero;
+      } else {
+        ++n_after_point;
+      }
+      continue;
+    }
+    ++n_significant;
+    if (!is_after_point) {
+      before_point *= 10;
+      before_point += c ^ '0';
+    } else {
+      ++n_after_point;
+      after_point *= 10;
+      after_point += c ^ '0';
+    }
+  }
+
+  if (n_after_point_out) {
+    *n_after_point_out = n_after_point;
+  }
+
+  T result = static_cast<T>(before_point);
+  if (n_tailing_zero != 0) {
+    result *= std::pow<T>(10., n_tailing_zero);
+  }
+  if (after_point != 0) {
+    result += after_point * std::pow<T>(0.1, n_after_point);
+  }
+  return sign * result;
+}
+}  // namespace detail
+
 template <class T>
 inline Float<T>::Float()
     : Float<T>(std::string(detail::VAR_DEFAULT_NAME), std::nullopt, std::nullopt) {}
@@ -2521,11 +2564,9 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
 
   // `Float<T>` usually uses with non-strict streams, so it should support both fixed format and
   // scientific.
-  T result{};
-  auto [ptr, ec] = std::from_chars(token.c_str(), token.c_str() + token.size(), result,
-                                   std::chars_format::general);
+  T result = detail::parse_float<T>(token, nullptr);
 
-  if (ec != std::errc() || ptr != token.c_str() + token.size() || !std::isfinite(result)) {
+  if (std::isnan(result)) {
     in.fail(format("Expected a float, got `%s`", compress(token).c_str()));
   }
 
@@ -2549,14 +2590,15 @@ inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_
 template <class T>
 inline StrictFloat<T>::StrictFloat(std::string name, T min, T max, size_t min_n_digit,
                                    size_t max_n_digit)
-    : Var<T, StrictFloat<T>>(std::move(name)), min_(std::move(min)), max_(std::move(max)) {
+    : Var<T, StrictFloat<T>>(std::move(name)),
+      min(std::move(min)),
+      max(std::move(max)),
+      min_n_digit(min_n_digit),
+      max_n_digit(max_n_digit) {
   if (min > max) panic("StrictFloat constructor failed: min must be <= max");
   if (min_n_digit > max_n_digit) {
     panic("StrictFloat constructor failed: min_n_digit must be <= max_n_digit");
   }
-  pat_ = Pattern(min_n_digit == 0
-                     ? format("-?([1-9][0-9]*|0)(\\.[0-9]{,%zu})?", max_n_digit)
-                     : format("-?([1-9][0-9]*|0)\\.[0-9]{%zu,%zu}", min_n_digit, max_n_digit));
 }
 
 template <class T>
@@ -2572,26 +2614,34 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
     }
   }
 
-  if (!pat_.match(token)) {
+  std::size_t n_after_point;
+  T result = detail::parse_float<T>(token, &n_after_point);
+
+  if (std::isnan(result)) {
     in.fail(format("Expected a strict float, got `%s`", compress(token).c_str()));
   }
 
-  // Different from `Float<T>`, only fixed format should be allowed.
-  T result{};
-  auto [ptr, ec] = std::from_chars(token.c_str(), token.c_str() + token.size(), result,
-                                   std::chars_format::fixed);
-
-  if (ec != std::errc() || ptr != token.c_str() + token.size()) {
-    in.fail(format("Expected a strict float, got `%s`", compress(token).c_str()));
+  if (n_after_point < min_n_digit) {
+    in.fail(
+        format("Expected a strict float with >= %zu digits after point, got `%s` with %zu digits "
+               "after point",
+               min_n_digit, compress(token).c_str(), n_after_point));
   }
 
-  if (result < min_) {
-    in.fail(format("Expected a strict float >= %s, got `%s`", std::to_string(min_).c_str(),
+  if (n_after_point > max_n_digit) {
+    in.fail(
+        format("Expected a strict float with <= %zu digits after point, got `%s` with %zu digits "
+               "after point",
+               max_n_digit, compress(token).c_str(), n_after_point));
+  }
+
+  if (result < min) {
+    in.fail(format("Expected a strict float >= %s, got `%s`", std::to_string(min).c_str(),
                    compress(token).c_str()));
   }
 
-  if (result > max_) {
-    in.fail(format("Expected a strict float <= %s, got `%s`", std::to_string(max_).c_str(),
+  if (result > max) {
+    in.fail(format("Expected a strict float <= %s, got `%s`", std::to_string(max).c_str(),
                    compress(token).c_str()));
   }
 
@@ -3839,6 +3889,7 @@ inline auto colored_text_reporter(const Report& report) -> void {
 #define CPLIB_VALIDATOR_HPP_
 
 #include <cstddef>      // for size_t
+#include <functional>   // for function
 #include <map>          // for map
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view
