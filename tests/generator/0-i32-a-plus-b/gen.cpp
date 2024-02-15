@@ -12,17 +12,18 @@
 
 using namespace cplib;
 
-CPLIB_REGISTER_GENERATOR(gen, Args, {
-  Var<var::i32> n_min{var::i32("n-min")};
-  Var<var::i32> n_max{var::i32("n-max")};
-  Flag same{"same"};
-});
+CPLIB_REGISTER_GENERATOR(gen, args,                                    //
+                         n_min = Var<var::i32>("n-min", -1000, 1000),  //
+                         n_max = Var<var::i32>("n-max", -1000, 1000),  //
+                         same = Flag("same"));
 
-void generator_main(const Args& args) {
-  if (args.n_min.value > args.n_max.value) panic("n_min must be <= n_max");
+void generator_main() {
+  using namespace args;
 
-  int a = gen.rnd.next(args.n_min.value, args.n_max.value);
-  int b = args.same.value ? a : gen.rnd.next(args.n_min.value, args.n_max.value);
+  if (n_min > n_max) panic("n_min must be <= n_max");
+
+  int a = gen.rnd.next(n_min, n_max);
+  int b = same ? a : gen.rnd.next(n_min, n_max);
 
   std::cout << a << ' ' << b << '\n';
 

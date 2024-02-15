@@ -25,17 +25,18 @@ Generator，即「生成器」，用于根据命令行参数的要求，按给�
 
 using namespace cplib;
 
-CPLIB_REGISTER_GENERATOR(gen, Args, {
-  Var<var::i32> n_min{var::i32("n-min")};
-  Var<var::i32> n_max{var::i32("n-max")};
-  Flag same{"same"};
-});
+CPLIB_REGISTER_GENERATOR(gen, args,
+                         n_min = Var<var::i32>("n-min", -1000, 1000),
+                         n_max = Var<var::i32>("n-max", -1000, 1000),
+                         same = Flag("same"));
 
-void generator_main(const Args& args) {
-  if (args.n_min.value > args.n_max.value) panic("n_min must be <= n_max");
+void generator_main() {
+  using namespace args;
 
-  int a = gen.rnd.next(args.n_min.value, args.n_max.value);
-  int b = args.same.value ? a : gen.rnd.next(args.n_min.value, args.n_max.value);
+  if (n_min > n_max) panic("n_min must be <= n_max");
+
+  int a = gen.rnd.next(n_min, n_max);
+  int b = same ? a : gen.rnd.next(n_min, n_max);
 
   std::cout << a << ' ' << b << '\n';
 
@@ -43,22 +44,24 @@ void generator_main(const Args& args) {
 }
 ```
 
-Generator 和其他模式的主要不同点体现在 `CPLIB_REGISTER_GENERATOR` 宏．该宏包含三个参数，依次为：
+Generator 和其他模式的主要不同点体现在 `CPLIB_REGISTER_GENERATOR` 宏．该宏包含至少 2 个参数，含义如下：
 
-- Generator 状态的全局变量名称．该参数与其他模式的注册宏中的第一个参数作用相同．
-- 绑定到命令行参数的结构体的名称．
-- 绑定到命令行参数的结构体的实现．
+- 第 1 个参数为 Generator 状态的全局变量名称．该参数与其他模式的注册宏中的第一个参数作用相同．
+- 第 2 个参数为绑定到命令行参数的命名空间的名称．
+- 第 3 个到最后一个（如果存在）为命令行参数的解析器．格式为 `parser_name = ParserType(constructor_arguments)`．
 
-例如此处，`Args` 被设定为绑定到命令行参数的结构体的名称．这会在代码的全局命名空间中导出一个名为 `Args` 的结构体，该结构体的成员将会作为命令行参数的 parser，在 initializer 初始化时自动解析命令行参数．该结构体中的所有成员变量都必须为以下两种类型中的一种：
+例如此处，`args` 被设定为绑定到命令行参数的命名空间的名称．这会在代码的全局命名空间中导出一个名为 `args` 的命名空间，并将 parser 解析的结果按照 parser 的名称存储到该命名空间的变量中．
 
-- `Flag`：「标志风格」（`--var`）的 parser．`Flag` 类型的构造函数接收一个 `std::string` 作为命令行参数的名称（即 `--var` 中的 `var` 部分，不包含前面的两个减号）．运行该 parser 时，会检查 `--var` 是否在命令行参数中存在，若存在则设置成员变量 `value` 为 `true`，不存在则为 `false`．
-- `Var<T>`：「变量风格」（`--var=<value>`）的 parser，其中 `T` 为一个变量模板的类型（需继承自 `cplib::var::Var` 类）．`Var<T>` 类型的构造函数接收一个 `T` 类型的实例，该实例的 `name()` 方法的返回值将作为命令行参数的名称（即 `--var=<value>` 中的 `var` 部分，不包含前面的两个减号）．运行该 parser 时，会调用 `T` 类型的 `read_from` 函数解析 `<value>` 字符串，并将解析结果放入 `value` 成员变量中．
+Parser 会在 initializer 初始化时自动解析命令行参数．目前支持的 parser 类型有两种：
 
-`Args`、`Var<T>`、`Flag` 三个结构体均定义在一个相同的隐藏命名空间中，而仅有 `Args` 被导出到全局命名空间，故无需担心全局命名污染．
+- `Flag`：「标志风格」（`--var`）的 parser．`Flag` 类型的构造函数接收一个 `std::string` 作为命令行参数的名称（即 `--var` 中的 `var` 部分，不包含前面的两个减号）．运行该 parser 时，会检查 `--var` 是否在命令行参数中存在，若存在则返回结果 `true`，不存在则为 `false`．
+- `Var<T>`：「变量风格」（`--var=<value>`）的 parser，其中 `T` 为一个变量模板的类型（需继承自 `cplib::var::Var` 类）．`Var<T>` 类型的构造函数接收一个 `T` 类型的实例，该实例的 `name()` 方法的返回值将作为命令行参数的名称（即 `--var=<value>` 中的 `var` 部分，不包含前面的两个减号）．运行该 parser 时，会调用 `T` 类型的 `read_from` 函数解析 `<value>` 字符串，并将解析结果返回．
+
+`Var<T>`、`Flag` 两个结构体均定义在一个的隐藏命名空间中，故无需担心全局命名污染．
 
 ## 使用
 
-Generator 的使用与 Checker 大致相同．只不过使用时无需传递文件参数，而是要根据 `Args` 结构体的定义传递命令行参数．
+Generator 的使用与 Checker 大致相同．只不过使用时无需传递文件参数，而是要根据你定义的 parser 传递命令行参数．
 
 ## 建议
 

@@ -25,17 +25,18 @@ Here is a reference implementation of a generator:
 
 using namespace cplib;
 
-CPLIB_REGISTER_GENERATOR(gen, Args, {
-  Var<var::i32> n_min{var::i32("n-min")};
-  Var<var::i32> n_max{var::i32("n-max")};
-  Flag same{"same"};
-});
+CPLIB_REGISTER_GENERATOR(gen, args,
+                         n_min = Var<var::i32>("n-min", -1000, 1000),
+                         n_max = Var<var::i32>("n-max", -1000, 1000),
+                         same = Flag("same"));
 
-void generator_main(const Args& args) {
-  if (args.n_min.value > args.n_max.value) panic("n_min must be <= n_max");
+void generator_main() {
+  using namespace args;
 
-  int a = gen.rnd.next(args.n_min.value, args.n_max.value);
-  int b = args.same.value ? a : gen.rnd.next(args.n_min.value, args.n_max.value);
+  if (n_min > n_max) panic("n_min must be <= n_max");
+
+  int a = gen.rnd.next(n_min, n_max);
+  int b = same ? a : gen.rnd.next(n_min, n_max);
 
   std::cout << a << ' ' << b << '\n';
 
@@ -43,23 +44,25 @@ void generator_main(const Args& args) {
 }
 ```
 
-The main difference between the generator and other CPLib work mode is reflected in the `CPLIB_REGISTER_GENERATOR` macro. This macro has three parameters, in order:
+The main difference between the generator and other CPLib work mode is reflected in the `CPLIB_REGISTER_GENERATOR` macro. This macro has at least 2 parameters, in order:
 
-- The name of the global variable representing the generator state. This parameter has the same role as the first parameter of the registration macro in other work modes.
-- The name of the structure bound to the command-line arguments.
-- The implementation of the structure bound to the command-line arguments.
+- The 1st parameter is the name of the global variable representing the generator state. This parameter has the same role as the first parameter of the registration macro in other work modes.
+- The 2nd parameter is the name of the namespace bound to the command-line arguments.
+- The 3rd to the last parameters (if exists) are the parsers of command-line arguments. The format is `parser_name = ParserType(constructor_arguments)`.
 
-Here, `Args` is set as the name of the struct that binds to command line arguments. This will export a struct named `Args` in the global namespace, and its members will serve as parsers for the command line arguments, automatically parsing the command line arguments during initialization. All member variables in this struct must be one of the following two types:
+Here, `args` is set as the name of the namespace that binds to command line arguments. This will export a namespace named `args` in the global namespace, and store the results of parser into variables in this namespace. The variable name of each parser's parsing result is the same as `parser_name`.
+
+Parsers will automatically parsing the command line arguments during initialization. There are two parser types currently supported:
 
 - `Flag`: A parser for "flag-style" (`--var`) arguments. The constructor of `Flag` takes a `std::string` as the name of the command line argument (i.e., the `var` part in `--var`, excluding the preceding two dashes). When running this parser, it checks if `--var` exists in the command line arguments. If it does, it sets the member variable `value` to `true`; otherwise, it sets it to `false`.
 
 - `Var<T>`: A parser for "variable-style" (`--var=<value>`) arguments, where `T` is the type of a variable template (which needs to be derived from the `cplib::var::Var`). The constructor of the `Var<T>` type takes an instance of type `T`, and the return value of its `name()` method serves as the name of the command line argument (i.e., the `var` part in `--var=<value>`, excluding the preceding two dashes). When running this parser, it calls the `read_from` function of type `T` to parse the `<value>` string, and stores the parsing result in the `value` member variable.
 
-The `Args`, `Var<T>`, and `Flag` structures are all defined in the same hidden namespace, and only `Args` is exported to the global namespace, so there is no need to worry about global namespace pollution.
+The `Var<T>` and `Flag` structures are defined in a hidden namespace, so there is no need to worry about global namespace pollution.
 
 ## Usage
 
-The usage of the generator is similar to that of the checker. The only difference is that instead of passing file name arguments, you need to pass command-line arguments according to the definition of the `Args` structure.
+The usage of the generator is similar to that of the checker. The only difference is that instead of passing file name arguments, you need to pass command-line arguments according to the definition of the `args` namespace.
 
 ## Suggestions
 
