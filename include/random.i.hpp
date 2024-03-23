@@ -79,7 +79,7 @@ inline auto rand_int_range(Random::Engine& rnd, T size) -> T {
 /// Get random integer in [l,r].
 template <class T>
 inline auto rand_int_between(Random::Engine& rnd, T l, T r) -> T {
-  using UnsignedT = typename std::make_unsigned<T>::type;
+  using UnsignedT = std::make_unsigned_t<T>;
 
   if (l > r) panic("rand_int_between failed: l must be <= r");
 
@@ -138,7 +138,7 @@ inline auto Random::reseed(int argc, char** argv) -> void {
 inline auto Random::engine() -> Engine& { return engine_; }
 
 template <class T>
-inline auto Random::next(T from, T to) -> typename std::enable_if<std::is_integral_v<T>, T>::type {
+inline auto Random::next(T from, T to) -> std::enable_if_t<std::is_integral_v<T>, T> {
   // Allow range from higher to lower
   if (from <= to) {
     return detail::rand_int_between<T>(engine(), from, to);
@@ -147,8 +147,7 @@ inline auto Random::next(T from, T to) -> typename std::enable_if<std::is_integr
 }
 
 template <class T>
-inline auto Random::next(T from, T to) ->
-    typename std::enable_if<std::is_floating_point_v<T>, T>::type {
+inline auto Random::next(T from, T to) -> std::enable_if_t<std::is_floating_point_v<T>, T> {
   // Allow range from higher to lower
   if (from <= to) {
     return detail::rand_float_between<T>(engine(), from, to);
@@ -157,13 +156,12 @@ inline auto Random::next(T from, T to) ->
 }
 
 template <class T>
-inline auto Random::next() -> typename std::enable_if<std::is_same_v<T, bool>, bool>::type {
+inline auto Random::next() -> std::enable_if_t<std::is_same_v<T, bool>, bool> {
   return next<bool>(0.5);
 }
 
 template <class T>
-inline auto Random::next(double true_prob) ->
-    typename std::enable_if<std::is_same_v<T, bool>, bool>::type {
+inline auto Random::next(double true_prob) -> std::enable_if_t<std::is_same_v<T, bool>, bool> {
   if (true_prob < 0 || true_prob > 1) panic("Random::next failed: true_prob must be in [0, 1]");
   return detail::rand_float<double>(engine()) < true_prob;
 }
@@ -210,7 +208,11 @@ inline auto Random::weighted_choice(const Map& map) -> decltype(std::begin(map))
 
 template <class RandomIt>
 inline auto Random::shuffle(RandomIt first, RandomIt last) -> void {
-  std::shuffle(first, last, engine());
+  using DiffType = typename std::iterator_traits<RandomIt>::difference_type;
+
+  for (DiffType i = last - first - 1; i > 0; --i) {
+    std::swap(first[i], first[next<DiffType>(0, i)]);
+  }
 }
 
 template <class Container>
