@@ -78,16 +78,27 @@ auto compress(std::string_view s) -> std::string;
 auto trim(std::string_view s) -> std::string;
 
 /**
+ * Concatenate the values between [first,last) into a string without separator.
+ *
+ * @tparam It The type of the iterator.
+ * @param first Iterator to the first value.
+ * @param last Iterator to the last value (exclusive).
+ * @return The concatenated string.
+ */
+template <class It>
+auto join(It first, It last) -> std::string;
+
+/**
  * Concatenate the values between [first,last) into a string through separator.
  *
  * @tparam It The type of the iterator.
  * @param first Iterator to the first value.
  * @param last Iterator to the last value (exclusive).
- * @param separator The separator character.
+ * @param separator The separator.
  * @return The concatenated string.
  */
-template <class It>
-auto join(It first, It last, char separator) -> std::string;
+template <class It, class Sep>
+auto join(It first, It last, Sep separator) -> std::string;
 
 /**
  * Splits string s by character separators returning exactly k+1 items, where k is the number of
