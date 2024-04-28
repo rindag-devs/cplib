@@ -130,16 +130,27 @@ auto compress(std::string_view s) -> std::string;
 auto trim(std::string_view s) -> std::string;
 
 /**
+ * Concatenate the values between [first,last) into a string without separator.
+ *
+ * @tparam It The type of the iterator.
+ * @param first Iterator to the first value.
+ * @param last Iterator to the last value (exclusive).
+ * @return The concatenated string.
+ */
+template <class It>
+auto join(It first, It last) -> std::string;
+
+/**
  * Concatenate the values between [first,last) into a string through separator.
  *
  * @tparam It The type of the iterator.
  * @param first Iterator to the first value.
  * @param last Iterator to the last value (exclusive).
- * @param separator The separator character.
+ * @param separator The separator.
  * @return The concatenated string.
  */
-template <class It>
-auto join(It first, It last, char separator) -> std::string;
+template <class It, class Sep>
+auto join(It first, It last, Sep separator) -> std::string;
 
 /**
  * Splits string s by character separators returning exactly k+1 items, where k is the number of
@@ -294,6 +305,7 @@ auto get_work_mode() -> WorkMode;
 #include <cstdlib>      // for getenv, abs, exit, EXIT_FAILURE
 #include <iostream>     // for basic_ostream, operator<<, clog
 #include <memory>       // for allocator, make_unique
+#include <sstream>      // for ostreamstream
 #include <string>       // for basic_string, string, char_traits, operator+
 #include <string_view>  // for string_view, operator<<, basic_string_view
 #include <utility>      // for forward, move
@@ -459,19 +471,28 @@ inline auto trim(std::string_view s) -> std::string {
   return std::string(s.substr(left, right - left + 1));
 }
 
-template <typename It>
-inline auto join(It first, It last, char separator) -> std::string {
-  std::string result;
+template <class It>
+inline auto join(It first, It last) -> std::string {
+  std::ostringstream ss;
+  for (It i = first; i != last; ++i) {
+    ss << *i;
+  }
+  return ss.str();
+}
+
+template <class It, class Sep>
+inline auto join(It first, It last, Sep separator) -> std::string {
+  std::ostringstream ss;
   bool repeated = false;
   for (It i = first; i != last; ++i) {
     if (repeated) {
-      result.push_back(separator);
+      ss << separator;
     } else {
       repeated = true;
     }
-    result += *i;
+    ss << *i;
   }
-  return result;
+  return ss.str();
 }
 
 inline auto split(std::string_view s, char separator) -> std::vector<std::string> {
