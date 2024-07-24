@@ -55,8 +55,8 @@ inline Report::Report(Report::Status status, double score, std::string message)
 // Impl State {{{
 inline State::State(Initializer initializer)
     : rnd(),
-      inf(var::Reader(nullptr)),
-      from_user(var::Reader(nullptr)),
+      inf(var::Reader(nullptr, {})),
+      from_user(var::Reader(nullptr, {})),
       to_user(std::ostream(nullptr)),
       initializer(std::move(initializer)),
       reporter(json_reporter) {
@@ -195,11 +195,14 @@ inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) 
 
   auto inf_path = detail::parse_command_line_arguments(state, argc, argv);
 
-  state.inf = var::detail::make_file_reader(inf_path, "inf", false,
-                                            [](std::string_view msg) { panic(msg); });
+  state.inf = var::detail::make_file_reader(
+      inf_path, "inf", false,
+      [](std::string_view msg, const std::vector<var::Reader::Trace>&) { panic(msg); });
 
   state.from_user = var::detail::make_stdin_reader(
-      "from_user", false, [&state](std::string_view msg) { state.quit_wa(msg); });
+      "from_user", false, [&state](std::string_view msg, const std::vector<var::Reader::Trace>&) {
+        state.quit_wa(msg);
+      });
 
   var::detail::make_stdout_ostream(to_user_buf, state.to_user);
 }

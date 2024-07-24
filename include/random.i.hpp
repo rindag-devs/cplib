@@ -208,11 +208,7 @@ inline auto Random::weighted_choice(const Map& map) -> decltype(std::begin(map))
 
 template <class RandomIt>
 inline auto Random::shuffle(RandomIt first, RandomIt last) -> void {
-  using DiffType = typename std::iterator_traits<RandomIt>::difference_type;
-
-  for (DiffType i = last - first - 1; i > 0; --i) {
-    std::swap(first[i], first[next<DiffType>(0, i)]);
-  }
+  std::shuffle(first, last, engine());
 }
 
 template <class Container>

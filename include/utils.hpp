@@ -8,7 +8,6 @@
 #ifndef CPLIB_UTILS_HPP_
 #define CPLIB_UTILS_HPP_
 
-#include <iosfwd>       // for nullptr_t
 #include <memory>       // for unique_ptr
 #include <string>       // for string
 #include <string_view>  // for string_view

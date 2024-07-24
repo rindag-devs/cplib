@@ -29,7 +29,7 @@
 
 /* cplib_embed_ignore start */
 #include "macros.hpp"  // for write, read
-#include "utils.hpp"   // for UniqueFunction<>::operator(), format, panic
+#include "utils.hpp"   // for format, panic
 /* cplib_embed_ignore end */
 
 namespace cplib::io {
@@ -134,12 +134,8 @@ class FdInBuf : public std::streambuf {
 };
 }  // namespace detail
 
-inline InStream::InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
-                          FailFunc fail_func)
-    : buf_(std::move(buf)),
-      name_(std::move(name)),
-      strict_(strict),
-      fail_func_(std::move(fail_func)) {}
+inline InStream::InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict)
+    : buf_(std::move(buf)), name_(std::move(name)), strict_(strict) {}
 
 inline auto InStream::name() const -> std::string_view { return name_; }
 
@@ -155,8 +151,9 @@ inline auto InStream::seek() -> int { return buf_->sgetc(); }
 inline auto InStream::read() -> int {
   int c = buf_->sbumpc();
   if (c == EOF) return EOF;
+  ++byte_num_;
   if (c == '\n') {
-    ++line_num_, col_num_ = 1;
+    ++line_num_, col_num_ = 0;
   } else {
     ++col_num_;
   }
@@ -176,8 +173,8 @@ inline auto InStream::read_n(std::size_t n) -> std::string {
 inline auto InStream::is_strict() const -> bool { return strict_; }
 
 inline auto InStream::set_strict(bool b) -> void {
-  if (line_num() != 1 || col_num() != 1) {
-    panic(format("Can't set strict mode of `%s` when not at the beginning of the file",
+  if (byte_num() > 0) {
+    panic(format("Can't set strict mode of input stream `%s` when not at the beginning of the file",
                  name().data()));
   }
   strict_ = b;
@@ -186,6 +183,8 @@ inline auto InStream::set_strict(bool b) -> void {
 inline auto InStream::line_num() const -> std::size_t { return line_num_; }
 
 inline auto InStream::col_num() const -> std::size_t { return col_num_; }
+
+inline auto InStream::byte_num() const -> std::size_t { return byte_num_; }
 
 inline auto InStream::eof() -> bool { return seek() == EOF; }
 
@@ -228,10 +227,5 @@ inline auto InStream::read_line() -> std::optional<std::string> {
     line.push_back(static_cast<char>(c));
   }
   return line;
-}
-
-inline auto InStream::fail(std::string_view message) -> void {
-  fail_func_(message);
-  exit(EXIT_FAILURE);  // Usually unnecessary, but in sepial cases to prevent problems.
 }
 }  // namespace cplib::io

@@ -167,7 +167,7 @@ inline auto validate_traits(const std::vector<Trait>& traits,
 
 inline State::State(Initializer initializer)
     : rnd(),
-      inf(var::Reader(nullptr)),
+      inf(var::Reader(nullptr, {})),
       initializer(std::move(initializer)),
       reporter(json_reporter),
 
@@ -309,10 +309,15 @@ inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) 
   std::unique_ptr<std::streambuf> inf_buf = nullptr;
   if (inf_path.empty()) {
     state.inf = var::detail::make_stdin_reader(
-        "inf", true, [&state](std::string_view msg) { state.quit_invalid(msg); });
+        "inf", true, [&state](std::string_view msg, const std::vector<var::Reader::Trace>&) {
+          state.quit_invalid(msg);
+        });
   } else {
     state.inf = var::detail::make_file_reader(
-        inf_path, "inf", true, [&state](std::string_view msg) { state.quit_invalid(msg); });
+        inf_path, "inf", true,
+        [&state](std::string_view msg, const std::vector<var::Reader::Trace>&) {
+          state.quit_invalid(msg);
+        });
   }
 }
 // /Impl DefaultInitializer }}}

@@ -218,9 +218,9 @@ auto colored_text_reporter(const Report& report) -> void;
  */
 #define CPLIB_REGISTER_CHECKER_OPT(var_, initializer_) \
   auto var_ = ::cplib::checker::State(initializer_);   \
-  auto main(signed argc, char** argv)->signed {        \
+  auto main(signed argc, char** argv) -> signed {      \
     var_.initializer(var_, argc, argv);                \
-    auto checker_main(void)->void;                     \
+    auto checker_main(void) -> void;                   \
     checker_main();                                    \
     return 0;                                          \
   }

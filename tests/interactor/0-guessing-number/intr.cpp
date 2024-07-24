@@ -8,6 +8,8 @@
  * ```
  */
 
+#include <variant>
+
 #include "cplib.hpp"
 
 using namespace cplib;

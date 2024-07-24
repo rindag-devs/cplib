@@ -20,6 +20,7 @@
 #include <charconv>      // for from_chars
 #include <cmath>         // for isnan, pow
 #include <cstdio>        // for size_t, fileno, stdin, stdout
+#include <cstdlib>       // for exit
 #include <fstream>       // for basic_istream, basic_ostream, basic_filebuf
 #include <functional>    // for function
 #include <iostream>      // for cin, cerr, cout
@@ -32,7 +33,6 @@
 #include <system_error>  // for errc
 #include <tuple>         // for tuple, apply
 #include <utility>       // for move, pair
-#include <variant>       // for tuple
 #include <vector>        // for vector
 
 /* cplib_embed_ignore start */
@@ -42,21 +42,14 @@
 /* cplib_embed_ignore end */
 
 namespace cplib::var {
-inline Reader::Reader(std::unique_ptr<io::InStream> inner)
-    : inner_(std::move(inner)), traces_({}) {}
+inline Reader::Reader(std::unique_ptr<io::InStream> inner, FailFunc fail_func)
+    : inner_(std::move(inner)), fail_func_(std::move(fail_func)) {}
 
 inline auto Reader::inner() -> io::InStream& { return *inner_; }
 
 inline auto Reader::fail(std::string_view message) -> void {
-  using namespace std::string_literals;
-  std::string result = "read error: "s + std::string(message);
-  size_t depth = 0;
-  for (auto it = traces_.rbegin(); it != traces_.rend(); ++it) {
-    result += format("\n  #%zu: %s @ %s:%zu:%zu", depth, it->var_name.c_str(),
-                     inner().name().data(), it->line_num, it->col_num);
-    ++depth;
-  }
-  inner_->fail(result);
+  fail_func_(message, traces_);
+  std::exit(EXIT_FAILURE);
 }
 
 template <class T, class D>
@@ -75,23 +68,22 @@ inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::Target.
 namespace detail {
 // Open the given file and create a `var::Reader`
 inline auto make_file_reader(std::string_view path, std::string name, bool strict,
-                             io::InStream::FailFunc fail_func) -> var::Reader {
+                             Reader::FailFunc fail_func) -> var::Reader {
   auto buf = std::make_unique<std::filebuf>();
   if (!buf->open(path.data(), std::ios::binary | std::ios::in)) {
     panic(format("Can not open file `%s` as input stream", path.data()));
   }
-  return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict,
-                                                    std::move(fail_func)));
+  return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
+                     std::move(fail_func));
 }
 
 // Open `stdin` as input stream and create a `var::Reader`
-inline auto make_stdin_reader(std::string name, bool strict, io::InStream::FailFunc fail_func)
+inline auto make_stdin_reader(std::string name, bool strict, Reader::FailFunc fail_func)
     -> var::Reader {
   auto buf = std::make_unique<io::detail::FdInBuf>(fileno(stdin));
-  var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict,
-                                                    std::move(fail_func)));
+  var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
+                     std::move(fail_func));
   /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
-  // stdin = nullptr;
   std::cin.rdbuf(nullptr);
   std::cin.tie(nullptr);
   return reader;
@@ -103,7 +95,6 @@ inline auto make_stdout_ostream(std::unique_ptr<std::streambuf>& buf, std::ostre
   buf = std::make_unique<io::detail::FdOutBuf>(fileno(stdout));
   stream.rdbuf(buf.get());
   /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
-  // stdout = nullptr;
   std::cout.rdbuf(nullptr);
   std::cin.tie(nullptr);
   std::cerr.tie(nullptr);
@@ -138,8 +129,9 @@ inline auto Var<T, D>::renamed(std::string_view name) const -> D {
 template <class T, class D>
 inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
-  auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true,
-                                                      [&](std::string_view s) { panic(s); }));
+  auto reader =
+      Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
+             [&](std::string_view msg, const std::vector<var::Reader::Trace>&) { panic(msg); });
   T result = reader.read(*this);
   if (!reader.inner().eof()) {
     panic("Var::parse failed, extra characters in string");

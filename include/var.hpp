@@ -11,14 +11,12 @@
 #include <cstdint>      // for int16_t, int32_t, int64_t, int8_t, uint16_t
 #include <cstdio>       // for size_t
 #include <functional>   // for function
-#include <iterator>     // for pair
 #include <memory>       // for unique_ptr, allocator
 #include <optional>     // for optional, nullopt_t
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view
 #include <tuple>        // for tuple
 #include <utility>      // for pair
-#include <variant>      // for tuple
 #include <vector>       // for vector
 
 /* cplib_embed_ignore start */
@@ -44,12 +42,14 @@ class Reader {
     std::size_t col_num;
   };
 
+  using FailFunc = UniqueFunction<auto(std::string_view, const std::vector<Trace>&)->void>;
+
   /**
    * Create a root reader of input stream.
    *
    * @param inner The inner input stream to wrap.
    */
-  explicit Reader(std::unique_ptr<io::InStream> inner);
+  explicit Reader(std::unique_ptr<io::InStream> inner, FailFunc fail_func);
 
   /// Copy constructor (deleted to prevent copying).
   Reader(const Reader&) = delete;
@@ -100,7 +100,8 @@ class Reader {
 
  private:
   std::unique_ptr<io::InStream> inner_;
-  std::vector<Trace> traces_;
+  std::vector<Trace> traces_{};
+  FailFunc fail_func_;
 };
 
 template <class T>

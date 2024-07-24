@@ -59,9 +59,9 @@ inline Report::Report(Report::Status status, double score, std::string message)
 // Impl State {{{
 inline State::State(Initializer initializer)
     : rnd(),
-      inf(var::Reader(nullptr)),
-      ouf(var::Reader(nullptr)),
-      ans(var::Reader(nullptr)),
+      inf(var::Reader(nullptr, {})),
+      ouf(var::Reader(nullptr, {})),
+      ans(var::Reader(nullptr, {})),
       initializer(std::move(initializer)),
       reporter(json_reporter) {
   cplib::detail::panic_impl = [this](std::string_view msg) {
@@ -185,12 +185,17 @@ inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) 
 
   auto [inf_path, ouf_path, ans_path] = detail::parse_command_line_arguments(state, argc, argv);
 
-  state.inf = var::detail::make_file_reader(inf_path, "inf", false,
-                                            [](std::string_view msg) { panic(msg); });
-  state.ouf = var::detail::make_file_reader(ouf_path, "ouf", false,
-                                            [&state](std::string_view msg) { state.quit_wa(msg); });
-  state.ans = var::detail::make_file_reader(ans_path, "ans", false,
-                                            [](std::string_view msg) { panic(msg); });
+  state.inf = var::detail::make_file_reader(
+      inf_path, "inf", false,
+      [](std::string_view msg, const std::vector<var::Reader::Trace>&) { panic(msg); });
+  state.ouf = var::detail::make_file_reader(
+      ouf_path, "ouf", false,
+      [&state](std::string_view msg, const std::vector<var::Reader::Trace>&) {
+        state.quit_wa(msg);
+      });
+  state.ans = var::detail::make_file_reader(
+      ans_path, "ans", false,
+      [](std::string_view msg, const std::vector<var::Reader::Trace>&) { panic(msg); });
 }
 // /Impl DefaultInitializer }}}
 

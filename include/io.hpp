@@ -9,15 +9,11 @@
 #define CPLIB_IO_HPP_
 
 #include <cstdio>       // for size_t
-#include <ios>          // for streambuf, basic_streambuf
 #include <memory>       // for unique_ptr
 #include <optional>     // for optional
+#include <streambuf>    // for streambuf, basic_streambuf
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view
-
-/* cplib_embed_ignore start */
-#include "utils.hpp"  // for UniqueFunction, UniqueFunction<>::UniqueFunct...
-/* cplib_embed_ignore end */
 
 namespace cplib::io {
 /**
@@ -25,8 +21,6 @@ namespace cplib::io {
  */
 class InStream {
  public:
-  using FailFunc = UniqueFunction<auto(std::string_view)->void>;
-
   /**
    * Constructs an InStream object.
    *
@@ -35,8 +29,7 @@ class InStream {
    * @param strict Indicates if the stream is in strict mode.
    * @param fail_func A function that will be called when a failure occurs.
    */
-  explicit InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
-                    FailFunc fail_func);
+  explicit InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict);
 
   /**
    * Returns the name of the stream.
@@ -88,18 +81,25 @@ class InStream {
   auto set_strict(bool b) -> void;
 
   /**
-   * Returns the current line number.
+   * Returns the current line number, starting from 0.
    *
    * @return The current line number as a size_t.
    */
   [[nodiscard]] auto line_num() const -> std::size_t;
 
   /**
-   * Returns the current column number.
+   * Returns the current column number, starting from 0.
    *
    * @return The current column number as a size_t.
    */
   [[nodiscard]] auto col_num() const -> std::size_t;
+
+  /**
+   * Returns the current byte number, starting from 0.
+   *
+   * @return The current byte number as a size_t.
+   */
+  [[nodiscard]] auto byte_num() const -> std::size_t;
 
   /**
    * Checks if the current position is EOF.
@@ -153,20 +153,13 @@ class InStream {
    */
   auto read_line() -> std::optional<std::string>;
 
-  /**
-   * Quit program with an error.
-   *
-   * @param message The error message.
-   */
-  [[noreturn]] auto fail(std::string_view message) -> void;
-
  private:
   std::unique_ptr<std::streambuf> buf_;
   std::string name_;
-  bool strict_;         // In strict mode, whitespace characters are not ignored
-  FailFunc fail_func_;  // Calls when fail
-  std::size_t line_num_{1};
-  std::size_t col_num_{1};
+  bool strict_;  // In strict mode, whitespace characters are not ignored
+  std::size_t line_num_{0};
+  std::size_t col_num_{0};
+  std::size_t byte_num_{0};
 };
 }  // namespace cplib::io
 
