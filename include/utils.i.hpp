@@ -43,32 +43,6 @@ inline auto has_colors() -> bool {
   return isatty(fileno(stderr));
 }
 
-inline auto json_string_encode(int c) -> std::string {
-  if (c == '\\') {
-    return "\\\\";
-  } else if (c == '\b') {
-    return "\\b";
-  } else if (c == '\f') {
-    return "\\f";
-  } else if (c == '\n') {
-    return "\\n";
-  } else if (c == '\r') {
-    return "\\r";
-  } else if (c == '\t') {
-    return "\\t";
-  } else if (!isprint(c)) {
-    return format("\\u%04x", static_cast<int>(c));
-  } else {
-    return {static_cast<char>(c)};
-  }
-}
-
-inline auto json_string_encode(std::string_view s) -> std::string {
-  std::string result;
-  for (auto c : s) result += json_string_encode(c);
-  return result;
-}
-
 inline auto hex_encode(int c) -> std::string {
   if (c == '\\') {
     return "\\\\";

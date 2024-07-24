@@ -88,13 +88,20 @@ struct Report {
   Report(Status status, std::string message);
 };
 
+/**
+ * `Reporter` used to report and then exit the program.
+ */
+struct Reporter {
+ public:
+  virtual ~Reporter() = 0;
+
+  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+};
+
 class State {
  public:
   /// The type of function used to initialize the state.
   using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
-
-  /// The type of function used for reporting.
-  using Reporter = std::function<auto(const Report& report)->void>;
 
   /// The parser function of a flag type (`--flag`) command line argument.
   using FlagParser = std::function<auto(std::set<std::string> flag_args)->void>;
@@ -109,7 +116,7 @@ class State {
   Initializer initializer;
 
   /// Reporter is a function that reports the given `generator::Report` and exits the program.
-  Reporter reporter;
+  std::unique_ptr<Reporter> reporter;
 
   /// Names of the flag type (`--flag`) command line arguments required by the generator.
   std::vector<std::string> required_flag_args;
@@ -167,25 +174,25 @@ struct DefaultInitializer {
 };
 
 /**
- * Report the given report in JSON format.
- *
- * @param report The report to be reported.
+ * `JsonReporter` reports the given report in JSON format.
  */
-auto json_reporter(const Report& report) -> void;
+struct JsonReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in plain text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto plain_text_reporter(const Report& report) -> void;
+struct PlainTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in colored text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto colored_text_reporter(const Report& report) -> void;
+struct ColoredTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 #define CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_)                                 \
   namespace cplib_generator_args_detail_ {                                                       \
@@ -198,7 +205,7 @@ auto colored_text_reporter(const Report& report) -> void;
     std::string name;                                                                            \
     explicit Flag(std::string name_) : name(std::move(name_)) {                                  \
       state_var_name_.required_flag_args.emplace_back(name);                                     \
-      auto name = this->name;                                                                    \
+      auto name = this -> name;                                                                  \
       state_var_name_.flag_parsers.emplace_back([name](const std::set<std::string>& flag_args) { \
         value_map_[name] = static_cast<ResultType>(flag_args.count(name));                       \
       });                                                                                        \
@@ -215,7 +222,7 @@ auto colored_text_reporter(const Report& report) -> void;
     template <class... Args>                                                                     \
     explicit Var(Args... args) : var(std::forward<Args>(args)...) {                              \
       state_var_name_.required_var_args.emplace_back(var.name());                                \
-      auto var = this->var;                                                                      \
+      auto var = this -> var;                                                                    \
       state_var_name_.var_parsers.emplace_back(                                                  \
           [var](const std::map<std::string, std::string>& var_args) {                            \
             auto name = std::string(var.name());                                                 \
@@ -544,9 +551,9 @@ auto colored_text_reporter(const Report& report) -> void;
   CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_);                                    \
   CPLIB_REGISTER_GENERATOR_ARGS_(__VA_ARGS__);                                                 \
   namespace args_namespace_name_ = ::cplib_generator_args_;                                    \
-  auto main(signed argc, char** argv)->signed {                                                \
+  auto main(signed argc, char** argv) -> signed {                                              \
     state_var_name_.initializer(state_var_name_, argc, argv);                                  \
-    auto generator_main(void)->void;                                                           \
+    auto generator_main(void) -> void;                                                         \
     generator_main();                                                                          \
     return 0;                                                                                  \
   }

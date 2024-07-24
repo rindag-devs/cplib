@@ -94,15 +94,27 @@ struct Report {
 };
 
 /**
+ * `Reporter` used to report and then exit the program.
+ */
+struct Reporter {
+ public:
+  virtual ~Reporter() = 0;
+
+  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+
+  auto attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack) -> void;
+
+ protected:
+  std::optional<cplib::var::Reader::TraceStack> trace_stack_;
+};
+
+/**
  * Represents the state of the checker.
  */
 class State {
  public:
   /// The type of function used to initialize the state.
   using Initializer = UniqueFunction<auto(State& state, int argc, char** argv)->void>;
-
-  /// The type of function used for reporting.
-  using Reporter = UniqueFunction<auto(const Report& report)->void>;
 
   /// Random number generator.
   Random rnd;
@@ -119,8 +131,8 @@ class State {
   /// Initializer is a function parsing command line arguments and initializing `checker::State`
   Initializer initializer;
 
-  /// Reporter is a function that reports the given `checker::Report` and exits the program.
-  Reporter reporter;
+  /// Reporter reports the given `checker::Report` and exits the program.
+  std::unique_ptr<Reporter> reporter;
 
   /**
    * Constructs a new `State` object with the given initializer function.
@@ -190,25 +202,25 @@ struct DefaultInitializer {
 };
 
 /**
- * Report the given report in JSON format.
- *
- * @param report The report to be reported.
+ * `JsonReporter` reports the given report in JSON format.
  */
-auto json_reporter(const Report& report) -> void;
+struct JsonReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in plain text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto plain_text_reporter(const Report& report) -> void;
+struct PlainTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in colored text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto colored_text_reporter(const Report& report) -> void;
+struct ColoredTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Macro to register checker with custom initializer.

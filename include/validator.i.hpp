@@ -32,7 +32,8 @@
 #include <vector>       // for vector
 
 /* cplib_embed_ignore start */
-#include "io.hpp"      // for InStream, InStream::eof
+#include "io.hpp"  // for InStream, InStream::eof
+#include "json.hpp"
 #include "macros.hpp"  // for isatty, CPLIB_VERSION
 #include "utils.hpp"   // for panic, format, has_colors, hex_encode
 /* cplib_embed_ignore end */
@@ -66,6 +67,17 @@ inline Trait::Trait(std::string name, CheckFunc check_func, std::vector<std::str
     : name(std::move(name)),
       check_func(std::move(check_func)),
       dependencies(std::move(dependencies)) {}
+
+inline Reporter::~Reporter() = default;
+
+inline auto Reporter::attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack)
+    -> void {
+  trace_stack_ = trace_stack;
+}
+
+inline auto Reporter::attach_trait_status(const std::map<std::string, bool>& trait_status) -> void {
+  trait_status_ = trait_status;
+}
 
 // Impl State {{{
 namespace detail {
@@ -169,7 +181,7 @@ inline State::State(Initializer initializer)
     : rnd(),
       inf(var::Reader(nullptr, {})),
       initializer(std::move(initializer)),
-      reporter(json_reporter),
+      reporter(std::make_unique<JsonReporter>()),
 
       traits_(),
       trait_edges_() {
@@ -201,12 +213,11 @@ inline auto State::quit(Report report) -> void {
     report = Report(Report::Status::INVALID, "Extra content in the input file");
   }
 
-  std::map<std::string, bool> trait_status;
   if (report.status == Report::Status::VALID) {
-    trait_status = detail::validate_traits(traits_, trait_edges_);
+    reporter->attach_trait_status(detail::validate_traits(traits_, trait_edges_));
   }
 
-  reporter(report, trait_status);
+  reporter->report(report);
 
   std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
@@ -242,11 +253,11 @@ inline auto print_help_message(std::string_view program_name) -> void {
 
 inline auto detect_reporter(State& state) -> void {
   if (!isatty(fileno(stderr))) {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
-    state.reporter = colored_text_reporter;
+    state.reporter = std::make_unique<ColoredTextReporter>();
   } else {
-    state.reporter = plain_text_reporter;
+    state.reporter = std::make_unique<PlainTextReporter>();
   }
 }
 
@@ -257,12 +268,12 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (format == "text") {
     if (cplib::detail::has_colors()) {
-      state.reporter = colored_text_reporter;
+      state.reporter = std::make_unique<ColoredTextReporter>();
     } else {
-      state.reporter = plain_text_reporter;
+      state.reporter = std::make_unique<PlainTextReporter>();
     }
   } else {
     return false;
@@ -309,13 +320,15 @@ inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) 
   std::unique_ptr<std::streambuf> inf_buf = nullptr;
   if (inf_path.empty()) {
     state.inf = var::detail::make_stdin_reader(
-        "inf", true, [&state](std::string_view msg, const std::vector<var::Reader::Trace>&) {
+        "inf", true, [&state](std::string_view msg, const var::Reader::TraceStack& traces) {
+          state.reporter->attach_trace_stack(traces);
           state.quit_invalid(msg);
         });
   } else {
     state.inf = var::detail::make_file_reader(
         inf_path, "inf", true,
-        [&state](std::string_view msg, const std::vector<var::Reader::Trace>&) {
+        [&state](std::string_view msg, const var::Reader::TraceStack& traces) {
+          state.reporter->attach_trace_stack(traces);
           state.quit_invalid(msg);
         });
   }
@@ -351,47 +364,56 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
       return "Unknown";
   }
 }
-}  // namespace detail
 
-inline auto json_reporter(const Report& report, const std::map<std::string, bool>& trait_status)
-    -> void {
-  std::clog << std::boolalpha;
+inline auto trait_status_to_json(const std::map<std::string, bool>& traits)
+    -> std::unique_ptr<cplib::json::Map> {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
 
-  std::clog << R"({"status": ")" << report.status.to_string() << R"(", "message": ")"
-            << cplib::detail::json_string_encode(report.message) << "\"";
-
-  if (report.status == Report::Status::VALID) {
-    std::clog << ", \"traits\": {";
-    bool is_first = true;
-    for (auto [name, satisfaction] : trait_status) {
-      if (is_first) {
-        is_first = false;
-      } else {
-        std::clog << ", ";
-      }
-      std::clog << "\"" << cplib::detail::json_string_encode(name) << "\": " << satisfaction;
-    }
-    std::clog << '}';
+  for (const auto& [k, v] : traits) {
+    map.insert({k, std::make_unique<cplib::json::Bool>(v)});
   }
 
-  std::clog << "}\n";
+  return std::make_unique<cplib::json::Map>(std::move(map));
+}
+}  // namespace detail
 
+inline auto JsonReporter::report(const Report& report) -> void {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
+  map.insert(
+      {"status", std::make_unique<cplib::json::String>(std::string(report.status.to_string()))});
+  map.insert({"message", std::make_unique<cplib::json::String>(report.message)});
+
+  if (trace_stack_.has_value()) {
+    map.insert({"reader_trace_stack", trace_stack_->to_json()});
+  }
+
+  if (!trait_status_.empty()) {
+    map.insert({"traits", detail::trait_status_to_json(trait_status_)});
+  }
+
+  std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto plain_text_reporter(const Report& report,
-                                const std::map<std::string, bool>& trait_status) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> void {
   std::clog << detail::status_to_title_string(report.status).c_str() << ".\n";
 
   if (report.status != Report::Status::VALID || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
 
-  if (report.status == Report::Status::VALID && !trait_status.empty()) {
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_plain_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
+  if (report.status == Report::Status::VALID && !trait_status_.empty()) {
     std::clog << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (auto [name, satisfaction] : trait_status) {
+    for (auto [name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.push_back(name);
       } else {
@@ -410,19 +432,25 @@ inline auto plain_text_reporter(const Report& report,
   std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto colored_text_reporter(const Report& report,
-                                  const std::map<std::string, bool>& trait_status) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> void {
   std::clog << detail::status_to_colored_title_string(report.status).c_str() << ".\n";
 
   if (report.status != Report::Status::VALID || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
 
-  if (report.status == Report::Status::VALID && !trait_status.empty()) {
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_colored_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
+  if (report.status == Report::Status::VALID && !trait_status_.empty()) {
     std::clog << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (auto [name, satisfaction] : trait_status) {
+    for (auto [name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.push_back(name);
       } else {

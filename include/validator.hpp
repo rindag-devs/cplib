@@ -122,14 +122,28 @@ struct Trait {
   Trait(std::string name, CheckFunc check_func, std::vector<std::string> dependencies);
 };
 
+/**
+ * `Reporter` used to report and then exit the program.
+ */
+struct Reporter {
+ public:
+  virtual ~Reporter() = 0;
+
+  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+
+  auto attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack) -> void;
+
+  auto attach_trait_status(const std::map<std::string, bool>& trait_status) -> void;
+
+ protected:
+  std::optional<cplib::var::Reader::TraceStack> trace_stack_;
+  std::map<std::string, bool> trait_status_;
+};
+
 class State {
  public:
   /// The type of function used to initialize the state.
   using Initializer = UniqueFunction<auto(State& state, int argc, char** argv)->void>;
-
-  /// The type of function used for reporting.
-  using Reporter = UniqueFunction<
-      auto(const Report& report, const std::map<std::string, bool>& trait_status)->void>;
 
   /// Random number generator.
   Random rnd;
@@ -141,7 +155,7 @@ class State {
   Initializer initializer;
 
   /// Reporter is a function that reports the given `validator::Report` and exits the program.
-  Reporter reporter;
+  std::unique_ptr<Reporter> reporter;
 
   /**
    * Constructs a new `State` object with the given initializer function.
@@ -209,30 +223,25 @@ struct DefaultInitializer {
 };
 
 /**
- * Report the given report in JSON format.
- *
- * @param report The report to be reported.
- * @param trait_status The status of each trait (satisfied or dissatisfied).
+ * `JsonReporter` reports the given report in JSON format.
  */
-auto json_reporter(const Report& report, const std::map<std::string, bool>& trait_status) -> void;
+struct JsonReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
- * Report the given report in plain text format.
- *
- * @param report The report to be reported.
- * @param trait_status The status of each trait (satisfied or dissatisfied).
+ * Report the given report in plain text format for human reading.
  */
-auto plain_text_reporter(const Report& report, const std::map<std::string, bool>& trait_status)
-    -> void;
+struct PlainTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
- * Report the given report in colored text format.
- *
- * @param report The report to be reported.
- * @param trait_status The status of each trait (satisfied or dissatisfied).
+ * Report the given report in colored text format for human reading.
  */
-auto colored_text_reporter(const Report& report, const std::map<std::string, bool>& trait_status)
-    -> void;
+struct ColoredTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Macro to register validator with custom initializer.
@@ -242,9 +251,9 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
  */
 #define CPLIB_REGISTER_VALIDATOR_OPT(var_, initializer_) \
   auto var_ = ::cplib::validator::State(initializer_);   \
-  auto main(signed argc, char** argv)->signed {          \
+  auto main(signed argc, char** argv) -> signed {        \
     var_.initializer(var_, argc, argv);                  \
-    auto validator_main(void)->void;                     \
+    auto validator_main(void) -> void;                   \
     validator_main();                                    \
     return 0;                                            \
   }

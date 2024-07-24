@@ -1,1 +1,1 @@
-{"status": "wrong_answer", "score": 0.000, "message": "read error: Expected a float, got EOF\n  #0: 4 @ ouf:5:1\n  #1: ans @ ouf:1:1\n  #2: output @ ouf:1:1"}
+{"message":"Expected a float, got EOF","reader_trace_stack":{"stack":[{"byte_num":0,"col_num":0,"line_num":0,"var_name":"output"},{"byte_num":0,"col_num":0,"line_num":0,"var_name":"ans"},{"byte_num":57,"col_num":0,"line_num":4,"var_name":"4"}],"stream_name":"ouf"},"score":0,"status":"wrong_answer"}

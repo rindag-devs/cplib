@@ -20,7 +20,8 @@
 #include <vector>       // for vector
 
 /* cplib_embed_ignore start */
-#include "io.hpp"       // for InStream
+#include "io.hpp"  // for InStream
+#include "json.hpp"
 #include "pattern.hpp"  // for Pattern
 /* cplib_embed_ignore end */
 
@@ -40,9 +41,29 @@ class Reader {
     std::string var_name;
     std::size_t line_num;
     std::size_t col_num;
+    std::size_t byte_num;
   };
 
-  using FailFunc = UniqueFunction<auto(std::string_view, const std::vector<Trace>&)->void>;
+  /**
+   * `TraceStack` represents a stack of trace.;
+   */
+  struct TraceStack {
+    std::vector<Trace> stack;
+    std::string stream_name;
+
+    /// Convert to JSON map.
+    [[nodiscard]] auto to_json() const -> std::unique_ptr<cplib::json::Map>;
+
+    /// Convert to human-friendly plain text.
+    /// Each line does not contain the trailing `\n` character.
+    [[nodiscard]] auto to_plain_text_lines() const -> std::vector<std::string>;
+
+    /// Convert to human-friendly colored text (ANSI escape color).
+    /// Each line does not contain the trailing `\n` character.
+    [[nodiscard]] auto to_colored_text_lines() const -> std::vector<std::string>;
+  };
+
+  using FailFunc = UniqueFunction<auto(std::string_view, const TraceStack&)->void>;
 
   /**
    * Create a root reader of input stream.

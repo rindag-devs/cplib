@@ -1,1 +1,1 @@
-{"status": "invalid", "message": "read error: Expected an integer <= 3, got `4`\n  #0: v @ inf:3:3\n  #1: 1 @ inf:3:1\n  #2: edges @ inf:2:1\n  #3: input @ inf:1:1"}
+{"message":"Expected an integer <= 3, got `4`","reader_trace_stack":{"stack":[{"byte_num":0,"col_num":0,"line_num":0,"var_name":"input"},{"byte_num":4,"col_num":0,"line_num":1,"var_name":"edges"},{"byte_num":8,"col_num":0,"line_num":2,"var_name":"1"},{"byte_num":10,"col_num":2,"line_num":2,"var_name":"v"}],"stream_name":"inf"},"status":"invalid"}

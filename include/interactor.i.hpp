@@ -23,7 +23,8 @@
 #include <utility>   // for move
 
 /* cplib_embed_ignore start */
-#include "io.hpp"      // for InStream, InStream::seek_eof
+#include "io.hpp"  // for InStream, InStream::seek_eof
+#include "json.hpp"
 #include "macros.hpp"  // for isatty, CPLIB_VERSION
 #include "utils.hpp"   // for panic, format, has_colors, json_string_encode
 /* cplib_embed_ignore end */
@@ -52,6 +53,13 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
 inline Report::Report(Report::Status status, double score, std::string message)
     : status(status), score(score), message(std::move(message)) {}
 
+inline Reporter::~Reporter() = default;
+
+inline auto Reporter::attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack)
+    -> void {
+  trace_stack_ = trace_stack;
+}
+
 // Impl State {{{
 inline State::State(Initializer initializer)
     : rnd(),
@@ -59,7 +67,7 @@ inline State::State(Initializer initializer)
       from_user(var::Reader(nullptr, {})),
       to_user(std::ostream(nullptr)),
       initializer(std::move(initializer)),
-      reporter(json_reporter) {
+      reporter(std::make_unique<JsonReporter>()) {
   cplib::detail::panic_impl = [this](std::string_view msg) {
     quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
   };
@@ -82,7 +90,7 @@ inline auto State::quit(Report report) -> void {
     report = Report(Report::Status::WRONG_ANSWER, 0.0, "Extra content in the user output");
   }
 
-  reporter(report);
+  reporter->report(report);
 
   std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
@@ -120,11 +128,11 @@ inline auto print_help_message(std::string_view program_name) -> void {
 
 inline auto detect_reporter(State& state) -> void {
   if (!isatty(fileno(stderr))) {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
-    state.reporter = colored_text_reporter;
+    state.reporter = std::make_unique<ColoredTextReporter>();
   } else {
-    state.reporter = plain_text_reporter;
+    state.reporter = std::make_unique<PlainTextReporter>();
   }
 }
 
@@ -135,12 +143,12 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (format == "text") {
     if (cplib::detail::has_colors()) {
-      state.reporter = colored_text_reporter;
+      state.reporter = std::make_unique<ColoredTextReporter>();
     } else {
-      state.reporter = plain_text_reporter;
+      state.reporter = std::make_unique<PlainTextReporter>();
     }
   } else {
     return false;
@@ -197,10 +205,15 @@ inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) 
 
   state.inf = var::detail::make_file_reader(
       inf_path, "inf", false,
-      [](std::string_view msg, const std::vector<var::Reader::Trace>&) { panic(msg); });
+      [&state](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state.reporter->attach_trace_stack(traces);
+        panic(msg);
+      });
 
   state.from_user = var::detail::make_stdin_reader(
-      "from_user", false, [&state](std::string_view msg, const std::vector<var::Reader::Trace>&) {
+      "from_user", false,
+      [&state](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state.reporter->attach_trace_stack(traces);
         state.quit_wa(msg);
       });
 
@@ -243,31 +256,55 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto json_reporter(const Report& report) -> void {
-  auto msg = format(R"({"status": "%s", "score": %.3f, "message": "%s"})",
-                    report.status.to_string().data(), report.score,
-                    cplib::detail::json_string_encode(report.message).c_str());
-  std::clog << msg << '\n';
+inline auto JsonReporter::report(const Report& report) -> void {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
+  map.insert(
+      {"status", std::make_unique<cplib::json::String>(std::string(report.status.to_string()))});
+  map.insert({"score", std::make_unique<cplib::json::Real>(report.score)});
+  map.insert({"message", std::make_unique<cplib::json::String>(report.message)});
+
+  if (trace_stack_.has_value()) {
+    map.insert({"reader_trace_stack", trace_stack_->to_json()});
+  }
+
+  std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto plain_text_reporter(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> void {
   std::clog << std::fixed << std::setprecision(2)
             << detail::status_to_title_string(report.status).c_str() << ", scores "
             << report.score * 100.0 << " of 100.\n";
+
   if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
+
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_plain_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
   std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto colored_text_reporter(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> void {
   std::clog << std::fixed << std::setprecision(2)
             << detail::status_to_colored_title_string(report.status).c_str()
             << ", scores \x1b[0;33m" << report.score * 100.0 << "\x1b[0m of 100.\n";
   if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
+
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_colored_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
   std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 // /Impl reporters }}}

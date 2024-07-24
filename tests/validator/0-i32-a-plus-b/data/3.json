@@ -1,1 +1,1 @@
-{"status": "invalid", "message": "read error: Expected an integer <= 1000, got `2000`\n  #0: n @ inf:1:1"}
+{"message":"Expected an integer <= 1000, got `2000`","reader_trace_stack":{"stack":[{"byte_num":0,"col_num":0,"line_num":0,"var_name":"n"}],"stream_name":"inf"},"status":"invalid"}

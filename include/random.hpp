@@ -73,7 +73,7 @@ class Random {
    * @return The randomly generated integer.
    */
   template <class T>
-  auto next(T from, T to) -> typename std::enable_if<std::is_integral_v<T>, T>::type;
+  auto next(T from, T to) -> std::enable_if_t<std::is_integral_v<T>, T>;
 
   /**
    * Generate a random floating-point number in the range [from, to].
@@ -84,7 +84,7 @@ class Random {
    * @return The randomly generated floating-point number.
    */
   template <class T>
-  auto next(T from, T to) -> typename std::enable_if<std::is_floating_point_v<T>, T>::type;
+  auto next(T from, T to) -> std::enable_if_t<std::is_floating_point_v<T>, T>;
 
   /**
    * Generate a random boolean value.
@@ -93,7 +93,7 @@ class Random {
    * @return The randomly generated boolean value.
    */
   template <class T>
-  auto next() -> typename std::enable_if<std::is_same_v<T, bool>, bool>::type;
+  auto next() -> std::enable_if_t<std::is_same_v<T, bool>, bool>;
 
   /**
    * Generate a random boolean value with a given probability of being true.
@@ -103,7 +103,7 @@ class Random {
    * @return The randomly generated boolean value.
    */
   template <class T>
-  auto next(double true_prob) -> typename std::enable_if<std::is_same_v<T, bool>, bool>::type;
+  auto next(double true_prob) -> std::enable_if_t<std::is_same_v<T, bool>, bool>;
 
   /**
    * Return a random value from the given initializer_list.

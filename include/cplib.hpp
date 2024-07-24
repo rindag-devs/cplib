@@ -13,6 +13,7 @@
 #include "macros.hpp"
 #include "utils.hpp"
 #include "no_rand.hpp"
+#include "json.hpp"
 #include "pattern.hpp"
 #include "random.hpp"
 #include "io.hpp"

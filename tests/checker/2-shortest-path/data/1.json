@@ -1,1 +1,1 @@
-{"status": "wrong_answer", "score": 0.000, "message": "read error: Plan and shortest path length do not match\n  #0: output @ ouf:1:1"}
+{"message":"Plan and shortest path length do not match","reader_trace_stack":{"stack":[{"byte_num":0,"col_num":0,"line_num":0,"var_name":"output"}],"stream_name":"ouf"},"score":0,"status":"wrong_answer"}

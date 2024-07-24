@@ -29,6 +29,7 @@
 #include <vector>       // for vector
 
 /* cplib_embed_ignore start */
+#include "json.hpp"
 #include "macros.hpp"  // for isatty, CPLIB_VERSION
 #include "utils.hpp"   // for panic, format, has_colors, join, json_string_...
 /* cplib_embed_ignore end */
@@ -53,11 +54,13 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
 inline Report::Report(Report::Status status, std::string message)
     : status(status), message(std::move(message)) {}
 
+inline Reporter::~Reporter() = default;
+
 // Impl State {{{
 inline State::State(Initializer initializer)
     : rnd(),
       initializer(std::move(initializer)),
-      reporter(json_reporter),
+      reporter(std::make_unique<JsonReporter>()),
       required_flag_args(),
       required_var_args(),
       flag_parsers(),
@@ -75,7 +78,7 @@ inline State::~State() {
 inline auto State::quit(const Report& report) -> void {
   exited_ = true;
 
-  reporter(report);
+  reporter->report(report);
 
   std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
@@ -113,11 +116,11 @@ inline auto print_help_message(std::string_view program_name, std::string_view a
 
 inline auto detect_reporter(State& state) -> void {
   if (!isatty(fileno(stderr))) {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
-    state.reporter = colored_text_reporter;
+    state.reporter = std::make_unique<ColoredTextReporter>();
   } else {
-    state.reporter = plain_text_reporter;
+    state.reporter = std::make_unique<PlainTextReporter>();
   }
 }
 
@@ -128,12 +131,12 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (format == "text") {
     if (cplib::detail::has_colors()) {
-      state.reporter = colored_text_reporter;
+      state.reporter = std::make_unique<ColoredTextReporter>();
     } else {
-      state.reporter = plain_text_reporter;
+      state.reporter = std::make_unique<PlainTextReporter>();
     }
   } else {
     return false;
@@ -253,16 +256,17 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto json_reporter(const Report& report) -> void {
-  std::clog << std::boolalpha;
+inline auto JsonReporter::report(const Report& report) -> void {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
+  map.insert(
+      {"status", std::make_unique<cplib::json::String>(std::string(report.status.to_string()))});
+  map.insert({"message", std::make_unique<cplib::json::String>(report.message)});
 
-  std::clog << R"({"status": ")" << report.status.to_string() << R"(", "message": ")"
-            << cplib::detail::json_string_encode(report.message) << "\"}";
-
+  std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto plain_text_reporter(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> void {
   if (report.status == Report::Status::OK && report.message.empty()) {
     // Do nothing when the report is OK and message is empty.
     std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
@@ -274,7 +278,7 @@ inline auto plain_text_reporter(const Report& report) -> void {
   std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto colored_text_reporter(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> void {
   if (report.status == Report::Status::OK && report.message.empty()) {
     // Do nothing when the report is OK and message is empty.
     std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);

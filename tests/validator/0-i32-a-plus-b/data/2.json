@@ -1,1 +1,1 @@
-{"status": "invalid", "message": "read error: Expected a separator ` `, got `\\n`\n  #0: space @ inf:1:2"}
+{"message":"Expected a separator ` `, got `\\n`","reader_trace_stack":{"stack":[{"byte_num":1,"col_num":1,"line_num":0,"var_name":"space"}],"stream_name":"inf"},"status":"invalid"}

@@ -37,24 +37,80 @@
 
 /* cplib_embed_ignore start */
 #include "io.hpp"
+#include "json.hpp"
 #include "pattern.hpp"
 #include "utils.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib::var {
+[[nodiscard]] inline auto Reader::TraceStack::to_json() const -> std::unique_ptr<cplib::json::Map> {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
+  std::vector<std::unique_ptr<cplib::json::Value>> stack_list;
+
+  for (const auto& trace : stack) {
+    std::map<std::string, std::unique_ptr<cplib::json::Value>> trace_map;
+    trace_map.insert({"var_name", std::make_unique<cplib::json::String>(trace.var_name)});
+    trace_map.insert({"line_num", std::make_unique<cplib::json::Int>(trace.line_num)});
+    trace_map.insert({"col_num", std::make_unique<cplib::json::Int>(trace.col_num)});
+    trace_map.insert({"byte_num", std::make_unique<cplib::json::Int>(trace.byte_num)});
+    stack_list.push_back(std::make_unique<cplib::json::Map>(std::move(trace_map)));
+  }
+
+  map.insert({"stack", std::make_unique<cplib::json::List>(std::move(stack_list))});
+  map.insert({"stream_name", std::make_unique<cplib::json::String>(stream_name)});
+  return std::make_unique<cplib::json::Map>(std::move(map));
+}
+
+[[nodiscard]] inline auto Reader::TraceStack::to_plain_text_lines() const
+    -> std::vector<std::string> {
+  std::vector<std::string> lines;
+
+  lines.push_back(std::string("Stream: ") + stream_name);
+
+  std::size_t id = 0;
+  for (const auto& trace : stack) {
+    auto line = cplib::format("#%zu: %s @ line %zu, col %zu, byte %zu", id, trace.var_name.c_str(),
+                              trace.line_num + 1, trace.col_num + 1, trace.byte_num + 1);
+    ++id;
+    lines.push_back(std::move(line));
+  }
+
+  return lines;
+}
+
+[[nodiscard]] inline auto Reader::TraceStack::to_colored_text_lines() const
+    -> std::vector<std::string> {
+  std::vector<std::string> lines;
+
+  lines.push_back(std::string("Stream: \x1b[0;33m") + stream_name + "\x1b[0m");
+
+  std::size_t id = 0;
+  for (const auto& trace : stack) {
+    auto line = cplib::format(
+        "#%zu: \x1b[0;33m%s\x1b[0m @ line \x1b[0;33m%zu\x1b[0m, col \x1b[0;33m%zu\x1b[0m, byte "
+        "\x1b[0;33m%zu\x1b[0m",
+        id, trace.var_name.c_str(), trace.line_num + 1, trace.col_num + 1, trace.byte_num + 1);
+    ++id;
+    lines.push_back(std::move(line));
+  }
+
+  return lines;
+}
+
 inline Reader::Reader(std::unique_ptr<io::InStream> inner, FailFunc fail_func)
     : inner_(std::move(inner)), fail_func_(std::move(fail_func)) {}
 
 inline auto Reader::inner() -> io::InStream& { return *inner_; }
 
 inline auto Reader::fail(std::string_view message) -> void {
-  fail_func_(message, traces_);
+  fail_func_(message, {traces_, std::string(inner().name())});
   std::exit(EXIT_FAILURE);
 }
 
 template <class T, class D>
 inline auto Reader::read(const Var<T, D>& v) -> T {
-  traces_.emplace_back(Trace{std::string(v.name()), inner_->line_num(), inner_->col_num()});
+  traces_.emplace_back(
+      Trace{std::string(v.name()), inner().line_num(), inner().col_num(), inner().byte_num()});
   auto result = v.read_from(*this);
   traces_.pop_back();
   return result;
@@ -129,9 +185,10 @@ inline auto Var<T, D>::renamed(std::string_view name) const -> D {
 template <class T, class D>
 inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
-  auto reader =
-      Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
-             [&](std::string_view msg, const std::vector<var::Reader::Trace>&) { panic(msg); });
+  auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
+                       [&](std::string_view msg, const var::Reader::TraceStack&) {
+                         panic(std::string("Var::parse failed") + msg.data());
+                       });
   T result = reader.read(*this);
   if (!reader.inner().eof()) {
     panic("Var::parse failed, extra characters in string");

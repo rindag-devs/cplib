@@ -96,15 +96,27 @@ struct Report {
 };
 
 /**
+ * `Reporter` used to report and then exit the program.
+ */
+struct Reporter {
+ public:
+  virtual ~Reporter() = 0;
+
+  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+
+  auto attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack) -> void;
+
+ protected:
+  std::optional<cplib::var::Reader::TraceStack> trace_stack_;
+};
+
+/**
  * Represents the state of the validator.
  */
 class State {
  public:
   /// The type of function used to initialize the state.
   using Initializer = UniqueFunction<auto(State& state, int argc, char** argv)->void>;
-
-  /// The type of function used for reporting.
-  using Reporter = UniqueFunction<auto(const Report& report)->void>;
 
   /// Random number generator.
   Random rnd;
@@ -122,7 +134,7 @@ class State {
   Initializer initializer;
 
   /// Reporter is a function that reports the given `interactor::Report` and exits the program.
-  Reporter reporter;
+  std::unique_ptr<Reporter> reporter;
 
   /**
    * Constructs a new `State` object with the given initializer function.
@@ -194,25 +206,25 @@ struct DefaultInitializer {
 };
 
 /**
- * Report the given report in JSON format.
- *
- * @param report The report to be reported.
+ * `JsonReporter` reports the given report in JSON format.
  */
-auto json_reporter(const Report& report) -> void;
+struct JsonReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in plain text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto plain_text_reporter(const Report& report) -> void;
+struct PlainTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in colored text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto colored_text_reporter(const Report& report) -> void;
+struct ColoredTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Macro to register interactor with custom initializer.
@@ -222,9 +234,9 @@ auto colored_text_reporter(const Report& report) -> void;
  */
 #define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_) \
   auto var_ = ::cplib::interactor::State(initializer_);   \
-  auto main(signed argc, char** argv)->signed {           \
+  auto main(signed argc, char** argv) -> signed {         \
     var_.initializer(var_, argc, argv);                   \
-    auto interactor_main(void)->void;                     \
+    auto interactor_main(void) -> void;                   \
     interactor_main();                                    \
     return 0;                                             \
   }
