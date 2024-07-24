@@ -60,7 +60,6 @@
 #ifndef CPLIB_UTILS_HPP_
 #define CPLIB_UTILS_HPP_
 
-#include <iosfwd>       // for nullptr_t
 #include <memory>       // for unique_ptr
 #include <string>       // for string
 #include <string_view>  // for string_view
@@ -322,32 +321,6 @@ inline auto has_colors() -> bool {
   if (std::getenv("NO_COLOR") != nullptr) return false;
   if (std::getenv("CLICOLOR_FORCE") != nullptr) return true;
   return isatty(fileno(stderr));
-}
-
-inline auto json_string_encode(int c) -> std::string {
-  if (c == '\\') {
-    return "\\\\";
-  } else if (c == '\b') {
-    return "\\b";
-  } else if (c == '\f') {
-    return "\\f";
-  } else if (c == '\n') {
-    return "\\n";
-  } else if (c == '\r') {
-    return "\\r";
-  } else if (c == '\t') {
-    return "\\t";
-  } else if (!isprint(c)) {
-    return format("\\u%04x", static_cast<int>(c));
-  } else {
-    return {static_cast<char>(c)};
-  }
-}
-
-inline auto json_string_encode(std::string_view s) -> std::string {
-  std::string result;
-  for (auto c : s) result += json_string_encode(c);
-  return result;
 }
 
 inline auto hex_encode(int c) -> std::string {
@@ -615,6 +588,236 @@ srand(unsigned int) CPLIB_RAND_THROW_STATEMENT->void {
  * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
  */
 
+#ifndef CPLIB_JSON_HPP_
+#define CPLIB_JSON_HPP_
+
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace cplib::json {
+
+struct Value {
+  virtual ~Value() = 0;
+
+  virtual auto to_string() -> std::string = 0;
+};
+
+struct String : Value {
+  std::string inner;
+
+  explicit String(std::string inner);
+
+  auto to_string() -> std::string override;
+};
+
+struct Int : Value {
+  std::int64_t inner;
+
+  explicit Int(std::int64_t inner);
+
+  auto to_string() -> std::string override;
+};
+
+struct Real : Value {
+  double inner;
+
+  explicit Real(double inner);
+
+  auto to_string() -> std::string override;
+};
+
+struct Bool : Value {
+  bool inner;
+
+  explicit Bool(bool inner);
+
+  auto to_string() -> std::string override;
+};
+
+struct List : Value {
+  std::vector<std::unique_ptr<Value>> inner;
+
+  explicit List(std::vector<std::unique_ptr<Value>> inner);
+
+  auto to_string() -> std::string override;
+};
+
+struct Map : Value {
+  std::map<std::string, std::unique_ptr<Value>> inner;
+
+  explicit Map(std::map<std::string, std::unique_ptr<Value>> inner);
+
+  auto to_string() -> std::string override;
+};
+
+}  // namespace cplib::json
+
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
+ * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ *
+ * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ */
+
+
+#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
+#pragma once
+  
+#else
+#ifndef CPLIB_JSON_HPP_
+#error "Must be included from json.hpp"
+#endif
+#endif
+
+
+#include <cstdint>
+#include <ios>
+#include <map>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
+
+
+  // for format
+
+
+namespace cplib::json {
+
+inline Value::~Value() = default;
+
+inline String::String(std::string inner) : inner(std::move(inner)) {}
+
+inline auto String::to_string() -> std::string {
+  std::stringbuf buf(std::ios::out);
+  buf.sputc('\"');
+  for (char c : inner) {
+    switch (c) {
+      case '"':
+        buf.sputc('\\');
+        buf.sputc('\"');
+        break;
+      case '\\':
+        buf.sputc('\\');
+        buf.sputc('\\');
+        break;
+      case '\b':
+        buf.sputc('\\');
+        buf.sputc('b');
+        break;
+      case '\f':
+        buf.sputc('\\');
+        buf.sputc('f');
+        break;
+      case '\n':
+        buf.sputc('\\');
+        buf.sputc('n');
+        break;
+      case '\r':
+        buf.sputc('\\');
+        buf.sputc('r');
+        break;
+      case '\t':
+        buf.sputc('\\');
+        buf.sputc('t');
+        break;
+      default:
+        if (('\x00' <= c && c <= '\x1f') || c == '\x7f') {
+          buf.sputc('\\');
+          buf.sputc('u');
+          buf.sputn(cplib::format("%04hhx", static_cast<unsigned char>(c)).c_str(), 4);
+        } else {
+          buf.sputc(c);
+        }
+    }
+  }
+  buf.sputc('\"');
+  return buf.str();
+}
+
+inline Int::Int(std::int64_t inner) : inner(inner) {}
+
+inline auto Int::to_string() -> std::string { return std::to_string(inner); }
+
+inline Real::Real(double inner) : inner(inner) {}
+
+inline auto Real::to_string() -> std::string { return cplib::format("%.10g", inner); }
+
+inline Bool::Bool(bool inner) : inner(inner) {}
+
+inline auto Bool::to_string() -> std::string {
+  if (inner) {
+    return "true";
+  } else {
+    return "false";
+  }
+}
+
+inline List::List(std::vector<std::unique_ptr<Value>> inner) : inner(std::move(inner)) {}
+
+inline auto List::to_string() -> std::string {
+  std::stringbuf buf(std::ios::out);
+  buf.sputc('[');
+  if (!inner.empty()) {
+    auto it = inner.begin();
+    auto tmp = (*it)->to_string();
+    buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
+    ++it;
+    for (; it != inner.end(); ++it) {
+      buf.sputc(',');
+      tmp = (*it)->to_string();
+      buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
+    }
+  }
+  buf.sputc(']');
+  return buf.str();
+}
+
+inline Map::Map(std::map<std::string, std::unique_ptr<Value>> inner) : inner(std::move(inner)) {}
+
+inline auto Map::to_string() -> std::string {
+  std::stringbuf buf(std::ios::out);
+  buf.sputc('{');
+  if (!inner.empty()) {
+    auto it = inner.begin();
+    buf.sputc('\"');
+    auto tmp = it->first;
+    buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
+    buf.sputc('\"');
+    buf.sputc(':');
+    tmp = it->second->to_string();
+    buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
+    ++it;
+    for (; it != inner.end(); ++it) {
+      buf.sputc(',');
+      buf.sputc('\"');
+      tmp = it->first;
+      buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
+      buf.sputc('\"');
+      buf.sputc(':');
+      tmp = it->second->to_string();
+      buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
+    }
+  }
+  buf.sputc('}');
+  return buf.str();
+}
+
+}  // namespace cplib::json
+  
+
+#endif
+
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
+ * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ *
+ * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ */
+
 #ifndef CPLIB_PATTERN_HPP_
 #define CPLIB_PATTERN_HPP_
 
@@ -814,7 +1017,7 @@ class Random {
    * @return The randomly generated integer.
    */
   template <class T>
-  auto next(T from, T to) -> typename std::enable_if<std::is_integral_v<T>, T>::type;
+  auto next(T from, T to) -> std::enable_if_t<std::is_integral_v<T>, T>;
 
   /**
    * Generate a random floating-point number in the range [from, to].
@@ -825,7 +1028,7 @@ class Random {
    * @return The randomly generated floating-point number.
    */
   template <class T>
-  auto next(T from, T to) -> typename std::enable_if<std::is_floating_point_v<T>, T>::type;
+  auto next(T from, T to) -> std::enable_if_t<std::is_floating_point_v<T>, T>;
 
   /**
    * Generate a random boolean value.
@@ -834,7 +1037,7 @@ class Random {
    * @return The randomly generated boolean value.
    */
   template <class T>
-  auto next() -> typename std::enable_if<std::is_same_v<T, bool>, bool>::type;
+  auto next() -> std::enable_if_t<std::is_same_v<T, bool>, bool>;
 
   /**
    * Generate a random boolean value with a given probability of being true.
@@ -844,7 +1047,7 @@ class Random {
    * @return The randomly generated boolean value.
    */
   template <class T>
-  auto next(double true_prob) -> typename std::enable_if<std::is_same_v<T, bool>, bool>::type;
+  auto next(double true_prob) -> std::enable_if_t<std::is_same_v<T, bool>, bool>;
 
   /**
    * Return a random value from the given initializer_list.
@@ -1122,11 +1325,7 @@ inline auto Random::weighted_choice(const Map& map) -> decltype(std::begin(map))
 
 template <class RandomIt>
 inline auto Random::shuffle(RandomIt first, RandomIt last) -> void {
-  using DiffType = typename std::iterator_traits<RandomIt>::difference_type;
-
-  for (DiffType i = last - first - 1; i > 0; --i) {
-    std::swap(first[i], first[next<DiffType>(0, i)]);
-  }
+  std::shuffle(first, last, engine());
 }
 
 template <class Container>
@@ -1149,15 +1348,11 @@ inline auto Random::shuffle(Container& container) -> void {
 #define CPLIB_IO_HPP_
 
 #include <cstdio>       // for size_t
-#include <ios>          // for streambuf, basic_streambuf
 #include <memory>       // for unique_ptr
 #include <optional>     // for optional
+#include <streambuf>    // for streambuf, basic_streambuf
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view
-
-
-  // for UniqueFunction, UniqueFunction<>::UniqueFunct...
-
 
 namespace cplib::io {
 /**
@@ -1165,8 +1360,6 @@ namespace cplib::io {
  */
 class InStream {
  public:
-  using FailFunc = UniqueFunction<auto(std::string_view)->void>;
-
   /**
    * Constructs an InStream object.
    *
@@ -1175,8 +1368,7 @@ class InStream {
    * @param strict Indicates if the stream is in strict mode.
    * @param fail_func A function that will be called when a failure occurs.
    */
-  explicit InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
-                    FailFunc fail_func);
+  explicit InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict);
 
   /**
    * Returns the name of the stream.
@@ -1228,18 +1420,25 @@ class InStream {
   auto set_strict(bool b) -> void;
 
   /**
-   * Returns the current line number.
+   * Returns the current line number, starting from 0.
    *
    * @return The current line number as a size_t.
    */
   [[nodiscard]] auto line_num() const -> std::size_t;
 
   /**
-   * Returns the current column number.
+   * Returns the current column number, starting from 0.
    *
    * @return The current column number as a size_t.
    */
   [[nodiscard]] auto col_num() const -> std::size_t;
+
+  /**
+   * Returns the current byte number, starting from 0.
+   *
+   * @return The current byte number as a size_t.
+   */
+  [[nodiscard]] auto byte_num() const -> std::size_t;
 
   /**
    * Checks if the current position is EOF.
@@ -1293,20 +1492,13 @@ class InStream {
    */
   auto read_line() -> std::optional<std::string>;
 
-  /**
-   * Quit program with an error.
-   *
-   * @param message The error message.
-   */
-  [[noreturn]] auto fail(std::string_view message) -> void;
-
  private:
   std::unique_ptr<std::streambuf> buf_;
   std::string name_;
-  bool strict_;         // In strict mode, whitespace characters are not ignored
-  FailFunc fail_func_;  // Calls when fail
-  std::size_t line_num_{1};
-  std::size_t col_num_{1};
+  bool strict_;  // In strict mode, whitespace characters are not ignored
+  std::size_t line_num_{0};
+  std::size_t col_num_{0};
+  std::size_t byte_num_{0};
 };
 }  // namespace cplib::io
 
@@ -1341,7 +1533,7 @@ class InStream {
 
 
   // for write, read
-   // for UniqueFunction<>::operator(), format, panic
+   // for format, panic
 
 
 namespace cplib::io {
@@ -1446,12 +1638,8 @@ class FdInBuf : public std::streambuf {
 };
 }  // namespace detail
 
-inline InStream::InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict,
-                          FailFunc fail_func)
-    : buf_(std::move(buf)),
-      name_(std::move(name)),
-      strict_(strict),
-      fail_func_(std::move(fail_func)) {}
+inline InStream::InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict)
+    : buf_(std::move(buf)), name_(std::move(name)), strict_(strict) {}
 
 inline auto InStream::name() const -> std::string_view { return name_; }
 
@@ -1467,8 +1655,9 @@ inline auto InStream::seek() -> int { return buf_->sgetc(); }
 inline auto InStream::read() -> int {
   int c = buf_->sbumpc();
   if (c == EOF) return EOF;
+  ++byte_num_;
   if (c == '\n') {
-    ++line_num_, col_num_ = 1;
+    ++line_num_, col_num_ = 0;
   } else {
     ++col_num_;
   }
@@ -1488,8 +1677,8 @@ inline auto InStream::read_n(std::size_t n) -> std::string {
 inline auto InStream::is_strict() const -> bool { return strict_; }
 
 inline auto InStream::set_strict(bool b) -> void {
-  if (line_num() != 1 || col_num() != 1) {
-    panic(format("Can't set strict mode of `%s` when not at the beginning of the file",
+  if (byte_num() > 0) {
+    panic(format("Can't set strict mode of input stream `%s` when not at the beginning of the file",
                  name().data()));
   }
   strict_ = b;
@@ -1498,6 +1687,8 @@ inline auto InStream::set_strict(bool b) -> void {
 inline auto InStream::line_num() const -> std::size_t { return line_num_; }
 
 inline auto InStream::col_num() const -> std::size_t { return col_num_; }
+
+inline auto InStream::byte_num() const -> std::size_t { return byte_num_; }
 
 inline auto InStream::eof() -> bool { return seek() == EOF; }
 
@@ -1541,11 +1732,6 @@ inline auto InStream::read_line() -> std::optional<std::string> {
   }
   return line;
 }
-
-inline auto InStream::fail(std::string_view message) -> void {
-  fail_func_(message);
-  exit(EXIT_FAILURE);  // Usually unnecessary, but in sepial cases to prevent problems.
-}
 }  // namespace cplib::io
   
 
@@ -1564,18 +1750,17 @@ inline auto InStream::fail(std::string_view message) -> void {
 #include <cstdint>      // for int16_t, int32_t, int64_t, int8_t, uint16_t
 #include <cstdio>       // for size_t
 #include <functional>   // for function
-#include <iterator>     // for pair
 #include <memory>       // for unique_ptr, allocator
 #include <optional>     // for optional, nullopt_t
 #include <string>       // for string, basic_string
 #include <string_view>  // for string_view
 #include <tuple>        // for tuple
 #include <utility>      // for pair
-#include <variant>      // for tuple
 #include <vector>       // for vector
 
 
-       // for InStream
+  // for InStream
+
   // for Pattern
 
 
@@ -1595,14 +1780,36 @@ class Reader {
     std::string var_name;
     std::size_t line_num;
     std::size_t col_num;
+    std::size_t byte_num;
   };
+
+  /**
+   * `TraceStack` represents a stack of trace.;
+   */
+  struct TraceStack {
+    std::vector<Trace> stack;
+    std::string stream_name;
+
+    /// Convert to JSON map.
+    [[nodiscard]] auto to_json() const -> std::unique_ptr<cplib::json::Map>;
+
+    /// Convert to human-friendly plain text.
+    /// Each line does not contain the trailing `\n` character.
+    [[nodiscard]] auto to_plain_text_lines() const -> std::vector<std::string>;
+
+    /// Convert to human-friendly colored text (ANSI escape color).
+    /// Each line does not contain the trailing `\n` character.
+    [[nodiscard]] auto to_colored_text_lines() const -> std::vector<std::string>;
+  };
+
+  using FailFunc = UniqueFunction<auto(std::string_view, const TraceStack&)->void>;
 
   /**
    * Create a root reader of input stream.
    *
    * @param inner The inner input stream to wrap.
    */
-  explicit Reader(std::unique_ptr<io::InStream> inner);
+  explicit Reader(std::unique_ptr<io::InStream> inner, FailFunc fail_func);
 
   /// Copy constructor (deleted to prevent copying).
   Reader(const Reader&) = delete;
@@ -1653,7 +1860,8 @@ class Reader {
 
  private:
   std::unique_ptr<io::InStream> inner_;
-  std::vector<Trace> traces_;
+  std::vector<Trace> traces_{};
+  FailFunc fail_func_;
 };
 
 template <class T>
@@ -2315,6 +2523,7 @@ const auto eoln = Separator("eoln", '\n');
 #include <charconv>      // for from_chars
 #include <cmath>         // for isnan, pow
 #include <cstdio>        // for size_t, fileno, stdin, stdout
+#include <cstdlib>       // for exit
 #include <fstream>       // for basic_istream, basic_ostream, basic_filebuf
 #include <functional>    // for function
 #include <iostream>      // for cin, cerr, cout
@@ -2327,7 +2536,6 @@ const auto eoln = Separator("eoln", '\n');
 #include <system_error>  // for errc
 #include <tuple>         // for tuple, apply
 #include <utility>       // for move, pair
-#include <variant>       // for tuple
 #include <vector>        // for vector
 
 
@@ -2336,27 +2544,76 @@ const auto eoln = Separator("eoln", '\n');
 
 
 
+
 namespace cplib::var {
-inline Reader::Reader(std::unique_ptr<io::InStream> inner)
-    : inner_(std::move(inner)), traces_({}) {}
+[[nodiscard]] inline auto Reader::TraceStack::to_json() const -> std::unique_ptr<cplib::json::Map> {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
+  std::vector<std::unique_ptr<cplib::json::Value>> stack_list;
+
+  for (const auto& trace : stack) {
+    std::map<std::string, std::unique_ptr<cplib::json::Value>> trace_map;
+    trace_map.insert({"var_name", std::make_unique<cplib::json::String>(trace.var_name)});
+    trace_map.insert({"line_num", std::make_unique<cplib::json::Int>(trace.line_num)});
+    trace_map.insert({"col_num", std::make_unique<cplib::json::Int>(trace.col_num)});
+    trace_map.insert({"byte_num", std::make_unique<cplib::json::Int>(trace.byte_num)});
+    stack_list.push_back(std::make_unique<cplib::json::Map>(std::move(trace_map)));
+  }
+
+  map.insert({"stack", std::make_unique<cplib::json::List>(std::move(stack_list))});
+  map.insert({"stream_name", std::make_unique<cplib::json::String>(stream_name)});
+  return std::make_unique<cplib::json::Map>(std::move(map));
+}
+
+[[nodiscard]] inline auto Reader::TraceStack::to_plain_text_lines() const
+    -> std::vector<std::string> {
+  std::vector<std::string> lines;
+
+  lines.push_back(std::string("Stream: ") + stream_name);
+
+  std::size_t id = 0;
+  for (const auto& trace : stack) {
+    auto line = cplib::format("#%zu: %s @ line %zu, col %zu, byte %zu", id, trace.var_name.c_str(),
+                              trace.line_num + 1, trace.col_num + 1, trace.byte_num + 1);
+    ++id;
+    lines.push_back(std::move(line));
+  }
+
+  return lines;
+}
+
+[[nodiscard]] inline auto Reader::TraceStack::to_colored_text_lines() const
+    -> std::vector<std::string> {
+  std::vector<std::string> lines;
+
+  lines.push_back(std::string("Stream: \x1b[0;33m") + stream_name + "\x1b[0m");
+
+  std::size_t id = 0;
+  for (const auto& trace : stack) {
+    auto line = cplib::format(
+        "#%zu: \x1b[0;33m%s\x1b[0m @ line \x1b[0;33m%zu\x1b[0m, col \x1b[0;33m%zu\x1b[0m, byte "
+        "\x1b[0;33m%zu\x1b[0m",
+        id, trace.var_name.c_str(), trace.line_num + 1, trace.col_num + 1, trace.byte_num + 1);
+    ++id;
+    lines.push_back(std::move(line));
+  }
+
+  return lines;
+}
+
+inline Reader::Reader(std::unique_ptr<io::InStream> inner, FailFunc fail_func)
+    : inner_(std::move(inner)), fail_func_(std::move(fail_func)) {}
 
 inline auto Reader::inner() -> io::InStream& { return *inner_; }
 
 inline auto Reader::fail(std::string_view message) -> void {
-  using namespace std::string_literals;
-  std::string result = "read error: "s + std::string(message);
-  size_t depth = 0;
-  for (auto it = traces_.rbegin(); it != traces_.rend(); ++it) {
-    result += format("\n  #%zu: %s @ %s:%zu:%zu", depth, it->var_name.c_str(),
-                     inner().name().data(), it->line_num, it->col_num);
-    ++depth;
-  }
-  inner_->fail(result);
+  fail_func_(message, {traces_, std::string(inner().name())});
+  std::exit(EXIT_FAILURE);
 }
 
 template <class T, class D>
 inline auto Reader::read(const Var<T, D>& v) -> T {
-  traces_.emplace_back(Trace{std::string(v.name()), inner_->line_num(), inner_->col_num()});
+  traces_.emplace_back(
+      Trace{std::string(v.name()), inner().line_num(), inner().col_num(), inner().byte_num()});
   auto result = v.read_from(*this);
   traces_.pop_back();
   return result;
@@ -2370,23 +2627,22 @@ inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::Target.
 namespace detail {
 // Open the given file and create a `var::Reader`
 inline auto make_file_reader(std::string_view path, std::string name, bool strict,
-                             io::InStream::FailFunc fail_func) -> var::Reader {
+                             Reader::FailFunc fail_func) -> var::Reader {
   auto buf = std::make_unique<std::filebuf>();
   if (!buf->open(path.data(), std::ios::binary | std::ios::in)) {
     panic(format("Can not open file `%s` as input stream", path.data()));
   }
-  return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict,
-                                                    std::move(fail_func)));
+  return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
+                     std::move(fail_func));
 }
 
 // Open `stdin` as input stream and create a `var::Reader`
-inline auto make_stdin_reader(std::string name, bool strict, io::InStream::FailFunc fail_func)
+inline auto make_stdin_reader(std::string name, bool strict, Reader::FailFunc fail_func)
     -> var::Reader {
   auto buf = std::make_unique<io::detail::FdInBuf>(fileno(stdin));
-  var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict,
-                                                    std::move(fail_func)));
+  var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
+                     std::move(fail_func));
   /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
-  // stdin = nullptr;
   std::cin.rdbuf(nullptr);
   std::cin.tie(nullptr);
   return reader;
@@ -2398,7 +2654,6 @@ inline auto make_stdout_ostream(std::unique_ptr<std::streambuf>& buf, std::ostre
   buf = std::make_unique<io::detail::FdOutBuf>(fileno(stdout));
   stream.rdbuf(buf.get());
   /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
-  // stdout = nullptr;
   std::cout.rdbuf(nullptr);
   std::cin.tie(nullptr);
   std::cerr.tie(nullptr);
@@ -2433,8 +2688,10 @@ inline auto Var<T, D>::renamed(std::string_view name) const -> D {
 template <class T, class D>
 inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
-  auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true,
-                                                      [&](std::string_view s) { panic(s); }));
+  auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
+                       [&](std::string_view msg, const var::Reader::TraceStack&) {
+                         panic(std::string("Var::parse failed") + msg.data());
+                       });
   T result = reader.read(*this);
   if (!reader.inner().eof()) {
     panic("Var::parse failed, extra characters in string");
@@ -3108,15 +3365,27 @@ struct Report {
 };
 
 /**
+ * `Reporter` used to report and then exit the program.
+ */
+struct Reporter {
+ public:
+  virtual ~Reporter() = 0;
+
+  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+
+  auto attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack) -> void;
+
+ protected:
+  std::optional<cplib::var::Reader::TraceStack> trace_stack_;
+};
+
+/**
  * Represents the state of the checker.
  */
 class State {
  public:
   /// The type of function used to initialize the state.
   using Initializer = UniqueFunction<auto(State& state, int argc, char** argv)->void>;
-
-  /// The type of function used for reporting.
-  using Reporter = UniqueFunction<auto(const Report& report)->void>;
 
   /// Random number generator.
   Random rnd;
@@ -3133,8 +3402,8 @@ class State {
   /// Initializer is a function parsing command line arguments and initializing `checker::State`
   Initializer initializer;
 
-  /// Reporter is a function that reports the given `checker::Report` and exits the program.
-  Reporter reporter;
+  /// Reporter reports the given `checker::Report` and exits the program.
+  std::unique_ptr<Reporter> reporter;
 
   /**
    * Constructs a new `State` object with the given initializer function.
@@ -3204,25 +3473,25 @@ struct DefaultInitializer {
 };
 
 /**
- * Report the given report in JSON format.
- *
- * @param report The report to be reported.
+ * `JsonReporter` reports the given report in JSON format.
  */
-auto json_reporter(const Report& report) -> void;
+struct JsonReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in plain text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto plain_text_reporter(const Report& report) -> void;
+struct PlainTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in colored text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto colored_text_reporter(const Report& report) -> void;
+struct ColoredTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Macro to register checker with custom initializer.
@@ -3232,9 +3501,9 @@ auto colored_text_reporter(const Report& report) -> void;
  */
 #define CPLIB_REGISTER_CHECKER_OPT(var_, initializer_) \
   auto var_ = ::cplib::checker::State(initializer_);   \
-  auto main(signed argc, char** argv)->signed {        \
+  auto main(signed argc, char** argv) -> signed {      \
     var_.initializer(var_, argc, argv);                \
-    auto checker_main(void)->void;                     \
+    auto checker_main(void) -> void;                   \
     checker_main();                                    \
     return 0;                                          \
   }
@@ -3277,9 +3546,10 @@ auto colored_text_reporter(const Report& report) -> void;
 #include <utility>      // for move
 
 
-      // for InStream, InStream::seek_eof
+  // for InStream, InStream::seek_eof
+
   // for isatty, CPLIB_VERSION
-   // for panic, format, has_colors, json_string_encode
+   // for panic, format, has_colors;
 
 
 namespace cplib::checker {
@@ -3306,14 +3576,21 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
 inline Report::Report(Report::Status status, double score, std::string message)
     : status(status), score(score), message(std::move(message)) {}
 
+inline Reporter::~Reporter() = default;
+
+inline auto Reporter::attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack)
+    -> void {
+  trace_stack_ = trace_stack;
+}
+
 // Impl State {{{
 inline State::State(Initializer initializer)
     : rnd(),
-      inf(var::Reader(nullptr)),
-      ouf(var::Reader(nullptr)),
-      ans(var::Reader(nullptr)),
+      inf(var::Reader(nullptr, {})),
+      ouf(var::Reader(nullptr, {})),
+      ans(var::Reader(nullptr, {})),
       initializer(std::move(initializer)),
-      reporter(json_reporter) {
+      reporter(std::make_unique<JsonReporter>()) {
   cplib::detail::panic_impl = [this](std::string_view msg) {
     quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
   };
@@ -3336,7 +3613,7 @@ inline auto State::quit(Report report) -> void {
     report = Report(Report::Status::WRONG_ANSWER, 0.0, "Extra content in the output file");
   }
 
-  reporter(report);
+  reporter->report(report);
 
   std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
@@ -3375,11 +3652,11 @@ inline auto print_help_message(std::string_view program_name) -> void {
 
 inline auto detect_reporter(State& state) -> void {
   if (!isatty(fileno(stderr))) {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
-    state.reporter = colored_text_reporter;
+    state.reporter = std::make_unique<ColoredTextReporter>();
   } else {
-    state.reporter = plain_text_reporter;
+    state.reporter = std::make_unique<PlainTextReporter>();
   }
 }
 
@@ -3390,12 +3667,12 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (format == "text") {
     if (cplib::detail::has_colors()) {
-      state.reporter = colored_text_reporter;
+      state.reporter = std::make_unique<ColoredTextReporter>();
     } else {
-      state.reporter = plain_text_reporter;
+      state.reporter = std::make_unique<PlainTextReporter>();
     }
   } else {
     return false;
@@ -3435,12 +3712,24 @@ inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) 
 
   auto [inf_path, ouf_path, ans_path] = detail::parse_command_line_arguments(state, argc, argv);
 
-  state.inf = var::detail::make_file_reader(inf_path, "inf", false,
-                                            [](std::string_view msg) { panic(msg); });
-  state.ouf = var::detail::make_file_reader(ouf_path, "ouf", false,
-                                            [&state](std::string_view msg) { state.quit_wa(msg); });
-  state.ans = var::detail::make_file_reader(ans_path, "ans", false,
-                                            [](std::string_view msg) { panic(msg); });
+  state.inf = var::detail::make_file_reader(
+      inf_path, "inf", false,
+      [&state](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state.reporter->attach_trace_stack(traces);
+        panic(msg);
+      });
+  state.ouf = var::detail::make_file_reader(
+      ouf_path, "ouf", false,
+      [&state](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state.reporter->attach_trace_stack(traces);
+        state.quit_wa(msg);
+      });
+  state.ans = var::detail::make_file_reader(
+      ans_path, "ans", false,
+      [&state](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state.reporter->attach_trace_stack(traces);
+        panic(msg);
+      });
 }
 // /Impl DefaultInitializer }}}
 
@@ -3479,31 +3768,55 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto json_reporter(const Report& report) -> void {
-  auto msg = format(R"({"status": "%s", "score": %.3f, "message": "%s"})",
-                    report.status.to_string().data(), report.score,
-                    cplib::detail::json_string_encode(report.message).c_str());
-  std::clog << msg << '\n';
+inline auto JsonReporter::report(const Report& report) -> void {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
+  map.insert(
+      {"status", std::make_unique<cplib::json::String>(std::string(report.status.to_string()))});
+  map.insert({"score", std::make_unique<cplib::json::Real>(report.score)});
+  map.insert({"message", std::make_unique<cplib::json::String>(report.message)});
+
+  if (trace_stack_.has_value()) {
+    map.insert({"reader_trace_stack", trace_stack_->to_json()});
+  }
+
+  std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto plain_text_reporter(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> void {
   std::clog << std::fixed << std::setprecision(2)
             << detail::status_to_title_string(report.status).c_str() << ", scores "
             << report.score * 100.0 << " of 100.\n";
+
   if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
+
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_plain_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
   std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto colored_text_reporter(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> void {
   std::clog << std::fixed << std::setprecision(2)
             << detail::status_to_colored_title_string(report.status).c_str()
             << ", scores \x1b[0;33m" << report.score * 100.0 << "\x1b[0m of 100.\n";
   if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
+
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_colored_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
   std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 // /Impl reporters }}}
@@ -3610,15 +3923,27 @@ struct Report {
 };
 
 /**
+ * `Reporter` used to report and then exit the program.
+ */
+struct Reporter {
+ public:
+  virtual ~Reporter() = 0;
+
+  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+
+  auto attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack) -> void;
+
+ protected:
+  std::optional<cplib::var::Reader::TraceStack> trace_stack_;
+};
+
+/**
  * Represents the state of the validator.
  */
 class State {
  public:
   /// The type of function used to initialize the state.
   using Initializer = UniqueFunction<auto(State& state, int argc, char** argv)->void>;
-
-  /// The type of function used for reporting.
-  using Reporter = UniqueFunction<auto(const Report& report)->void>;
 
   /// Random number generator.
   Random rnd;
@@ -3636,7 +3961,7 @@ class State {
   Initializer initializer;
 
   /// Reporter is a function that reports the given `interactor::Report` and exits the program.
-  Reporter reporter;
+  std::unique_ptr<Reporter> reporter;
 
   /**
    * Constructs a new `State` object with the given initializer function.
@@ -3708,25 +4033,25 @@ struct DefaultInitializer {
 };
 
 /**
- * Report the given report in JSON format.
- *
- * @param report The report to be reported.
+ * `JsonReporter` reports the given report in JSON format.
  */
-auto json_reporter(const Report& report) -> void;
+struct JsonReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in plain text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto plain_text_reporter(const Report& report) -> void;
+struct PlainTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in colored text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto colored_text_reporter(const Report& report) -> void;
+struct ColoredTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Macro to register interactor with custom initializer.
@@ -3736,9 +4061,9 @@ auto colored_text_reporter(const Report& report) -> void;
  */
 #define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_) \
   auto var_ = ::cplib::interactor::State(initializer_);   \
-  auto main(signed argc, char** argv)->signed {           \
+  auto main(signed argc, char** argv) -> signed {         \
     var_.initializer(var_, argc, argv);                   \
-    auto interactor_main(void)->void;                     \
+    auto interactor_main(void) -> void;                   \
     interactor_main();                                    \
     return 0;                                             \
   }
@@ -3777,7 +4102,8 @@ auto colored_text_reporter(const Report& report) -> void;
 #include <utility>   // for move
 
 
-      // for InStream, InStream::seek_eof
+  // for InStream, InStream::seek_eof
+
   // for isatty, CPLIB_VERSION
    // for panic, format, has_colors, json_string_encode
 
@@ -3806,14 +4132,21 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
 inline Report::Report(Report::Status status, double score, std::string message)
     : status(status), score(score), message(std::move(message)) {}
 
+inline Reporter::~Reporter() = default;
+
+inline auto Reporter::attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack)
+    -> void {
+  trace_stack_ = trace_stack;
+}
+
 // Impl State {{{
 inline State::State(Initializer initializer)
     : rnd(),
-      inf(var::Reader(nullptr)),
-      from_user(var::Reader(nullptr)),
+      inf(var::Reader(nullptr, {})),
+      from_user(var::Reader(nullptr, {})),
       to_user(std::ostream(nullptr)),
       initializer(std::move(initializer)),
-      reporter(json_reporter) {
+      reporter(std::make_unique<JsonReporter>()) {
   cplib::detail::panic_impl = [this](std::string_view msg) {
     quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
   };
@@ -3836,7 +4169,7 @@ inline auto State::quit(Report report) -> void {
     report = Report(Report::Status::WRONG_ANSWER, 0.0, "Extra content in the user output");
   }
 
-  reporter(report);
+  reporter->report(report);
 
   std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
@@ -3874,11 +4207,11 @@ inline auto print_help_message(std::string_view program_name) -> void {
 
 inline auto detect_reporter(State& state) -> void {
   if (!isatty(fileno(stderr))) {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
-    state.reporter = colored_text_reporter;
+    state.reporter = std::make_unique<ColoredTextReporter>();
   } else {
-    state.reporter = plain_text_reporter;
+    state.reporter = std::make_unique<PlainTextReporter>();
   }
 }
 
@@ -3889,12 +4222,12 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (format == "text") {
     if (cplib::detail::has_colors()) {
-      state.reporter = colored_text_reporter;
+      state.reporter = std::make_unique<ColoredTextReporter>();
     } else {
-      state.reporter = plain_text_reporter;
+      state.reporter = std::make_unique<PlainTextReporter>();
     }
   } else {
     return false;
@@ -3949,11 +4282,19 @@ inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) 
 
   auto inf_path = detail::parse_command_line_arguments(state, argc, argv);
 
-  state.inf = var::detail::make_file_reader(inf_path, "inf", false,
-                                            [](std::string_view msg) { panic(msg); });
+  state.inf = var::detail::make_file_reader(
+      inf_path, "inf", false,
+      [&state](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state.reporter->attach_trace_stack(traces);
+        panic(msg);
+      });
 
   state.from_user = var::detail::make_stdin_reader(
-      "from_user", false, [&state](std::string_view msg) { state.quit_wa(msg); });
+      "from_user", false,
+      [&state](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state.reporter->attach_trace_stack(traces);
+        state.quit_wa(msg);
+      });
 
   var::detail::make_stdout_ostream(to_user_buf, state.to_user);
 }
@@ -3994,31 +4335,55 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto json_reporter(const Report& report) -> void {
-  auto msg = format(R"({"status": "%s", "score": %.3f, "message": "%s"})",
-                    report.status.to_string().data(), report.score,
-                    cplib::detail::json_string_encode(report.message).c_str());
-  std::clog << msg << '\n';
+inline auto JsonReporter::report(const Report& report) -> void {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
+  map.insert(
+      {"status", std::make_unique<cplib::json::String>(std::string(report.status.to_string()))});
+  map.insert({"score", std::make_unique<cplib::json::Real>(report.score)});
+  map.insert({"message", std::make_unique<cplib::json::String>(report.message)});
+
+  if (trace_stack_.has_value()) {
+    map.insert({"reader_trace_stack", trace_stack_->to_json()});
+  }
+
+  std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto plain_text_reporter(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> void {
   std::clog << std::fixed << std::setprecision(2)
             << detail::status_to_title_string(report.status).c_str() << ", scores "
             << report.score * 100.0 << " of 100.\n";
+
   if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
+
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_plain_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
   std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto colored_text_reporter(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> void {
   std::clog << std::fixed << std::setprecision(2)
             << detail::status_to_colored_title_string(report.status).c_str()
             << ", scores \x1b[0;33m" << report.score * 100.0 << "\x1b[0m of 100.\n";
   if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
+
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_colored_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
   std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 // /Impl reporters }}}
@@ -4151,14 +4516,28 @@ struct Trait {
   Trait(std::string name, CheckFunc check_func, std::vector<std::string> dependencies);
 };
 
+/**
+ * `Reporter` used to report and then exit the program.
+ */
+struct Reporter {
+ public:
+  virtual ~Reporter() = 0;
+
+  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+
+  auto attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack) -> void;
+
+  auto attach_trait_status(const std::map<std::string, bool>& trait_status) -> void;
+
+ protected:
+  std::optional<cplib::var::Reader::TraceStack> trace_stack_;
+  std::map<std::string, bool> trait_status_;
+};
+
 class State {
  public:
   /// The type of function used to initialize the state.
   using Initializer = UniqueFunction<auto(State& state, int argc, char** argv)->void>;
-
-  /// The type of function used for reporting.
-  using Reporter = UniqueFunction<
-      auto(const Report& report, const std::map<std::string, bool>& trait_status)->void>;
 
   /// Random number generator.
   Random rnd;
@@ -4170,7 +4549,7 @@ class State {
   Initializer initializer;
 
   /// Reporter is a function that reports the given `validator::Report` and exits the program.
-  Reporter reporter;
+  std::unique_ptr<Reporter> reporter;
 
   /**
    * Constructs a new `State` object with the given initializer function.
@@ -4238,30 +4617,25 @@ struct DefaultInitializer {
 };
 
 /**
- * Report the given report in JSON format.
- *
- * @param report The report to be reported.
- * @param trait_status The status of each trait (satisfied or dissatisfied).
+ * `JsonReporter` reports the given report in JSON format.
  */
-auto json_reporter(const Report& report, const std::map<std::string, bool>& trait_status) -> void;
+struct JsonReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
- * Report the given report in plain text format.
- *
- * @param report The report to be reported.
- * @param trait_status The status of each trait (satisfied or dissatisfied).
+ * Report the given report in plain text format for human reading.
  */
-auto plain_text_reporter(const Report& report, const std::map<std::string, bool>& trait_status)
-    -> void;
+struct PlainTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
- * Report the given report in colored text format.
- *
- * @param report The report to be reported.
- * @param trait_status The status of each trait (satisfied or dissatisfied).
+ * Report the given report in colored text format for human reading.
  */
-auto colored_text_reporter(const Report& report, const std::map<std::string, bool>& trait_status)
-    -> void;
+struct ColoredTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Macro to register validator with custom initializer.
@@ -4271,9 +4645,9 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
  */
 #define CPLIB_REGISTER_VALIDATOR_OPT(var_, initializer_) \
   auto var_ = ::cplib::validator::State(initializer_);   \
-  auto main(signed argc, char** argv)->signed {          \
+  auto main(signed argc, char** argv) -> signed {        \
     var_.initializer(var_, argc, argv);                  \
-    auto validator_main(void)->void;                     \
+    auto validator_main(void) -> void;                   \
     validator_main();                                    \
     return 0;                                            \
   }
@@ -4321,7 +4695,8 @@ auto colored_text_reporter(const Report& report, const std::map<std::string, boo
 #include <vector>       // for vector
 
 
-      // for InStream, InStream::eof
+  // for InStream, InStream::eof
+
   // for isatty, CPLIB_VERSION
    // for panic, format, has_colors, hex_encode
 
@@ -4355,6 +4730,17 @@ inline Trait::Trait(std::string name, CheckFunc check_func, std::vector<std::str
     : name(std::move(name)),
       check_func(std::move(check_func)),
       dependencies(std::move(dependencies)) {}
+
+inline Reporter::~Reporter() = default;
+
+inline auto Reporter::attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack)
+    -> void {
+  trace_stack_ = trace_stack;
+}
+
+inline auto Reporter::attach_trait_status(const std::map<std::string, bool>& trait_status) -> void {
+  trait_status_ = trait_status;
+}
 
 // Impl State {{{
 namespace detail {
@@ -4456,9 +4842,9 @@ inline auto validate_traits(const std::vector<Trait>& traits,
 
 inline State::State(Initializer initializer)
     : rnd(),
-      inf(var::Reader(nullptr)),
+      inf(var::Reader(nullptr, {})),
       initializer(std::move(initializer)),
-      reporter(json_reporter),
+      reporter(std::make_unique<JsonReporter>()),
 
       traits_(),
       trait_edges_() {
@@ -4490,12 +4876,11 @@ inline auto State::quit(Report report) -> void {
     report = Report(Report::Status::INVALID, "Extra content in the input file");
   }
 
-  std::map<std::string, bool> trait_status;
   if (report.status == Report::Status::VALID) {
-    trait_status = detail::validate_traits(traits_, trait_edges_);
+    reporter->attach_trait_status(detail::validate_traits(traits_, trait_edges_));
   }
 
-  reporter(report, trait_status);
+  reporter->report(report);
 
   std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
@@ -4531,11 +4916,11 @@ inline auto print_help_message(std::string_view program_name) -> void {
 
 inline auto detect_reporter(State& state) -> void {
   if (!isatty(fileno(stderr))) {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
-    state.reporter = colored_text_reporter;
+    state.reporter = std::make_unique<ColoredTextReporter>();
   } else {
-    state.reporter = plain_text_reporter;
+    state.reporter = std::make_unique<PlainTextReporter>();
   }
 }
 
@@ -4546,12 +4931,12 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (format == "text") {
     if (cplib::detail::has_colors()) {
-      state.reporter = colored_text_reporter;
+      state.reporter = std::make_unique<ColoredTextReporter>();
     } else {
-      state.reporter = plain_text_reporter;
+      state.reporter = std::make_unique<PlainTextReporter>();
     }
   } else {
     return false;
@@ -4598,10 +4983,17 @@ inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) 
   std::unique_ptr<std::streambuf> inf_buf = nullptr;
   if (inf_path.empty()) {
     state.inf = var::detail::make_stdin_reader(
-        "inf", true, [&state](std::string_view msg) { state.quit_invalid(msg); });
+        "inf", true, [&state](std::string_view msg, const var::Reader::TraceStack& traces) {
+          state.reporter->attach_trace_stack(traces);
+          state.quit_invalid(msg);
+        });
   } else {
     state.inf = var::detail::make_file_reader(
-        inf_path, "inf", true, [&state](std::string_view msg) { state.quit_invalid(msg); });
+        inf_path, "inf", true,
+        [&state](std::string_view msg, const var::Reader::TraceStack& traces) {
+          state.reporter->attach_trace_stack(traces);
+          state.quit_invalid(msg);
+        });
   }
 }
 // /Impl DefaultInitializer }}}
@@ -4635,47 +5027,56 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
       return "Unknown";
   }
 }
-}  // namespace detail
 
-inline auto json_reporter(const Report& report, const std::map<std::string, bool>& trait_status)
-    -> void {
-  std::clog << std::boolalpha;
+inline auto trait_status_to_json(const std::map<std::string, bool>& traits)
+    -> std::unique_ptr<cplib::json::Map> {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
 
-  std::clog << R"({"status": ")" << report.status.to_string() << R"(", "message": ")"
-            << cplib::detail::json_string_encode(report.message) << "\"";
-
-  if (report.status == Report::Status::VALID) {
-    std::clog << ", \"traits\": {";
-    bool is_first = true;
-    for (auto [name, satisfaction] : trait_status) {
-      if (is_first) {
-        is_first = false;
-      } else {
-        std::clog << ", ";
-      }
-      std::clog << "\"" << cplib::detail::json_string_encode(name) << "\": " << satisfaction;
-    }
-    std::clog << '}';
+  for (const auto& [k, v] : traits) {
+    map.insert({k, std::make_unique<cplib::json::Bool>(v)});
   }
 
-  std::clog << "}\n";
+  return std::make_unique<cplib::json::Map>(std::move(map));
+}
+}  // namespace detail
 
+inline auto JsonReporter::report(const Report& report) -> void {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
+  map.insert(
+      {"status", std::make_unique<cplib::json::String>(std::string(report.status.to_string()))});
+  map.insert({"message", std::make_unique<cplib::json::String>(report.message)});
+
+  if (trace_stack_.has_value()) {
+    map.insert({"reader_trace_stack", trace_stack_->to_json()});
+  }
+
+  if (!trait_status_.empty()) {
+    map.insert({"traits", detail::trait_status_to_json(trait_status_)});
+  }
+
+  std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto plain_text_reporter(const Report& report,
-                                const std::map<std::string, bool>& trait_status) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> void {
   std::clog << detail::status_to_title_string(report.status).c_str() << ".\n";
 
   if (report.status != Report::Status::VALID || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
 
-  if (report.status == Report::Status::VALID && !trait_status.empty()) {
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_plain_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
+  if (report.status == Report::Status::VALID && !trait_status_.empty()) {
     std::clog << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (auto [name, satisfaction] : trait_status) {
+    for (auto [name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.push_back(name);
       } else {
@@ -4694,19 +5095,25 @@ inline auto plain_text_reporter(const Report& report,
   std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto colored_text_reporter(const Report& report,
-                                  const std::map<std::string, bool>& trait_status) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> void {
   std::clog << detail::status_to_colored_title_string(report.status).c_str() << ".\n";
 
   if (report.status != Report::Status::VALID || !report.message.empty()) {
     std::clog << report.message << '\n';
   }
 
-  if (report.status == Report::Status::VALID && !trait_status.empty()) {
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_colored_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
+  if (report.status == Report::Status::VALID && !trait_status_.empty()) {
     std::clog << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (auto [name, satisfaction] : trait_status) {
+    for (auto [name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.push_back(name);
       } else {
@@ -4820,13 +5227,20 @@ struct Report {
   Report(Status status, std::string message);
 };
 
+/**
+ * `Reporter` used to report and then exit the program.
+ */
+struct Reporter {
+ public:
+  virtual ~Reporter() = 0;
+
+  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+};
+
 class State {
  public:
   /// The type of function used to initialize the state.
   using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
-
-  /// The type of function used for reporting.
-  using Reporter = std::function<auto(const Report& report)->void>;
 
   /// The parser function of a flag type (`--flag`) command line argument.
   using FlagParser = std::function<auto(std::set<std::string> flag_args)->void>;
@@ -4841,7 +5255,7 @@ class State {
   Initializer initializer;
 
   /// Reporter is a function that reports the given `generator::Report` and exits the program.
-  Reporter reporter;
+  std::unique_ptr<Reporter> reporter;
 
   /// Names of the flag type (`--flag`) command line arguments required by the generator.
   std::vector<std::string> required_flag_args;
@@ -4899,25 +5313,25 @@ struct DefaultInitializer {
 };
 
 /**
- * Report the given report in JSON format.
- *
- * @param report The report to be reported.
+ * `JsonReporter` reports the given report in JSON format.
  */
-auto json_reporter(const Report& report) -> void;
+struct JsonReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in plain text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto plain_text_reporter(const Report& report) -> void;
+struct PlainTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 /**
  * Report the given report in colored text format for human reading.
- *
- * @param report The report to be reported.
  */
-auto colored_text_reporter(const Report& report) -> void;
+struct ColoredTextReporter : Reporter {
+  [[noreturn]] auto report(const Report& report) -> void override;
+};
 
 #define CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_)                                 \
   namespace cplib_generator_args_detail_ {                                                       \
@@ -4930,7 +5344,7 @@ auto colored_text_reporter(const Report& report) -> void;
     std::string name;                                                                            \
     explicit Flag(std::string name_) : name(std::move(name_)) {                                  \
       state_var_name_.required_flag_args.emplace_back(name);                                     \
-      auto name = this->name;                                                                    \
+      auto name = this -> name;                                                                  \
       state_var_name_.flag_parsers.emplace_back([name](const std::set<std::string>& flag_args) { \
         value_map_[name] = static_cast<ResultType>(flag_args.count(name));                       \
       });                                                                                        \
@@ -4947,7 +5361,7 @@ auto colored_text_reporter(const Report& report) -> void;
     template <class... Args>                                                                     \
     explicit Var(Args... args) : var(std::forward<Args>(args)...) {                              \
       state_var_name_.required_var_args.emplace_back(var.name());                                \
-      auto var = this->var;                                                                      \
+      auto var = this -> var;                                                                    \
       state_var_name_.var_parsers.emplace_back(                                                  \
           [var](const std::map<std::string, std::string>& var_args) {                            \
             auto name = std::string(var.name());                                                 \
@@ -5276,9 +5690,9 @@ auto colored_text_reporter(const Report& report) -> void;
   CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_);                                    \
   CPLIB_REGISTER_GENERATOR_ARGS_(__VA_ARGS__);                                                 \
   namespace args_namespace_name_ = ::cplib_generator_args_;                                    \
-  auto main(signed argc, char** argv)->signed {                                                \
+  auto main(signed argc, char** argv) -> signed {                                              \
     state_var_name_.initializer(state_var_name_, argc, argv);                                  \
-    auto generator_main(void)->void;                                                           \
+    auto generator_main(void) -> void;                                                         \
     generator_main();                                                                          \
     return 0;                                                                                  \
   }
@@ -5326,6 +5740,7 @@ auto colored_text_reporter(const Report& report) -> void;
 #include <vector>       // for vector
 
 
+
   // for isatty, CPLIB_VERSION
    // for panic, format, has_colors, join, json_string_...
 
@@ -5350,11 +5765,13 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
 inline Report::Report(Report::Status status, std::string message)
     : status(status), message(std::move(message)) {}
 
+inline Reporter::~Reporter() = default;
+
 // Impl State {{{
 inline State::State(Initializer initializer)
     : rnd(),
       initializer(std::move(initializer)),
-      reporter(json_reporter),
+      reporter(std::make_unique<JsonReporter>()),
       required_flag_args(),
       required_var_args(),
       flag_parsers(),
@@ -5372,7 +5789,7 @@ inline State::~State() {
 inline auto State::quit(const Report& report) -> void {
   exited_ = true;
 
-  reporter(report);
+  reporter->report(report);
 
   std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
@@ -5410,11 +5827,11 @@ inline auto print_help_message(std::string_view program_name, std::string_view a
 
 inline auto detect_reporter(State& state) -> void {
   if (!isatty(fileno(stderr))) {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
-    state.reporter = colored_text_reporter;
+    state.reporter = std::make_unique<ColoredTextReporter>();
   } else {
-    state.reporter = plain_text_reporter;
+    state.reporter = std::make_unique<PlainTextReporter>();
   }
 }
 
@@ -5425,12 +5842,12 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
-    state.reporter = json_reporter;
+    state.reporter = std::make_unique<JsonReporter>();
   } else if (format == "text") {
     if (cplib::detail::has_colors()) {
-      state.reporter = colored_text_reporter;
+      state.reporter = std::make_unique<ColoredTextReporter>();
     } else {
-      state.reporter = plain_text_reporter;
+      state.reporter = std::make_unique<PlainTextReporter>();
     }
   } else {
     return false;
@@ -5550,16 +5967,17 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto json_reporter(const Report& report) -> void {
-  std::clog << std::boolalpha;
+inline auto JsonReporter::report(const Report& report) -> void {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
+  map.insert(
+      {"status", std::make_unique<cplib::json::String>(std::string(report.status.to_string()))});
+  map.insert({"message", std::make_unique<cplib::json::String>(report.message)});
 
-  std::clog << R"({"status": ")" << report.status.to_string() << R"(", "message": ")"
-            << cplib::detail::json_string_encode(report.message) << "\"}";
-
+  std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto plain_text_reporter(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> void {
   if (report.status == Report::Status::OK && report.message.empty()) {
     // Do nothing when the report is OK and message is empty.
     std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
@@ -5571,7 +5989,7 @@ inline auto plain_text_reporter(const Report& report) -> void {
   std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-inline auto colored_text_reporter(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> void {
   if (report.status == Report::Status::OK && report.message.empty()) {
     // Do nothing when the report is OK and message is empty.
     std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
