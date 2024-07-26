@@ -8,21 +8,22 @@
 #ifndef CPLIB_VAR_HPP_
 #define CPLIB_VAR_HPP_
 
-#include <cstdint>      // for int16_t, int32_t, int64_t, int8_t, uint16_t
-#include <cstdio>       // for size_t
-#include <functional>   // for function
-#include <memory>       // for unique_ptr, allocator
-#include <optional>     // for optional, nullopt_t
-#include <string>       // for string, basic_string
-#include <string_view>  // for string_view
-#include <tuple>        // for tuple
-#include <utility>      // for pair
-#include <vector>       // for vector
+#include <cstdint>
+#include <cstdio>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 /* cplib_embed_ignore start */
-#include "io.hpp"  // for InStream
+#include "io.hpp"
 #include "json.hpp"
-#include "pattern.hpp"  // for Pattern
+#include "pattern.hpp"
+#include "utils.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib::var {

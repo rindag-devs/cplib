@@ -8,17 +8,19 @@
 #ifndef CPLIB_VALIDATOR_HPP_
 #define CPLIB_VALIDATOR_HPP_
 
-#include <cstddef>      // for size_t
-#include <functional>   // for function
-#include <map>          // for map
-#include <string>       // for string, basic_string
-#include <string_view>  // for string_view
-#include <vector>       // for vector
+#include <cstddef>
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
 
 /* cplib_embed_ignore start */
-#include "random.hpp"  // for Random
-#include "utils.hpp"   // for UniqueFunction, UniqueFunction<>::UniqueFunct...
-#include "var.hpp"     // for Reader
+#include "random.hpp"
+#include "utils.hpp"
+#include "var.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib::validator {
@@ -266,7 +268,5 @@ struct ColoredTextReporter : Reporter {
 #define CPLIB_REGISTER_VALIDATOR(var) \
   CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::DefaultInitializer())
 }  // namespace cplib::validator
-
-#include "validator.i.hpp"  // IWYU pragma: export
 
 #endif

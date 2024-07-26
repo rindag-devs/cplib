@@ -16,20 +16,23 @@
 #endif
 /* cplib_embed_ignore end */
 
-#include <array>        // for array
-#include <cctype>       // for isspace
-#include <cstdio>       // for EOF, size_t
-#include <cstdlib>      // for exit, EXIT_FAILURE
-#include <cstring>      // for memmove
-#include <memory>       // for unique_ptr
-#include <optional>     // for optional, nullopt
-#include <string>       // for basic_string, string, char_traits
-#include <string_view>  // for string_view
-#include <utility>      // for move
+#include <array>
+#include <cctype>
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <ios>
+#include <memory>
+#include <optional>
+#include <streambuf>
+#include <string>
+#include <string_view>
+#include <utility>
 
 /* cplib_embed_ignore start */
-#include "macros.hpp"  // for write, read
-#include "utils.hpp"   // for format, panic
+#include "macros.hpp"
+#include "utils.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib::io {

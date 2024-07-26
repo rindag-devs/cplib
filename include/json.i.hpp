@@ -22,10 +22,11 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 /* cplib_embed_ignore start */
-#include "utils.hpp"  // for format
+#include "utils.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib::json {

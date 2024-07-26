@@ -16,22 +16,23 @@
 #endif
 /* cplib_embed_ignore end */
 
-#include <algorithm>    // for binary_search, sort
-#include <cstdio>       // for fileno, stderr
-#include <cstdlib>      // for exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <iostream>     // for basic_ostream, operator<<, clog, boolalpha
-#include <map>          // for map, _Rb_tree_iterator, operator!=
-#include <optional>     // for optional, nullopt
-#include <set>          // for set
-#include <string>       // for basic_string, char_traits, allocator, operator<
-#include <string_view>  // for operator==, string_view, basic_string_view
-#include <utility>      // for pair, move
-#include <vector>       // for vector
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <optional>
+#include <set>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 /* cplib_embed_ignore start */
 #include "json.hpp"
-#include "macros.hpp"  // for isatty, CPLIB_VERSION
-#include "utils.hpp"   // for panic, format, has_colors, join, json_string_...
+#include "macros.hpp"
+#include "utils.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib::generator {

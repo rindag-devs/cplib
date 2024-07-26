@@ -16,16 +16,16 @@
 #endif
 /* cplib_embed_ignore end */
 
-#include <regex.h>  // for regex_t, regerror, regcomp, regexec, regfree
+#include <regex.h>
 
-#include <cstddef>      // for size_t
-#include <memory>       // for allocator, __shared_ptr_access, shared_ptr
-#include <string>       // for basic_string, char_traits, operator+, operato...
-#include <string_view>  // for string_view
-#include <utility>      // for pair, move
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
 
 /* cplib_embed_ignore start */
-#include "utils.hpp"  // for panic
+#include "utils.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib {

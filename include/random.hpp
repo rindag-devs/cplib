@@ -8,10 +8,10 @@
 #ifndef CPLIB_RANDOM_HPP_
 #define CPLIB_RANDOM_HPP_
 
-#include <cstdint>           // for uint32_t
-#include <initializer_list>  // for initializer_list
-#include <random>            // for mt19937_64
-#include <type_traits>       // for enable_if
+#include <cstdint>
+#include <initializer_list>
+#include <random>
+#include <type_traits>
 
 namespace cplib {
 /**

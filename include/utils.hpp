@@ -8,13 +8,14 @@
 #ifndef CPLIB_UTILS_HPP_
 #define CPLIB_UTILS_HPP_
 
-#include <memory>       // for unique_ptr
-#include <string>       // for string
-#include <string_view>  // for string_view
-#include <vector>       // for vector
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
 
 /* cplib_embed_ignore start */
-#include "macros.hpp"  // for CPLIB_PRINTF_LIKE
+#include "macros.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib {

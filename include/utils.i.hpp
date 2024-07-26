@@ -16,22 +16,23 @@
 #endif
 /* cplib_embed_ignore end */
 
-#include <algorithm>    // for min, max
-#include <cctype>       // for isspace, isprint
-#include <cmath>        // for isinf, isnan
-#include <cstdarg>      // for va_list, va_end, va_copy, va_start
-#include <cstdio>       // for vsnprintf, fileno, stderr
-#include <cstdlib>      // for getenv, abs, exit, EXIT_FAILURE
-#include <iostream>     // for basic_ostream, operator<<, clog
-#include <memory>       // for allocator, make_unique
-#include <sstream>      // for ostreamstream
-#include <string>       // for basic_string, string, char_traits, operator+
-#include <string_view>  // for string_view, operator<<, basic_string_view
-#include <utility>      // for forward, move
-#include <vector>       // for vector
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <cstdarg>
+#include <cstddef>
+#include <cstdio>
+#include <cstdlib>
+#include <iostream>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 /* cplib_embed_ignore start */
-#include "macros.hpp"  // for isatty, CPLIB_PRINTF_LIKE
+#include "macros.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib {

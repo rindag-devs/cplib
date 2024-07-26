@@ -16,21 +16,23 @@
 #endif
 /* cplib_embed_ignore end */
 
-#include <array>        // for array
-#include <cstdio>       // for fileno, stderr
-#include <cstdlib>      // for exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <iomanip>      // for operator<<, setprecision
-#include <iostream>     // for basic_ostream, operator<<, clog, fixed
-#include <memory>       // for unique_ptr
-#include <string>       // for basic_string, char_traits, allocator, string
-#include <string_view>  // for string_view, operator==, basic_string_view
-#include <utility>      // for move
+#include <array>
+#include <cstdio>
+#include <cstdlib>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
 
 /* cplib_embed_ignore start */
-#include "io.hpp"  // for InStream, InStream::seek_eof
+#include "io.hpp"
 #include "json.hpp"
-#include "macros.hpp"  // for isatty, CPLIB_VERSION
-#include "utils.hpp"   // for panic, format, has_colors;
+#include "macros.hpp"
+#include "utils.hpp"
+#include "var.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib::checker {

@@ -8,12 +8,12 @@
 #ifndef CPLIB_PATTERN_HPP_
 #define CPLIB_PATTERN_HPP_
 
-#include <regex.h>  // for regex_t
+#include <regex.h>
 
-#include <memory>       // for shared_ptr
-#include <string>       // for string, basic_string
-#include <string_view>  // for string_view
-#include <utility>      // for pair
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
 
 namespace cplib {
 /**

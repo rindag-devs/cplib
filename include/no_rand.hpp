@@ -10,10 +10,10 @@
 
 // IWYU pragma: no_include <features.h>
 
-#include <cstdlib>  // for rand, srand
+#include <cstdlib>
 
 /* cplib_embed_ignore start */
-#include "utils.hpp"  // for panic
+#include "utils.hpp"
 /* cplib_embed_ignore end */
 
 #ifdef __GLIBC__

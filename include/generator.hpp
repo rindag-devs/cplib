@@ -8,16 +8,17 @@
 #ifndef CPLIB_GENERATOR_HPP_
 #define CPLIB_GENERATOR_HPP_
 
-#include <any>          // for any
-#include <functional>   // for function
-#include <map>          // for map
-#include <set>          // for set
-#include <string>       // for string, basic_string
-#include <string_view>  // for string_view
-#include <vector>       // for vector
+#include <any>  // IWYU pragma: keep
+#include <functional>
+#include <map>
+#include <memory>
+#include <set>
+#include <string>
+#include <string_view>
+#include <vector>
 
 /* cplib_embed_ignore start */
-#include "random.hpp"  // for Random
+#include "random.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib::generator {

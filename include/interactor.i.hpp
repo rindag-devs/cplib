@@ -16,17 +16,22 @@
 #endif
 /* cplib_embed_ignore end */
 
-#include <cstdio>    // for fileno, stderr, stdin, stdout
-#include <cstdlib>   // for exit, EXIT_FAILURE, EXIT_SUCCESS
-#include <iomanip>   // for operator<<, setprecision
-#include <iostream>  // for basic_istream, clog, cin, wcin, cerr, cout, wcerr
-#include <utility>   // for move
+#include <cstdio>
+#include <cstdlib>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <utility>
 
 /* cplib_embed_ignore start */
-#include "io.hpp"  // for InStream, InStream::seek_eof
+#include "io.hpp"
 #include "json.hpp"
-#include "macros.hpp"  // for isatty, CPLIB_VERSION
-#include "utils.hpp"   // for panic, format, has_colors, json_string_encode
+#include "macros.hpp"
+#include "utils.hpp"
+#include "var.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib::interactor {

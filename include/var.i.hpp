@@ -16,24 +16,26 @@
 #endif
 /* cplib_embed_ignore end */
 
-#include <cctype>        // for isspace, isdigit
-#include <charconv>      // for from_chars
-#include <cmath>         // for isnan, pow
-#include <cstdio>        // for size_t, fileno, stdin, stdout
-#include <cstdlib>       // for exit
-#include <fstream>       // for basic_istream, basic_ostream, basic_filebuf
-#include <functional>    // for function
-#include <iostream>      // for cin, cerr, cout
-#include <limits>        // for numeric_limits
-#include <memory>        // for make_unique, unique_ptr, allocator
-#include <optional>      // for optional, nullopt, nullopt_t
-#include <sstream>       // for stringbuf
-#include <string>        // for basic_string, string, char_traits, to_string
-#include <string_view>   // for string_view
-#include <system_error>  // for errc
-#include <tuple>         // for tuple, apply
-#include <utility>       // for move, pair
-#include <vector>        // for vector
+#include <cctype>
+#include <charconv>
+#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <functional>
+#include <iostream>
+#include <limits>
+#include <map>
+#include <memory>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 /* cplib_embed_ignore start */
 #include "io.hpp"

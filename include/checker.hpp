@@ -8,13 +8,15 @@
 #ifndef CPLIB_CHECKER_HPP_
 #define CPLIB_CHECKER_HPP_
 
-#include <string>       // for basic_string, string
-#include <string_view>  // for string_view
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
 
 /* cplib_embed_ignore start */
-#include "random.hpp"  // for Random
-#include "utils.hpp"   // for UniqueFunction, UniqueFunction<>::UniqueFunct...
-#include "var.hpp"     // for Reader
+#include "random.hpp"
+#include "utils.hpp"
+#include "var.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib::checker {
