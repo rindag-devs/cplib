@@ -10,60 +10,21 @@ on:
       - "README.md"
 
 jobs:
-  tests-gcc:
+  run-test:
     strategy:
       matrix:
-        os: [ubuntu-22.04]
-        compiler: [g++]
-        version: [9, 10, 11, 12]
-    name: Test ${{ matrix.compiler }}-${{ matrix.version }} @ ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+        compiler: ["g++-9", "g++-10", "g++-11", "g++-12", "clang++-13", "clang++-14", "clang++-15"]
+    name: Test ${{ matrix.compiler }}
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
-          run_install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          run_install: |
+            - args: [--frozen-lockfile, --strict-peer-dependencies]
 
       - name: Run tests
-        run: pnpm test -- --cpp_compiler="${{ matrix.compiler }}-${{ matrix.version }}"
-
-  tests-clang:
-    strategy:
-      matrix:
-        os: [ubuntu-22.04]
-        compiler: [clang++]
-        version: [13, 14, 15]
-    name: Test ${{ matrix.compiler }}-${{ matrix.version }} @ ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Install Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
-          run_install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run tests
-        run: pnpm test -- --cpp_compiler="${{ matrix.compiler }}-${{ matrix.version }}"
+        run: pnpm test -- --cpp_compiler="${{ matrix.compiler }}"

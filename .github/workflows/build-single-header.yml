@@ -4,29 +4,25 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "docs/**"
+      - "LICENSE"
+      - "README.md"
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v4
         with:
-          version: 8
-          run_install: false
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          run_install: |
+            - args: [--frozen-lockfile, --strict-peer-dependencies]
 
       - name: Build single header
         run: pnpm build-single-header
