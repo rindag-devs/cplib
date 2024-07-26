@@ -2093,6 +2093,36 @@ class StrictFloat : public Var<T, StrictFloat<T>> {
 };
 
 /**
+ * `YesNo` is a variable reading template, indicating to read an boolean value.
+ *
+ * "Yes" mean true, "No" mean false. Case insensitive.
+ *
+ * @tparam T The target type of the variable reading template.
+ */
+class YesNo : public Var<bool, YesNo> {
+ public:
+  /**
+   * Default constructor.
+   */
+  explicit YesNo();
+
+  /**
+   * Constructor with name parameter.
+   *
+   * @param name The name of the YesNo variable.
+   */
+  explicit YesNo(std::string name);
+
+  /**
+   * Read the value of the YesNo variable from a reader.
+   *
+   * @param in The reader to read from.
+   * @return The read value.
+   */
+  auto read_from(Reader& in) const -> bool override;
+};
+
+/**
  * `String` is a variable reading template, indicating to read a whitespace separated string.
  */
 class String : public Var<std::string, String> {
@@ -2526,6 +2556,7 @@ const auto eoln = Separator("eoln", '\n');
 #endif
 
 
+#include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <cmath>
@@ -3061,6 +3092,24 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
   }
 
   return result;
+}
+
+inline YesNo::YesNo() : YesNo(std::string(detail::VAR_DEFAULT_NAME)) {}
+
+inline YesNo::YesNo(std::string name) : Var<bool, YesNo>(std::move(name)) {}
+
+inline auto YesNo::read_from(Reader& in) const -> bool {
+  auto token = in.inner().read_token();
+  auto lower_token = in.inner().read_token();
+  std::transform(lower_token.begin(), lower_token.end(), lower_token.begin(), ::tolower);
+
+  if (lower_token == "yes") {
+    return true;
+  } else if (lower_token == "no") {
+    return false;
+  } else {
+    panic("Expected `Yes` or `No`, got " + token);
+  }
 }
 
 inline String::String() : String(std::string(detail::VAR_DEFAULT_NAME)) {}
@@ -4682,6 +4731,481 @@ struct ColoredTextReporter : Reporter {
 #define CPLIB_REGISTER_VALIDATOR(var) \
   CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::DefaultInitializer())
 }  // namespace cplib::validator
+
+/*
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
+ * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ *
+ * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ */
+
+
+#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
+#pragma once
+  
+#else
+#ifndef CPLIB_VALIDATOR_HPP_
+#error "Must be included from validator.hpp"
+#endif
+#endif
+
+
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <functional>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <optional>
+#include <queue>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+
+
+
+
+
+
+
+
+namespace cplib::validator {
+inline constexpr Report::Status::Status(Value value) : value_(value) {}
+
+inline constexpr Report::Status::operator Value() const { return value_; }
+
+inline constexpr auto Report::Status::to_string() const -> std::string_view {
+  switch (value_) {
+    case INTERNAL_ERROR:
+      return "internal_error";
+    case VALID:
+      return "valid";
+    case INVALID:
+      return "invalid";
+    default:
+      panic(format("Unknown validator report status: %d", static_cast<int>(value_)));
+      return "unknown";
+  }
+}
+
+inline Report::Report(Report::Status status, std::string message)
+    : status(status), message(std::move(message)) {}
+
+inline Trait::Trait(std::string name, CheckFunc check_func)
+    : Trait(std::move(name), std::move(check_func), {}) {}
+
+inline Trait::Trait(std::string name, CheckFunc check_func, std::vector<std::string> dependencies)
+    : name(std::move(name)),
+      check_func(std::move(check_func)),
+      dependencies(std::move(dependencies)) {}
+
+inline Reporter::~Reporter() = default;
+
+inline auto Reporter::attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack)
+    -> void {
+  trace_stack_ = trace_stack;
+}
+
+inline auto Reporter::attach_trait_status(const std::map<std::string, bool>& trait_status) -> void {
+  trait_status_ = trait_status;
+}
+
+// Impl State {{{
+namespace detail {
+/**
+ * In topological sorting, `callback` is called every time a new node is reached.
+ * If `fn` returns false, nodes reachable by the current node will no longer be visited.
+ */
+inline auto topo_sort(const std::vector<std::vector<size_t>>& edges,
+                      const std::function<auto(size_t)->bool>& callback) -> void {
+  std::vector<size_t> degree(edges.size(), 0);
+
+  for (const auto& edge : edges) {
+    for (auto to : edge) ++degree[to];
+  }
+
+  std::queue<size_t> queue;
+
+  for (size_t i = 0; i < edges.size(); ++i) {
+    if (degree[i] == 0) queue.push(i);
+  }
+
+  while (!queue.empty()) {
+    auto front = queue.front();
+    queue.pop();
+    if (!callback(front)) continue;
+    for (auto to : edges[front]) {
+      --degree[to];
+      if (!degree[to]) queue.push(to);
+    }
+  }
+}
+
+inline auto build_edges(std::vector<Trait>& traits)
+    -> std::optional<std::vector<std::vector<size_t>>> {
+  // Check duplicate name
+  std::sort(traits.begin(), traits.end(),
+            [](const Trait& x, const Trait& y) { return x.name < y.name; });
+  if (std::unique(traits.begin(), traits.end(), [](const Trait& x, const Trait& y) {
+        return x.name == y.name;
+      }) != traits.end()) {
+    // Found duplicate name
+    return std::nullopt;
+  }
+
+  std::vector<std::vector<size_t>> edges(traits.size());
+
+  for (size_t i = 0; i < traits.size(); ++i) {
+    auto& trait = traits[i];
+    // Check duplicate dependencies
+    std::sort(trait.dependencies.begin(), trait.dependencies.end());
+    if (std::unique(trait.dependencies.begin(), trait.dependencies.end()) !=
+        trait.dependencies.end()) {
+      // Found duplicate dependencies
+      return std::nullopt;
+    }
+
+    for (const auto& dep : trait.dependencies) {
+      auto dep_id =
+          std::lower_bound(traits.begin(), traits.end(), dep,
+                           [](const Trait& x, const std::string& y) { return x.name < y; }) -
+          traits.begin();
+      edges[dep_id].push_back(i);
+    }
+  }
+
+  return edges;
+}
+
+inline auto have_loop(const std::vector<std::vector<size_t>>& edges) -> bool {
+  std::vector<uint8_t> visited(edges.size(), 0);  // Never use std::vector<bool>
+
+  topo_sort(edges, [&](size_t node) {
+    visited[node] = 1;
+    return true;
+  });
+
+  for (auto v : visited) {
+    if (!v) return true;
+  }
+  return false;
+}
+
+inline auto validate_traits(const std::vector<Trait>& traits,
+                            const std::vector<std::vector<std::size_t>>& edges)
+    -> std::map<std::string, bool> {
+  std::map<std::string, bool> results;
+  for (const auto& trait : traits) results[trait.name] = false;
+
+  topo_sort(edges, [&](std::size_t id) {
+    auto& node = traits[id];
+    auto result = node.check_func();
+    results.at(node.name) = result;
+    return result;
+  });
+
+  return results;
+}
+}  // namespace detail
+
+inline State::State(Initializer initializer)
+    : rnd(),
+      inf(var::Reader(nullptr, {})),
+      initializer(std::move(initializer)),
+      reporter(std::make_unique<JsonReporter>()),
+
+      traits_(),
+      trait_edges_() {
+  cplib::detail::panic_impl = [this](std::string_view msg) {
+    quit(Report(Report::Status::INTERNAL_ERROR, std::string(msg)));
+  };
+  cplib::detail::work_mode = WorkMode::VALIDATOR;
+}
+
+inline State::~State() {
+  if (!exited_) panic("Validator must exit by calling method `State::quit*`");
+}
+
+inline auto State::traits(std::vector<Trait> traits) -> void {
+  traits_ = std::move(traits);
+
+  auto edges = detail::build_edges(traits_);
+  if (!edges.has_value()) panic("Traits do not form a simple graph");
+
+  if (detail::have_loop(*edges)) panic("Traits do not form a DAG");
+
+  trait_edges_ = *edges;
+}
+
+inline auto State::quit(Report report) -> void {
+  exited_ = true;
+
+  if (report.status == Report::Status::VALID && !inf.inner().eof()) {
+    report = Report(Report::Status::INVALID, "Extra content in the input file");
+  }
+
+  if (report.status == Report::Status::VALID) {
+    reporter->attach_trait_status(detail::validate_traits(traits_, trait_edges_));
+  }
+
+  reporter->report(report);
+
+  std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
+  std::exit(EXIT_FAILURE);
+}
+
+inline auto State::quit_valid() -> void { quit(Report(Report::Status::VALID, "")); }
+
+inline auto State::quit_invalid(std::string_view message) -> void {
+  quit(Report(Report::Status::INVALID, std::string(message)));
+}
+// /Impl State }}}
+
+// Impl DefaultInitializer {{{
+namespace detail {
+constexpr std::string_view ARGS_USAGE = "[<input_file>] [--report-format={auto|json|text}]";
+
+inline auto print_help_message(std::string_view program_name) -> void {
+  std::string msg =
+      format("cplib (CPLib) " CPLIB_VERSION
+             "\n"
+             "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
+             "\n"
+             "Usage:\n"
+             "  %s %s\n"
+             "\n"
+             "If <input_file> does not exist, stdin will be used as input\n"
+             "\n"
+             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+             "enable colors",
+             program_name.data(), ARGS_USAGE.data());
+  panic(msg);
+}
+
+inline auto detect_reporter(State& state) -> void {
+  if (!isatty(fileno(stderr))) {
+    state.reporter = std::make_unique<JsonReporter>();
+  } else if (cplib::detail::has_colors()) {
+    state.reporter = std::make_unique<ColoredTextReporter>();
+  } else {
+    state.reporter = std::make_unique<PlainTextReporter>();
+  }
+}
+
+// Set the report format of `state` according to the string `format`.
+//
+// Returns `false` if the `format` is invalid.
+inline auto set_report_format(State& state, std::string_view format) -> bool {
+  if (format == "auto") {
+    detect_reporter(state);
+  } else if (format == "json") {
+    state.reporter = std::make_unique<JsonReporter>();
+  } else if (format == "text") {
+    if (cplib::detail::has_colors()) {
+      state.reporter = std::make_unique<ColoredTextReporter>();
+    } else {
+      state.reporter = std::make_unique<PlainTextReporter>();
+    }
+  } else {
+    return false;
+  }
+  return true;
+}
+
+inline auto parse_command_line_arguments(State& state, int argc, char** argv) -> std::string_view {
+  std::string_view inf_path;
+  int opts_args_start = 2;
+
+  if (argc < 2 || argv[1][0] == '\0' || argv[1][0] == '-') {
+    opts_args_start = 1;
+  } else {
+    inf_path = argv[1];
+  }
+
+  for (int i = opts_args_start; i < argc; ++i) {
+    auto arg = std::string_view(argv[i]);
+    if (constexpr std::string_view prefix = "--report-format=";
+        !arg.compare(0, prefix.size(), prefix)) {
+      arg.remove_prefix(prefix.size());
+      if (!set_report_format(state, arg)) {
+        panic(format("Unknown %s option: %s", prefix.data(), arg.data()));
+      }
+    } else {
+      panic("Unknown option: " + std::string(arg));
+    }
+  }
+
+  return inf_path;
+}
+}  // namespace detail
+
+inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) -> void {
+  detail::detect_reporter(state);
+
+  if (argc > 1 && std::string_view("--help") == argv[1]) {
+    detail::print_help_message(argv[0]);
+  }
+
+  auto inf_path = detail::parse_command_line_arguments(state, argc, argv);
+
+  std::unique_ptr<std::streambuf> inf_buf = nullptr;
+  if (inf_path.empty()) {
+    state.inf = var::detail::make_stdin_reader(
+        "inf", true, [&state](std::string_view msg, const var::Reader::TraceStack& traces) {
+          state.reporter->attach_trace_stack(traces);
+          state.quit_invalid(msg);
+        });
+  } else {
+    state.inf = var::detail::make_file_reader(
+        inf_path, "inf", true,
+        [&state](std::string_view msg, const var::Reader::TraceStack& traces) {
+          state.reporter->attach_trace_stack(traces);
+          state.quit_invalid(msg);
+        });
+  }
+}
+// /Impl DefaultInitializer }}}
+
+// Impl reporters {{{
+namespace detail {
+inline auto status_to_title_string(Report::Status status) -> std::string {
+  switch (status) {
+    case Report::Status::INTERNAL_ERROR:
+      return "Internal Error";
+    case Report::Status::VALID:
+      return "Valid";
+    case Report::Status::INVALID:
+      return "Invalid";
+    default:
+      panic(format("Unknown validator report status: %d", static_cast<int>(status)));
+      return "Unknown";
+  }
+}
+
+inline auto status_to_colored_title_string(Report::Status status) -> std::string {
+  switch (status) {
+    case Report::Status::INTERNAL_ERROR:
+      return "\x1b[0;35mInternal Error\x1b[0m";
+    case Report::Status::VALID:
+      return "\x1b[0;32mValid\x1b[0m";
+    case Report::Status::INVALID:
+      return "\x1b[0;31mInvalid\x1b[0m";
+    default:
+      panic(format("Unknown validator report status: %d", static_cast<int>(status)));
+      return "Unknown";
+  }
+}
+
+inline auto trait_status_to_json(const std::map<std::string, bool>& traits)
+    -> std::unique_ptr<cplib::json::Map> {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
+
+  for (const auto& [k, v] : traits) {
+    map.insert({k, std::make_unique<cplib::json::Bool>(v)});
+  }
+
+  return std::make_unique<cplib::json::Map>(std::move(map));
+}
+}  // namespace detail
+
+inline auto JsonReporter::report(const Report& report) -> void {
+  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
+  map.insert(
+      {"status", std::make_unique<cplib::json::String>(std::string(report.status.to_string()))});
+  map.insert({"message", std::make_unique<cplib::json::String>(report.message)});
+
+  if (trace_stack_.has_value()) {
+    map.insert({"reader_trace_stack", trace_stack_->to_json()});
+  }
+
+  if (!trait_status_.empty()) {
+    map.insert({"traits", detail::trait_status_to_json(trait_status_)});
+  }
+
+  std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
+  std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
+}
+
+inline auto PlainTextReporter::report(const Report& report) -> void {
+  std::clog << detail::status_to_title_string(report.status).c_str() << ".\n";
+
+  if (report.status != Report::Status::VALID || !report.message.empty()) {
+    std::clog << report.message << '\n';
+  }
+
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_plain_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
+  if (report.status == Report::Status::VALID && !trait_status_.empty()) {
+    std::clog << "\nTraits satisfactions:\n";
+
+    std::vector<std::string> satisfied, dissatisfied;
+    for (auto [name, satisfaction] : trait_status_) {
+      if (satisfaction) {
+        satisfied.push_back(name);
+      } else {
+        dissatisfied.push_back(name);
+      }
+    }
+
+    for (const auto& name : satisfied) {
+      std::clog << "+ " << cplib::detail::hex_encode(name) << '\n';
+    }
+    for (const auto& name : dissatisfied) {
+      std::clog << "- " << cplib::detail::hex_encode(name) << '\n';
+    }
+  }
+
+  std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
+}
+
+inline auto ColoredTextReporter::report(const Report& report) -> void {
+  std::clog << detail::status_to_colored_title_string(report.status).c_str() << ".\n";
+
+  if (report.status != Report::Status::VALID || !report.message.empty()) {
+    std::clog << report.message << '\n';
+  }
+
+  if (trace_stack_.has_value()) {
+    std::clog << "\nReader trace stack (most recent variable last):\n";
+    for (const auto& line : trace_stack_->to_colored_text_lines()) {
+      std::clog << "  " << line << '\n';
+    }
+  }
+
+  if (report.status == Report::Status::VALID && !trait_status_.empty()) {
+    std::clog << "\nTraits satisfactions:\n";
+
+    std::vector<std::string> satisfied, dissatisfied;
+    for (auto [name, satisfaction] : trait_status_) {
+      if (satisfaction) {
+        satisfied.push_back(name);
+      } else {
+        dissatisfied.push_back(name);
+      }
+    }
+
+    for (const auto& name : satisfied) {
+      std::clog << "\x1b[0;32m+\x1b[0m " << name << '\n';
+    }
+    for (const auto& name : dissatisfied) {
+      std::clog << "\x1b[0;31m-\x1b[0m " << name << '\n';
+    }
+  }
+
+  std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
+}
+// /Impl reporters }}}
+}  // namespace cplib::validator
+  
 
 #endif
 
