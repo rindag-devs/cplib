@@ -348,6 +348,36 @@ class StrictFloat : public Var<T, StrictFloat<T>> {
 };
 
 /**
+ * `YesNo` is a variable reading template, indicating to read an boolean value.
+ *
+ * "Yes" mean true, "No" mean false. Case insensitive.
+ *
+ * @tparam T The target type of the variable reading template.
+ */
+class YesNo : public Var<bool, YesNo> {
+ public:
+  /**
+   * Default constructor.
+   */
+  explicit YesNo();
+
+  /**
+   * Constructor with name parameter.
+   *
+   * @param name The name of the YesNo variable.
+   */
+  explicit YesNo(std::string name);
+
+  /**
+   * Read the value of the YesNo variable from a reader.
+   *
+   * @param in The reader to read from.
+   * @return The read value.
+   */
+  auto read_from(Reader& in) const -> bool override;
+};
+
+/**
  * `String` is a variable reading template, indicating to read a whitespace separated string.
  */
 class String : public Var<std::string, String> {

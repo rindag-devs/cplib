@@ -269,4 +269,6 @@ struct ColoredTextReporter : Reporter {
   CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::DefaultInitializer())
 }  // namespace cplib::validator
 
+#include "validator.i.hpp"  // IWYU pragma: export
+
 #endif

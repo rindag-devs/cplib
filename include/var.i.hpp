@@ -16,6 +16,7 @@
 #endif
 /* cplib_embed_ignore end */
 
+#include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <cmath>
@@ -551,6 +552,24 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
   }
 
   return result;
+}
+
+inline YesNo::YesNo() : YesNo(std::string(detail::VAR_DEFAULT_NAME)) {}
+
+inline YesNo::YesNo(std::string name) : Var<bool, YesNo>(std::move(name)) {}
+
+inline auto YesNo::read_from(Reader& in) const -> bool {
+  auto token = in.inner().read_token();
+  auto lower_token = in.inner().read_token();
+  std::transform(lower_token.begin(), lower_token.end(), lower_token.begin(), ::tolower);
+
+  if (lower_token == "yes") {
+    return true;
+  } else if (lower_token == "no") {
+    return false;
+  } else {
+    panic("Expected `Yes` or `No`, got " + token);
+  }
 }
 
 inline String::String() : String(std::string(detail::VAR_DEFAULT_NAME)) {}
