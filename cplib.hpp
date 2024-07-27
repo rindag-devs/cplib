@@ -695,7 +695,7 @@ inline Value::~Value() = default;
 inline String::String(std::string inner) : inner(std::move(inner)) {}
 
 inline auto String::to_string() -> std::string {
-  std::stringbuf buf(std::ios::out);
+  std::stringbuf buf(std::ios_base::out);
   buf.sputc('\"');
   for (char c : inner) {
     switch (c) {
@@ -762,7 +762,7 @@ inline auto Bool::to_string() -> std::string {
 inline List::List(std::vector<std::unique_ptr<Value>> inner) : inner(std::move(inner)) {}
 
 inline auto List::to_string() -> std::string {
-  std::stringbuf buf(std::ios::out);
+  std::stringbuf buf(std::ios_base::out);
   buf.sputc('[');
   if (!inner.empty()) {
     auto it = inner.begin();
@@ -782,7 +782,7 @@ inline auto List::to_string() -> std::string {
 inline Map::Map(std::map<std::string, std::unique_ptr<Value>> inner) : inner(std::move(inner)) {}
 
 inline auto Map::to_string() -> std::string {
-  std::stringbuf buf(std::ios::out);
+  std::stringbuf buf(std::ios_base::out);
   buf.sputc('{');
   if (!inner.empty()) {
     auto it = inner.begin();
@@ -2673,7 +2673,7 @@ namespace detail {
 inline auto make_reader_by_path(std::string_view path, std::string name, bool strict,
                                 Reader::FailFunc fail_func) -> var::Reader {
   auto buf = std::make_unique<std::filebuf>();
-  if (!buf->open(path.data(), std::ios::binary | std::ios::in)) {
+  if (!buf->open(path.data(), std::ios_base::binary | std::ios_base::in)) {
     panic(format("Can not open file `%s` as input stream", path.data()));
   }
   return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
@@ -2693,7 +2693,7 @@ inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
 inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf>& buf,
                                  std::ostream& stream) -> void {
   auto filebuf = std::make_unique<std::filebuf>();
-  if (filebuf->open(path.data(), std::ios::binary | std::ios::out)) {
+  if (filebuf->open(path.data(), std::ios_base::binary | std::ios_base::out)) {
     panic(format("Can not open file `%s` as output stream", path.data()));
   }
   buf = std::move(filebuf);
@@ -3359,9 +3359,9 @@ inline auto ExtVar<T>::read_from(Reader& in) const -> T {
 
 namespace cplib::cmd_args {
 
-/// Parsed command line args.
+/// Parsed command-line args.
 struct ParsedArgs {
-  /// Command line parameters that do not start with "--"will be stored in `ordered` in their
+  /// Command-line parameters that do not start with "--"will be stored in `ordered` in their
   /// original relative order.
   std::vector<std::string> ordered;
 
@@ -3373,7 +3373,7 @@ struct ParsedArgs {
 
   ParsedArgs() = default;
 
-  /// Parse from raw command line args.
+  /// Parse from raw command-line args.
   explicit ParsedArgs(const std::vector<std::string>& args);
 
   [[nodiscard]] auto has_flag(std::string_view name) const -> bool;
@@ -3609,7 +3609,7 @@ struct State {
   /// Answer file reader.
   var::Reader ans;
 
-  /// Initializer parses command line arguments and initializes `checker::State`
+  /// Initializer parses command-line arguments and initializes `checker::State`
   std::unique_ptr<Initializer> initializer;
 
   /// Reporter reports the given `checker::Report` and exits the program.
@@ -3676,7 +3676,7 @@ struct DefaultInitializer : Initializer {
    * Initialize state according to default behavior.
    *
    * @param argv0 The name of the program.
-   * @param args The command line arguments.
+   * @param args The command-line arguments.
    */
   auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
 };
@@ -3969,7 +3969,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
         panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
       }
     } else {
-      panic("Unknown command line argument variable: " + key);
+      panic("Unknown command-line argument variable: " + key);
     }
   }
 
@@ -3977,7 +3977,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
     if (flag == "help") {
       detail::print_help_message(argv0);
     } else {
-      panic("Unknown command line argument flag: " + flag);
+      panic("Unknown command-line argument flag: " + flag);
     }
   }
 
@@ -4245,7 +4245,7 @@ struct State {
   /// Stream buffer of `to_user`.
   std::unique_ptr<std::streambuf> to_user_buf;
 
-  /// Initializer parses command line arguments and initializes `interactor::State`
+  /// Initializer parses command-line arguments and initializes `interactor::State`
   std::unique_ptr<Initializer> initializer;
 
   /// Reporter reports the given `interactor::Report` and exits the program.
@@ -4312,7 +4312,7 @@ struct DefaultInitializer : Initializer {
    * Initialize state according to default behavior.
    *
    * @param argv0 The name of the program.
-   * @param args The command line arguments.
+   * @param args The command-line arguments.
    */
   auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
 };
@@ -4611,7 +4611,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
         panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
       }
     } else {
-      panic("Unknown command line argument variable: " + key);
+      panic("Unknown command-line argument variable: " + key);
     }
   }
 
@@ -4619,7 +4619,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
     if (flag == "help") {
       detail::print_help_message(argv0);
     } else {
-      panic("Unknown command line argument flag: " + flag);
+      panic("Unknown command-line argument flag: " + flag);
     }
   }
 
@@ -4900,7 +4900,7 @@ struct State {
   /// Input file reader.
   var::Reader inf;
 
-  /// Initializer parses command line arguments and initializes `validator::State`
+  /// Initializer parses command-line arguments and initializes `validator::State`
   std::unique_ptr<Initializer> initializer;
 
   /// Reporter reports the given `validator::Report` and exits the program.
@@ -4965,7 +4965,7 @@ struct DefaultInitializer : Initializer {
    * Initialize state according to default behavior.
    *
    * @param argv0 The name of the program.
-   * @param args The command line arguments.
+   * @param args The command-line arguments.
    */
   auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
 };
@@ -5340,7 +5340,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
         panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
       }
     } else {
-      panic("Unknown command line argument variable: " + key);
+      panic("Unknown command-line argument variable: " + key);
     }
   }
 
@@ -5348,7 +5348,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
     if (flag == "help") {
       detail::print_help_message(argv0);
     } else {
-      panic("Unknown command line argument flag: " + flag);
+      panic("Unknown command-line argument flag: " + flag);
     }
   }
 
@@ -5624,31 +5624,31 @@ struct Reporter {
 
 struct State {
  public:
-  /// The parser function of a flag type (`--flag`) command line argument.
+  /// The parser function of a flag type (`--flag`) command-line argument.
   using FlagParser = std::function<auto(std::set<std::string> flag_args)->void>;
 
-  /// The parser function of a variable type (`--var=value`) command line argument.
+  /// The parser function of a variable type (`--var=value`) command-line argument.
   using VarParser = std::function<auto(std::map<std::string, std::string> var_args)->void>;
 
   /// Random number generator.
   Random rnd;
 
-  /// Initializer parses command line arguments and initializes `generator::State`
+  /// Initializer parses command-line arguments and initializes `generator::State`
   std::unique_ptr<Initializer> initializer;
 
   /// Reporter reports the given `generator::Report` and exits the program.
   std::unique_ptr<Reporter> reporter;
 
-  /// Names of the flag type (`--flag`) command line arguments required by the generator.
+  /// Names of the flag type (`--flag`) command-line arguments required by the generator.
   std::vector<std::string> required_flag_args;
 
-  /// Names of the variable type (`--var=value`) command line arguments required by the generator.
+  /// Names of the variable type (`--var=value`) command-line arguments required by the generator.
   std::vector<std::string> required_var_args;
 
-  /// Functions to parse flag type command line arguments.
+  /// Functions to parse flag type command-line arguments.
   std::vector<FlagParser> flag_parsers;
 
-  /// Functions to parse variable type command line arguments.
+  /// Functions to parse variable type command-line arguments.
   std::vector<VarParser> var_parsers;
 
   /**
@@ -5688,7 +5688,7 @@ struct DefaultInitializer : Initializer {
    * Initialize state according to default behavior.
    *
    * @param argv0 The name of the program.
-   * @param args The command line arguments.
+   * @param args The command-line arguments.
    */
   auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
 };
@@ -6063,8 +6063,8 @@ struct ColoredTextReporter : Reporter {
  *
  * @param state_var_name_ The variable name of state object to be initialized.
  * @param initializer_ The initializer function.
- * @param args_namespace_name_ The name of the command line arguments namespace.
- * @param ... The parsers of the command line arguments.
+ * @param args_namespace_name_ The name of the command-line arguments namespace.
+ * @param ... The parsers of the command-line arguments.
  */
 #define CPLIB_REGISTER_GENERATOR_OPT(state_var_name_, initializer_, args_namespace_name_, ...) \
   auto state_var_name_ =                                                                       \
@@ -6087,8 +6087,8 @@ struct ColoredTextReporter : Reporter {
  * Macro to register generator with default initializer.
  *
  * @param var_name_ The variable name of state object to be initialized.
- * @param args_namespace_name_ The name of the command line arguments namespace.
- * @param ... The parsers of the command line arguments.
+ * @param args_namespace_name_ The name of the command-line arguments namespace.
+ * @param ... The parsers of the command-line arguments.
  */
 #define CPLIB_REGISTER_GENERATOR(var_name_, args_namespace_name_, ...)              \
   CPLIB_REGISTER_GENERATOR_OPT(var_name_, ::cplib::generator::DefaultInitializer(), \
@@ -6289,7 +6289,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
     } else {
       if (!std::binary_search(state_->required_var_args.begin(), state_->required_var_args.end(),
                               key)) {
-        panic("Unknown command line argument variable: " + key);
+        panic("Unknown command-line argument variable: " + key);
       }
       if (auto it = var_args.find(key); it != var_args.end()) {
         it->second.push_back(' ');
@@ -6306,7 +6306,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
     } else {
       if (!std::binary_search(state_->required_flag_args.begin(), state_->required_flag_args.end(),
                               flag)) {
-        panic("Unknown command line argument flag: " + flag);
+        panic("Unknown command-line argument flag: " + flag);
       }
       flag_args.emplace(flag);
     }
