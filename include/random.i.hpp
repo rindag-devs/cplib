@@ -22,7 +22,9 @@
 #include <initializer_list>
 #include <iterator>
 #include <limits>
+#include <string>
 #include <type_traits>
+#include <vector>
 
 /* cplib_embed_ignore start */
 #include "utils.hpp"
@@ -114,20 +116,19 @@ inline Random::Random() : engine_() {}
 
 inline Random::Random(std::uint64_t seed) : engine_(seed) {}
 
-inline Random::Random(int argc, char** argv) : engine_() { reseed(argc, argv); }
+inline Random::Random(const std::vector<std::string>& args) : engine_() { reseed(args); }
 
 inline auto Random::reseed(std::uint64_t seed) -> void { engine().seed(seed); }
 
-inline auto Random::reseed(int argc, char** argv) -> void {
+inline auto Random::reseed(const std::vector<std::string>& args) -> void {
   // Magic numbers from https://docs.oracle.com/javase/8/docs/api/java/util/Random.html#next-int-
   constexpr std::uint64_t multiplier = 0x5DEECE66Dull;
   constexpr std::uint64_t addend = 0xBull;
   std::uint64_t seed = 3905348978240129619ull;
 
-  for (int i = 1; i < argc; ++i) {
-    std::size_t le = std::strlen(argv[i]);
-    for (std::size_t j = 0; j < le; ++j) {
-      seed = seed * multiplier + static_cast<std::uint32_t>(argv[i][j]) + addend;
+  for (const auto& arg : args) {
+    for (char c : arg) {
+      seed = seed * multiplier + static_cast<std::uint32_t>(c) + addend;
     }
     seed += multiplier / addend;
   }

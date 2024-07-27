@@ -1,2 +1,2 @@
 -Iinclude
--std=gnu++17
+-std=c++17

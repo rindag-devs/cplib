@@ -22,7 +22,7 @@ namespace cplib {
  * Format see
  * `https://en.wikibooks.org/wiki/Regular_Expressions/POSIX-Extended_Regular_Expressions`.
  */
-class Pattern {
+struct Pattern {
  public:
   /**
    * Create pattern instance by string.

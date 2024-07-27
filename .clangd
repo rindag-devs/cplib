@@ -1,5 +1,5 @@
 CompileFlags:
-  Add: ['-Wall', '-Wextra', '-Wno-xor-used-as-pow', '-DCPLIB_CLANGD=1', '-std=gnu++17']
+  Add: ['-Wall', '-Wextra', '-Wno-xor-used-as-pow', '-DCPLIB_CLANGD=1']
 
 Diagnostics:
   UnusedIncludes: Strict

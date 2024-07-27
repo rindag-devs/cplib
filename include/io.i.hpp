@@ -40,7 +40,7 @@ namespace detail {
 // A stream buffer that writes on a file descriptor
 //
 // https://www.josuttis.com/cppcode/fdstream.html
-class FdOutBuf : public std::streambuf {
+struct FdOutBuf : std::streambuf {
  public:
   explicit FdOutBuf(int fd) : fd_(fd) {
 #ifdef ON_WINDOWS
@@ -70,7 +70,7 @@ class FdOutBuf : public std::streambuf {
 // A stream buffer that reads on a file descriptor
 //
 // https://www.josuttis.com/cppcode/fdstream.html
-class FdInBuf : public std::streambuf {
+struct FdInBuf : std::streambuf {
  public:
   /**
    * Constructor

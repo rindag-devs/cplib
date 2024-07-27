@@ -131,7 +131,7 @@ auto tokenize(std::string_view s, char separator) -> std::vector<std::string>;
  * @tparam T The type of the stored function.
  */
 template <typename T>
-class UniqueFunction;
+struct UniqueFunction;
 
 /**
  * Template specialization for Ret(Args...) type.
@@ -140,7 +140,7 @@ class UniqueFunction;
  * @tparam Args The argument types of the stored function.
  */
 template <typename Ret, typename... Args>
-class UniqueFunction<Ret(Args...)> {
+struct UniqueFunction<Ret(Args...)> {
  public:
   /**
    * Creates an empty UniqueFunction.
@@ -211,7 +211,7 @@ class UniqueFunction<Ret(Args...)> {
 /**
  * `WorkMode` indicates the current mode of cplib.
  */
-enum class WorkMode {
+enum struct WorkMode {
   NONE,
   CHECKER,
   INTERACTOR,

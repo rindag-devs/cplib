@@ -28,12 +28,12 @@
 
 namespace cplib::var {
 template <class T, class D>
-class Var;
+struct Var;
 
 /**
  * `Reader` represents a traced input stream with line and column information.
  */
-class Reader {
+struct Reader {
  public:
   /**
    * `Trace` represents trace information for a variable.
@@ -127,7 +127,7 @@ class Reader {
 };
 
 template <class T>
-class Vec;
+struct Vec;
 
 /**
  * `Var` describes a "variable reading template".
@@ -137,7 +137,7 @@ class Vec;
  * `Var`, this template parameter should be the class itself.
  */
 template <class T, class D>
-class Var {
+struct Var {
  public:
   using Target = T;
   using Derived = D;
@@ -217,7 +217,7 @@ class Var {
  * @tparam T The target type of the variable reading template.
  */
 template <class T>
-class Int : public Var<T, Int<T>> {
+struct Int : Var<T, Int<T>> {
  public:
   std::optional<T> min, max;
 
@@ -264,7 +264,7 @@ class Int : public Var<T, Int<T>> {
  * range in fixed form or scientific form.
  */
 template <class T>
-class Float : public Var<T, Float<T>> {
+struct Float : Var<T, Float<T>> {
  public:
   std::optional<T> min, max;
 
@@ -311,7 +311,7 @@ class Float : public Var<T, Float<T>> {
  * given range in fixed for with digit count restrictions.
  */
 template <class T>
-class StrictFloat : public Var<T, StrictFloat<T>> {
+struct StrictFloat : Var<T, StrictFloat<T>> {
  public:
   T min, max;
   std::size_t min_n_digit, max_n_digit;
@@ -354,7 +354,7 @@ class StrictFloat : public Var<T, StrictFloat<T>> {
  *
  * @tparam T The target type of the variable reading template.
  */
-class YesNo : public Var<bool, YesNo> {
+struct YesNo : Var<bool, YesNo> {
  public:
   /**
    * Default constructor.
@@ -380,7 +380,7 @@ class YesNo : public Var<bool, YesNo> {
 /**
  * `String` is a variable reading template, indicating to read a whitespace separated string.
  */
-class String : public Var<std::string, String> {
+struct String : Var<std::string, String> {
  public:
   std::optional<Pattern> pat;
 
@@ -427,7 +427,7 @@ class String : public Var<std::string, String> {
  * - Otherwise, if `std::isspace(sep)`, read the next consecutive whitespaces.
  * - Otherwise, try skipping blanks and read exact one character `sep`.
  */
-class Separator : public Var<std::nullopt_t, Separator> {
+struct Separator : Var<std::nullopt_t, Separator> {
  public:
   char sep;
 
@@ -458,7 +458,7 @@ class Separator : public Var<std::nullopt_t, Separator> {
 /**
  * `Line` is a variable reading template, indicating to read a end-of-line separated string.
  */
-class Line : public Var<std::string, Line> {
+struct Line : Var<std::string, Line> {
  public:
   std::optional<Pattern> pat;
 
@@ -505,7 +505,7 @@ class Line : public Var<std::string, Line> {
  * @tparam T The type of the inner variable reading template.
  */
 template <class T>
-class Vec : public Var<std::vector<typename T::Var::Target>, Vec<T>> {
+struct Vec : Var<std::vector<typename T::Var::Target>, Vec<T>> {
  public:
   /// The type of the element in the vector.
   T element;
@@ -547,7 +547,7 @@ class Vec : public Var<std::vector<typename T::Var::Target>, Vec<T>> {
  * @tparam T The type of the inner variable reading template.
  */
 template <class T>
-class Mat : public Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>> {
+struct Mat : Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>> {
  public:
   /// The type of the element in the matrix.
   T element;
@@ -597,7 +597,7 @@ class Mat : public Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>
  * @tparam S The type of the second variable reading template.
  */
 template <class F, class S>
-class Pair : public Var<std::pair<typename F::Var::Target, typename S::Var::Target>, Pair<F, S>> {
+struct Pair : Var<std::pair<typename F::Var::Target, typename S::Var::Target>, Pair<F, S>> {
  public:
   /// The first element of the pair.
   F first;
@@ -654,7 +654,7 @@ class Pair : public Var<std::pair<typename F::Var::Target, typename S::Var::Targ
  * @tparam T The type of the variable reading templates.
  */
 template <class... T>
-class Tuple : public Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
+struct Tuple : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
  public:
   /// The elements of the tuple.
   std::tuple<T...> elements;
@@ -711,7 +711,7 @@ class Tuple : public Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
  * @tparam F The type of the function.
  */
 template <class F>
-class FnVar : public Var<typename std::function<F>::result_type, FnVar<F>> {
+struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
  public:
   /// The inner function.
   std::function<typename std::function<F>::result_type(Reader& in)> inner;
@@ -747,7 +747,7 @@ class FnVar : public Var<typename std::function<F>::result_type, FnVar<F>> {
  * T`
  */
 template <class T>
-class ExtVar : public Var<T, ExtVar<T>> {
+struct ExtVar : Var<T, ExtVar<T>> {
  public:
   /// The inner function.
   std::function<auto(Reader& in)->T> inner;

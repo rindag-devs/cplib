@@ -14,10 +14,10 @@
 #include <streambuf>
 #include <string>
 #include <string_view>
+#include <vector>
 
 /* cplib_embed_ignore start */
 #include "random.hpp"
-#include "utils.hpp"
 #include "var.hpp"
 /* cplib_embed_ignore end */
 
@@ -29,7 +29,7 @@ struct Report {
   /**
    * `Status` represents the status of the report.
    */
-  class Status {
+  struct Status {
    public:
     enum Value {
       /// Indicates an internal error occurred.
@@ -97,6 +97,30 @@ struct Report {
   Report(Status status, double score, std::string message);
 };
 
+struct State;
+
+/**
+ * `Initializer` used to initialize the state.
+ */
+struct Initializer {
+ public:
+  virtual ~Initializer() = 0;
+
+  auto set_state(State& state) -> void;
+
+  virtual auto init(std::string_view argv0, const std::vector<std::string>& args) -> void = 0;
+
+ protected:
+  State* state_;
+
+  auto set_inf_fileno(int fileno) -> void;
+  auto set_from_user_fileno(int fileno) -> void;
+  auto set_to_user_fileno(int fileno) -> void;
+  auto set_inf_path(std::string_view path) -> void;
+  auto set_from_user_path(std::string_view path) -> void;
+  auto set_to_user_path(std::string_view path) -> void;
+};
+
 /**
  * `Reporter` used to report and then exit the program.
  */
@@ -115,11 +139,8 @@ struct Reporter {
 /**
  * Represents the state of the validator.
  */
-class State {
+struct State {
  public:
-  /// The type of function used to initialize the state.
-  using Initializer = UniqueFunction<auto(State& state, int argc, char** argv)->void>;
-
   /// Random number generator.
   Random rnd;
 
@@ -132,18 +153,21 @@ class State {
   /// Output stream used to send information to user program stdin.
   std::ostream to_user;
 
-  /// Initializer is a function parsing command line arguments and initializing `interactor::State`
-  Initializer initializer;
+  /// Stream buffer of `to_user`.
+  std::unique_ptr<std::streambuf> to_user_buf;
 
-  /// Reporter is a function that reports the given `interactor::Report` and exits the program.
+  /// Initializer parses command line arguments and initializes `interactor::State`
+  std::unique_ptr<Initializer> initializer;
+
+  /// Reporter reports the given `interactor::Report` and exits the program.
   std::unique_ptr<Reporter> reporter;
 
   /**
-   * Constructs a new `State` object with the given initializer function.
+   * Constructs a new `State` object with the given initializer.
    *
-   * @param initializer The initializer function.
+   * @param initializer The initializer.
    */
-  explicit State(Initializer initializer);
+  explicit State(std::unique_ptr<Initializer> initializer);
 
   /**
    * Destroys the `State` object.
@@ -194,17 +218,14 @@ class State {
 /**
  * Default initializer of interactor.
  */
-struct DefaultInitializer {
-  std::unique_ptr<std::streambuf> to_user_buf;
-
+struct DefaultInitializer : Initializer {
   /**
    * Initialize state according to default behavior.
    *
-   * @param state The state object to be initialized.
-   * @param argc The number of command line arguments.
-   * @param argv The command line arguments.
+   * @param argv0 The name of the program.
+   * @param args The command line arguments.
    */
-  auto operator()(State& state, int argc, char** argv) -> void;
+  auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
 };
 
 /**
@@ -234,13 +255,18 @@ struct ColoredTextReporter : Reporter {
  * @param var_ The variable name of state object to be initialized.
  * @param initializer_ The initializer function.
  */
-#define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_) \
-  auto var_ = ::cplib::interactor::State(initializer_);   \
-  auto main(signed argc, char** argv) -> signed {         \
-    var_.initializer(var_, argc, argv);                   \
-    auto interactor_main(void) -> void;                   \
-    interactor_main();                                    \
-    return 0;                                             \
+#define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_)                                    \
+  auto var_ =                                                                                \
+      ::cplib::interactor::State(std::unique_ptr<decltype(initializer_)>(new initializer_)); \
+  auto main(int argc, char** argv) -> int {                                                  \
+    std::vector<std::string> args;                                                           \
+    for (int i = 1; i < argc; ++i) {                                                         \
+      args.emplace_back(argv[i]);                                                            \
+    }                                                                                        \
+    var_.initializer->init(argv[0], args);                                                   \
+    auto interactor_main(void) -> void;                                                      \
+    interactor_main();                                                                       \
+    return 0;                                                                                \
   }
 
 /**

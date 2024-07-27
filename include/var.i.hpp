@@ -6,6 +6,8 @@
  */
 
 /* cplib_embed_ignore start */
+#include <ios>
+#include <streambuf>
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
 #include "var.hpp"  // IWYU pragma: associated
@@ -126,8 +128,8 @@ inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::Target.
 
 namespace detail {
 // Open the given file and create a `var::Reader`
-inline auto make_file_reader(std::string_view path, std::string name, bool strict,
-                             Reader::FailFunc fail_func) -> var::Reader {
+inline auto make_reader_by_path(std::string_view path, std::string name, bool strict,
+                                Reader::FailFunc fail_func) -> var::Reader {
   auto buf = std::make_unique<std::filebuf>();
   if (!buf->open(path.data(), std::ios::binary | std::ios::in)) {
     panic(format("Can not open file `%s` as input stream", path.data()));
@@ -136,28 +138,33 @@ inline auto make_file_reader(std::string_view path, std::string name, bool stric
                      std::move(fail_func));
 }
 
-// Open `stdin` as input stream and create a `var::Reader`
-inline auto make_stdin_reader(std::string name, bool strict, Reader::FailFunc fail_func)
-    -> var::Reader {
-  auto buf = std::make_unique<io::detail::FdInBuf>(fileno(stdin));
+// Use file with givin fileno as input stream and create a `var::Reader`
+inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
+                                  Reader::FailFunc fail_func) -> var::Reader {
+  auto buf = std::make_unique<io::detail::FdInBuf>(fileno);
   var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
                      std::move(fail_func));
-  /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
-  std::cin.rdbuf(nullptr);
-  std::cin.tie(nullptr);
   return reader;
 }
 
-// Open `stdout` as output stream and create a `std::::ostream`
-inline auto make_stdout_ostream(std::unique_ptr<std::streambuf>& buf, std::ostream& stream)
-    -> void {
-  buf = std::make_unique<io::detail::FdOutBuf>(fileno(stdout));
+// Open the givin file and create a `std::::ostream`
+inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf>& buf,
+                                 std::ostream& stream) -> void {
+  auto filebuf = std::make_unique<std::filebuf>();
+  if (filebuf->open(path.data(), std::ios::binary | std::ios::out)) {
+    panic(format("Can not open file `%s` as output stream", path.data()));
+  }
+  buf = std::move(filebuf);
   stream.rdbuf(buf.get());
-  /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
-  std::cout.rdbuf(nullptr);
-  std::cin.tie(nullptr);
-  std::cerr.tie(nullptr);
 }
+
+// Use file with givin fileno as output stream and create a `std::::ostream`
+inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf>& buf,
+                                   std::ostream& stream) -> void {
+  buf = std::make_unique<io::detail::FdOutBuf>(fileno);
+  stream.rdbuf(buf.get());
+}
+
 }  // namespace detail
 
 namespace detail {
@@ -308,7 +315,7 @@ inline constexpr auto create_float(std::int64_t sign, std::int64_t before_point,
 
 template <class T>
 inline constexpr auto parse_strict_float(std::string_view s, std::size_t* n_after_point_out) -> T {
-  enum class State { SIGN, BEFORE_POINT, AFTER_POINT } state = State::SIGN;
+  enum struct State { SIGN, BEFORE_POINT, AFTER_POINT } state = State::SIGN;
   std::size_t n_significant = 0, n_after_point = 0, n_tailing_zero = 0;
   std::int64_t sign = 1, before_point = 0, after_point = 0;
 
@@ -370,7 +377,13 @@ inline constexpr auto parse_float(std::string_view s) -> T {
     return -std::numeric_limits<T>::infinity();
   }
 
-  enum class State { SIGN, BEFORE_POINT, AFTER_POINT, EXPONENT_SIGN, EXPONENT } state = State::SIGN;
+  enum struct State {
+    SIGN,
+    BEFORE_POINT,
+    AFTER_POINT,
+    EXPONENT_SIGN,
+    EXPONENT
+  } state = State::SIGN;
 
   std::size_t n_significant = 0, n_after_point = 0, n_tailing_zero = 0;
   std::int64_t sign = 1, before_point = 0, after_point = 0, exponent_sign = 1, exponent = 0;

@@ -29,7 +29,7 @@ struct Report {
   /**
    * `Status` represents the status of the report.
    */
-  class Status {
+  struct Status {
    public:
     enum Value {
       /// Indicates an internal error occurred.
@@ -89,6 +89,23 @@ struct Report {
   Report(Status status, std::string message);
 };
 
+struct State;
+
+/**
+ * `Initializer` used to initialize the state.
+ */
+struct Initializer {
+ public:
+  virtual ~Initializer() = 0;
+
+  auto set_state(State& state) -> void;
+
+  virtual auto init(std::string_view argv0, const std::vector<std::string>& args) -> void = 0;
+
+ protected:
+  State* state_;
+};
+
 /**
  * `Reporter` used to report and then exit the program.
  */
@@ -99,11 +116,8 @@ struct Reporter {
   [[noreturn]] virtual auto report(const Report& report) -> void = 0;
 };
 
-class State {
+struct State {
  public:
-  /// The type of function used to initialize the state.
-  using Initializer = std::function<auto(State& state, int argc, char** argv)->void>;
-
   /// The parser function of a flag type (`--flag`) command line argument.
   using FlagParser = std::function<auto(std::set<std::string> flag_args)->void>;
 
@@ -113,10 +127,10 @@ class State {
   /// Random number generator.
   Random rnd;
 
-  /// Initializer is a function parsing command line arguments and initializing `generator::State`.
-  Initializer initializer;
+  /// Initializer parses command line arguments and initializes `generator::State`
+  std::unique_ptr<Initializer> initializer;
 
-  /// Reporter is a function that reports the given `generator::Report` and exits the program.
+  /// Reporter reports the given `generator::Report` and exits the program.
   std::unique_ptr<Reporter> reporter;
 
   /// Names of the flag type (`--flag`) command line arguments required by the generator.
@@ -132,11 +146,11 @@ class State {
   std::vector<VarParser> var_parsers;
 
   /**
-   * Constructs a new `State` object with the given initializer function.
+   * Constructs a new `State` object with the given initializer.
    *
-   * @param initializer The initializer function.
+   * @param initializer The initializer.
    */
-  explicit State(Initializer initializer);
+  explicit State(std::unique_ptr<Initializer> initializer);
 
   /**
    * Destroys the `State` object.
@@ -163,15 +177,14 @@ class State {
 /**
  * Default initializer of generator.
  */
-struct DefaultInitializer {
+struct DefaultInitializer : Initializer {
   /**
    * Initialize state according to default behavior.
    *
-   * @param state The state object to be initialized.
-   * @param argc The number of command line arguments.
-   * @param argv The command line arguments.
+   * @param argv0 The name of the program.
+   * @param args The command line arguments.
    */
-  auto operator()(State& state, int argc, char** argv) -> void;
+  auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
 };
 
 /**
@@ -542,18 +555,23 @@ struct ColoredTextReporter : Reporter {
 /**
  * Macro to register generator with custom initializer.
  *
- * @param var_name_ The variable name of state object to be initialized.
+ * @param state_var_name_ The variable name of state object to be initialized.
  * @param initializer_ The initializer function.
  * @param args_namespace_name_ The name of the command line arguments namespace.
  * @param ... The parsers of the command line arguments.
  */
 #define CPLIB_REGISTER_GENERATOR_OPT(state_var_name_, initializer_, args_namespace_name_, ...) \
-  auto state_var_name_ = ::cplib::generator::State(initializer_);                              \
+  auto state_var_name_ =                                                                       \
+      ::cplib::generator::State(std::unique_ptr<decltype(initializer_)>(new initializer_));    \
   CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_);                                    \
   CPLIB_REGISTER_GENERATOR_ARGS_(__VA_ARGS__);                                                 \
   namespace args_namespace_name_ = ::cplib_generator_args_;                                    \
-  auto main(signed argc, char** argv) -> signed {                                              \
-    state_var_name_.initializer(state_var_name_, argc, argv);                                  \
+  auto main(int argc, char** argv) -> int {                                                    \
+    std::vector<std::string> args;                                                             \
+    for (int i = 1; i < argc; ++i) {                                                           \
+      args.emplace_back(argv[i]);                                                              \
+    }                                                                                          \
+    state_var_name_.initializer->init(argv[0], args);                                          \
     auto generator_main(void) -> void;                                                         \
     generator_main();                                                                          \
     return 0;                                                                                  \

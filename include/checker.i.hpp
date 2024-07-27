@@ -16,7 +16,6 @@
 #endif
 /* cplib_embed_ignore end */
 
-#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <iomanip>
@@ -26,8 +25,10 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 /* cplib_embed_ignore start */
+#include "cmd_args.hpp"
 #include "io.hpp"
 #include "json.hpp"
 #include "macros.hpp"
@@ -59,6 +60,64 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
 inline Report::Report(Report::Status status, double score, std::string message)
     : status(status), score(score), message(std::move(message)) {}
 
+inline Initializer::~Initializer() = default;
+
+inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
+
+inline auto Initializer::set_inf_fileno(int fileno) -> void {
+  state_->inf = var::detail::make_reader_by_fileno(
+      fileno, "inf", false,
+      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state_->reporter->attach_trace_stack(traces);
+        panic(msg);
+      });
+}
+
+inline auto Initializer::set_ouf_fileno(int fileno) -> void {
+  state_->ouf = var::detail::make_reader_by_fileno(
+      fileno, "ouf", false,
+      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state_->reporter->attach_trace_stack(traces);
+        state_->quit_wa(msg);
+      });
+}
+
+inline auto Initializer::set_ans_fileno(int fileno) -> void {
+  state_->ans = var::detail::make_reader_by_fileno(
+      fileno, "ans", false,
+      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state_->reporter->attach_trace_stack(traces);
+        panic(msg);
+      });
+}
+
+inline auto Initializer::set_inf_path(std::string_view path) -> void {
+  state_->inf = var::detail::make_reader_by_path(
+      path, "inf", false,
+      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state_->reporter->attach_trace_stack(traces);
+        panic(msg);
+      });
+}
+
+inline auto Initializer::set_ouf_path(std::string_view path) -> void {
+  state_->ouf = var::detail::make_reader_by_path(
+      path, "ouf", false,
+      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state_->reporter->attach_trace_stack(traces);
+        state_->quit_wa(msg);
+      });
+}
+
+inline auto Initializer::set_ans_path(std::string_view path) -> void {
+  state_->ans = var::detail::make_reader_by_path(
+      path, "ans", false,
+      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
+        state_->reporter->attach_trace_stack(traces);
+        panic(msg);
+      });
+}
+
 inline Reporter::~Reporter() = default;
 
 inline auto Reporter::attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack)
@@ -67,13 +126,15 @@ inline auto Reporter::attach_trace_stack(const cplib::var::Reader::TraceStack& t
 }
 
 // Impl State {{{
-inline State::State(Initializer initializer)
+
+inline State::State(std::unique_ptr<Initializer> initializer)
     : rnd(),
       inf(var::Reader(nullptr, {})),
       ouf(var::Reader(nullptr, {})),
       ans(var::Reader(nullptr, {})),
       initializer(std::move(initializer)),
       reporter(std::make_unique<JsonReporter>()) {
+  this->initializer->set_state(*this);
   cplib::detail::panic_impl = [this](std::string_view msg) {
     quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
   };
@@ -162,57 +223,43 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   }
   return true;
 }
+}  // namespace detail
 
-inline auto parse_command_line_arguments(State& state, int argc, char** argv)
-    -> std::array<std::string_view, 3> {
-  if (argc < 4) {
-    panic("Program must be run with the following arguments:\n  " + std::string(ARGS_USAGE));
-  }
+inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<std::string>& args)
+    -> void {
+  detail::detect_reporter(*state_);
 
-  for (int i = 4; i < argc; ++i) {
-    auto arg = std::string_view(argv[i]);
-    if (constexpr std::string_view prefix = "--report-format=";
-        !arg.compare(0, prefix.size(), prefix)) {
-      arg.remove_prefix(prefix.size());
-      if (!set_report_format(state, arg)) {
-        panic(format("Unknown %s option: %s", prefix.data(), arg.data()));
+  auto parsed_args = cplib::cmd_args::ParsedArgs(args);
+
+  for (const auto& [key, value] : parsed_args.vars) {
+    if (key == "report-format") {
+      if (!detail::set_report_format(*state_, value)) {
+        panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
       }
     } else {
-      panic("Unknown option: " + std::string(arg));
+      panic("Unknown command line argument variable: " + key);
     }
   }
 
-  return {argv[1], argv[2], argv[3]};
-}
-}  // namespace detail
-
-inline auto DefaultInitializer::operator()(State& state, int argc, char** argv) -> void {
-  detail::detect_reporter(state);
-
-  if (argc > 1 && std::string_view("--help") == argv[1]) {
-    detail::print_help_message(argv[0]);
+  for (const auto& flag : parsed_args.flags) {
+    if (flag == "help") {
+      detail::print_help_message(argv0);
+    } else {
+      panic("Unknown command line argument flag: " + flag);
+    }
   }
 
-  auto [inf_path, ouf_path, ans_path] = detail::parse_command_line_arguments(state, argc, argv);
+  if (parsed_args.ordered.size() != 3) {
+    panic("Program must be run with the following arguments:\n  " +
+          std::string(detail::ARGS_USAGE));
+  }
+  auto inf_path = parsed_args.ordered[0];
+  auto ouf_path = parsed_args.ordered[1];
+  auto ans_path = parsed_args.ordered[2];
 
-  state.inf = var::detail::make_file_reader(
-      inf_path, "inf", false,
-      [&state](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
-        state.reporter->attach_trace_stack(traces);
-        panic(msg);
-      });
-  state.ouf = var::detail::make_file_reader(
-      ouf_path, "ouf", false,
-      [&state](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
-        state.reporter->attach_trace_stack(traces);
-        state.quit_wa(msg);
-      });
-  state.ans = var::detail::make_file_reader(
-      ans_path, "ans", false,
-      [&state](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
-        state.reporter->attach_trace_stack(traces);
-        panic(msg);
-      });
+  set_inf_path(inf_path);
+  set_ouf_path(ouf_path);
+  set_ans_path(ans_path);
 }
 // /Impl DefaultInitializer }}}
 

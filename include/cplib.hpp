@@ -18,6 +18,7 @@
 #include "random.hpp"
 #include "io.hpp"
 #include "var.hpp"
+#include "cmd_args.hpp"
 #include "checker.hpp"
 #include "interactor.hpp"
 #include "validator.hpp"

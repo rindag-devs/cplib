@@ -17,9 +17,10 @@
 
 namespace cplib::io {
 /**
- * An input stream class that provides various functionalities for reading and manipulating streams.
+ * An input stream struct that provides various functionalities for reading and manipulating
+ * streams.
  */
-class InStream {
+struct InStream {
  public:
   /**
    * Constructs an InStream object.
