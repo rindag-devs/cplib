@@ -52,15 +52,15 @@ namespace cplib::var {
 
   for (const auto& trace : stack) {
     std::map<std::string, std::unique_ptr<cplib::json::Value>> trace_map;
-    trace_map.insert({"var_name", std::make_unique<cplib::json::String>(trace.var_name)});
-    trace_map.insert({"line_num", std::make_unique<cplib::json::Int>(trace.line_num)});
-    trace_map.insert({"col_num", std::make_unique<cplib::json::Int>(trace.col_num)});
-    trace_map.insert({"byte_num", std::make_unique<cplib::json::Int>(trace.byte_num)});
-    stack_list.push_back(std::make_unique<cplib::json::Map>(std::move(trace_map)));
+    trace_map.emplace("var_name", std::make_unique<cplib::json::String>(trace.var_name));
+    trace_map.emplace("line_num", std::make_unique<cplib::json::Int>(trace.line_num));
+    trace_map.emplace("col_num", std::make_unique<cplib::json::Int>(trace.col_num));
+    trace_map.emplace("byte_num", std::make_unique<cplib::json::Int>(trace.byte_num));
+    stack_list.emplace_back(std::make_unique<cplib::json::Map>(std::move(trace_map)));
   }
 
-  map.insert({"stack", std::make_unique<cplib::json::List>(std::move(stack_list))});
-  map.insert({"stream_name", std::make_unique<cplib::json::String>(stream_name)});
+  map.emplace("stack", std::make_unique<cplib::json::List>(std::move(stack_list)));
+  map.emplace("stream_name", std::make_unique<cplib::json::String>(stream_name));
   return std::make_unique<cplib::json::Map>(std::move(map));
 }
 
@@ -68,14 +68,14 @@ namespace cplib::var {
     -> std::vector<std::string> {
   std::vector<std::string> lines;
 
-  lines.push_back(std::string("Stream: ") + stream_name);
+  lines.emplace_back(std::string("Stream: ") + stream_name);
 
   std::size_t id = 0;
   for (const auto& trace : stack) {
     auto line = cplib::format("#%zu: %s @ line %zu, col %zu, byte %zu", id, trace.var_name.c_str(),
                               trace.line_num + 1, trace.col_num + 1, trace.byte_num + 1);
     ++id;
-    lines.push_back(std::move(line));
+    lines.emplace_back(std::move(line));
   }
 
   return lines;
@@ -85,7 +85,7 @@ namespace cplib::var {
     -> std::vector<std::string> {
   std::vector<std::string> lines;
 
-  lines.push_back(std::string("Stream: \x1b[0;33m") + stream_name + "\x1b[0m");
+  lines.emplace_back(std::string("Stream: \x1b[0;33m") + stream_name + "\x1b[0m");
 
   std::size_t id = 0;
   for (const auto& trace : stack) {
@@ -94,7 +94,7 @@ namespace cplib::var {
         "\x1b[0;33m%zu\x1b[0m",
         id, trace.var_name.c_str(), trace.line_num + 1, trace.col_num + 1, trace.byte_num + 1);
     ++id;
-    lines.push_back(std::move(line));
+    lines.emplace_back(std::move(line));
   }
 
   return lines;

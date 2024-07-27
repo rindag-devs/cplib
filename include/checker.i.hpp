@@ -253,13 +253,13 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 
 inline auto JsonReporter::report(const Report& report) -> void {
   std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
-  map.insert(
-      {"status", std::make_unique<cplib::json::String>(std::string(report.status.to_string()))});
-  map.insert({"score", std::make_unique<cplib::json::Real>(report.score)});
-  map.insert({"message", std::make_unique<cplib::json::String>(report.message)});
+  map.emplace("status",
+              std::make_unique<cplib::json::String>(std::string(report.status.to_string())));
+  map.emplace("score", std::make_unique<cplib::json::Real>(report.score));
+  map.emplace("message", std::make_unique<cplib::json::String>(report.message));
 
   if (trace_stack_.has_value()) {
-    map.insert({"reader_trace_stack", trace_stack_->to_json()});
+    map.emplace("reader_trace_stack", trace_stack_->to_json());
   }
 
   std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';

@@ -140,7 +140,7 @@ inline auto build_edges(std::vector<Trait>& traits)
           std::lower_bound(traits.begin(), traits.end(), dep,
                            [](const Trait& x, const std::string& y) { return x.name < y; }) -
           traits.begin();
-      edges[dep_id].push_back(i);
+      edges[dep_id].emplace_back(i);
     }
   }
 
@@ -371,7 +371,7 @@ inline auto trait_status_to_json(const std::map<std::string, bool>& traits)
   std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
 
   for (const auto& [k, v] : traits) {
-    map.insert({k, std::make_unique<cplib::json::Bool>(v)});
+    map.emplace(k, std::make_unique<cplib::json::Bool>(v));
   }
 
   return std::make_unique<cplib::json::Map>(std::move(map));
@@ -380,16 +380,16 @@ inline auto trait_status_to_json(const std::map<std::string, bool>& traits)
 
 inline auto JsonReporter::report(const Report& report) -> void {
   std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
-  map.insert(
-      {"status", std::make_unique<cplib::json::String>(std::string(report.status.to_string()))});
-  map.insert({"message", std::make_unique<cplib::json::String>(report.message)});
+  map.emplace("status",
+              std::make_unique<cplib::json::String>(std::string(report.status.to_string())));
+  map.emplace("message", std::make_unique<cplib::json::String>(report.message));
 
   if (trace_stack_.has_value()) {
-    map.insert({"reader_trace_stack", trace_stack_->to_json()});
+    map.emplace("reader_trace_stack", trace_stack_->to_json());
   }
 
   if (!trait_status_.empty()) {
-    map.insert({"traits", detail::trait_status_to_json(trait_status_)});
+    map.emplace("traits", detail::trait_status_to_json(trait_status_));
   }
 
   std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
@@ -416,9 +416,9 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
     std::vector<std::string> satisfied, dissatisfied;
     for (auto [name, satisfaction] : trait_status_) {
       if (satisfaction) {
-        satisfied.push_back(name);
+        satisfied.emplace_back(name);
       } else {
-        dissatisfied.push_back(name);
+        dissatisfied.emplace_back(name);
       }
     }
 
@@ -453,9 +453,9 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
     std::vector<std::string> satisfied, dissatisfied;
     for (auto [name, satisfaction] : trait_status_) {
       if (satisfaction) {
-        satisfied.push_back(name);
+        satisfied.emplace_back(name);
       } else {
-        dissatisfied.push_back(name);
+        dissatisfied.emplace_back(name);
       }
     }
 

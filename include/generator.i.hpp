@@ -165,7 +165,7 @@ inline auto parse_command_line_arguments(State& state, int argc, char** argv)
                                 name)) {
           panic("Unknown flag: " + name);
         }
-        flag_args.insert(name);
+        flag_args.emplace(name);
       } else {
         if (!std::binary_search(state.required_var_args.begin(), state.required_var_args.end(),
                                 name)) {
@@ -196,9 +196,9 @@ inline auto get_args_usage(const State& state) {
   using namespace std::string_literals;
   std::vector<std::string> builder;
   builder.reserve(state.required_flag_args.size() + state.required_var_args.size());
-  for (const auto& arg : state.required_flag_args) builder.push_back("[--"s + arg + "]"s);
-  for (const auto& arg : state.required_var_args) builder.push_back("--"s + arg + "=<value>"s);
-  builder.push_back("[--report-format={auto|json|text}]"s);
+  for (const auto& arg : state.required_flag_args) builder.emplace_back("[--"s + arg + "]"s);
+  for (const auto& arg : state.required_var_args) builder.emplace_back("--"s + arg + "=<value>"s);
+  builder.emplace_back("[--report-format={auto|json|text}]"s);
 
   return join(builder.begin(), builder.end(), ' ');
 }
@@ -259,9 +259,9 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 
 inline auto JsonReporter::report(const Report& report) -> void {
   std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
-  map.insert(
-      {"status", std::make_unique<cplib::json::String>(std::string(report.status.to_string()))});
-  map.insert({"message", std::make_unique<cplib::json::String>(report.message)});
+  map.emplace("status",
+              std::make_unique<cplib::json::String>(std::string(report.status.to_string())));
+  map.emplace("message", std::make_unique<cplib::json::String>(report.message));
 
   std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);

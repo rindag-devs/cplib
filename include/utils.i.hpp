@@ -194,13 +194,13 @@ inline auto split(std::string_view s, char separator) -> std::vector<std::string
   std::string item;
   for (char i : s) {
     if (i == separator) {
-      result.push_back(item);
+      result.emplace_back(item);
       item.clear();
     } else {
       item.push_back(i);
     }
   }
-  result.push_back(item);
+  result.emplace_back(item);
   return result;
 }
 
@@ -209,13 +209,13 @@ inline auto tokenize(std::string_view s, char separator) -> std::vector<std::str
   std::string item;
   for (char i : s) {
     if (i == separator) {
-      if (!item.empty()) result.push_back(item);
+      if (!item.empty()) result.emplace_back(item);
       item.clear();
     } else {
       item.push_back(i);
     }
   }
-  if (!item.empty()) result.push_back(item);
+  if (!item.empty()) result.emplace_back(item);
   return result;
 }
 
