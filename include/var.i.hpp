@@ -151,7 +151,7 @@ inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
 inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf>& buf,
                                  std::ostream& stream) -> void {
   auto filebuf = std::make_unique<std::filebuf>();
-  if (filebuf->open(path.data(), std::ios_base::binary | std::ios_base::out)) {
+  if (!filebuf->open(path.data(), std::ios_base::binary | std::ios_base::out)) {
     panic(format("Can not open file `%s` as output stream", path.data()));
   }
   buf = std::move(filebuf);
