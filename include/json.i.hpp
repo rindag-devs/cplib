@@ -36,7 +36,7 @@ inline Value::~Value() = default;
 inline String::String(std::string inner) : inner(std::move(inner)) {}
 
 inline auto String::to_string() -> std::string {
-  std::stringbuf buf(std::ios::out);
+  std::stringbuf buf(std::ios_base::out);
   buf.sputc('\"');
   for (char c : inner) {
     switch (c) {
@@ -103,7 +103,7 @@ inline auto Bool::to_string() -> std::string {
 inline List::List(std::vector<std::unique_ptr<Value>> inner) : inner(std::move(inner)) {}
 
 inline auto List::to_string() -> std::string {
-  std::stringbuf buf(std::ios::out);
+  std::stringbuf buf(std::ios_base::out);
   buf.sputc('[');
   if (!inner.empty()) {
     auto it = inner.begin();
@@ -123,7 +123,7 @@ inline auto List::to_string() -> std::string {
 inline Map::Map(std::map<std::string, std::unique_ptr<Value>> inner) : inner(std::move(inner)) {}
 
 inline auto Map::to_string() -> std::string {
-  std::stringbuf buf(std::ios::out);
+  std::stringbuf buf(std::ios_base::out);
   buf.sputc('{');
   if (!inner.empty()) {
     auto it = inner.begin();

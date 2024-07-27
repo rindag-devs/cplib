@@ -237,7 +237,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
         panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
       }
     } else {
-      panic("Unknown command line argument variable: " + key);
+      panic("Unknown command-line argument variable: " + key);
     }
   }
 
@@ -245,7 +245,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
     if (flag == "help") {
       detail::print_help_message(argv0);
     } else {
-      panic("Unknown command line argument flag: " + flag);
+      panic("Unknown command-line argument flag: " + flag);
     }
   }
 

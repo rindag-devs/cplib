@@ -15,9 +15,9 @@
 
 namespace cplib::cmd_args {
 
-/// Parsed command line args.
+/// Parsed command-line args.
 struct ParsedArgs {
-  /// Command line parameters that do not start with "--"will be stored in `ordered` in their
+  /// Command-line parameters that do not start with "--"will be stored in `ordered` in their
   /// original relative order.
   std::vector<std::string> ordered;
 
@@ -29,7 +29,7 @@ struct ParsedArgs {
 
   ParsedArgs() = default;
 
-  /// Parse from raw command line args.
+  /// Parse from raw command-line args.
   explicit ParsedArgs(const std::vector<std::string>& args);
 
   [[nodiscard]] auto has_flag(std::string_view name) const -> bool;

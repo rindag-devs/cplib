@@ -192,7 +192,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
     } else {
       if (!std::binary_search(state_->required_var_args.begin(), state_->required_var_args.end(),
                               key)) {
-        panic("Unknown command line argument variable: " + key);
+        panic("Unknown command-line argument variable: " + key);
       }
       if (auto it = var_args.find(key); it != var_args.end()) {
         it->second.push_back(' ');
@@ -209,7 +209,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
     } else {
       if (!std::binary_search(state_->required_flag_args.begin(), state_->required_flag_args.end(),
                               flag)) {
-        panic("Unknown command line argument flag: " + flag);
+        panic("Unknown command-line argument flag: " + flag);
       }
       flag_args.emplace(flag);
     }

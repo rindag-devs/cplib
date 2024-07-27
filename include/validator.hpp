@@ -169,7 +169,7 @@ struct State {
   /// Input file reader.
   var::Reader inf;
 
-  /// Initializer parses command line arguments and initializes `validator::State`
+  /// Initializer parses command-line arguments and initializes `validator::State`
   std::unique_ptr<Initializer> initializer;
 
   /// Reporter reports the given `validator::Report` and exits the program.
@@ -234,7 +234,7 @@ struct DefaultInitializer : Initializer {
    * Initialize state according to default behavior.
    *
    * @param argv0 The name of the program.
-   * @param args The command line arguments.
+   * @param args The command-line arguments.
    */
   auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
 };

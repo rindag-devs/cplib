@@ -131,7 +131,7 @@ namespace detail {
 inline auto make_reader_by_path(std::string_view path, std::string name, bool strict,
                                 Reader::FailFunc fail_func) -> var::Reader {
   auto buf = std::make_unique<std::filebuf>();
-  if (!buf->open(path.data(), std::ios::binary | std::ios::in)) {
+  if (!buf->open(path.data(), std::ios_base::binary | std::ios_base::in)) {
     panic(format("Can not open file `%s` as input stream", path.data()));
   }
   return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
@@ -151,7 +151,7 @@ inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
 inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf>& buf,
                                  std::ostream& stream) -> void {
   auto filebuf = std::make_unique<std::filebuf>();
-  if (filebuf->open(path.data(), std::ios::binary | std::ios::out)) {
+  if (filebuf->open(path.data(), std::ios_base::binary | std::ios_base::out)) {
     panic(format("Can not open file `%s` as output stream", path.data()));
   }
   buf = std::move(filebuf);

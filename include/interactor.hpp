@@ -156,7 +156,7 @@ struct State {
   /// Stream buffer of `to_user`.
   std::unique_ptr<std::streambuf> to_user_buf;
 
-  /// Initializer parses command line arguments and initializes `interactor::State`
+  /// Initializer parses command-line arguments and initializes `interactor::State`
   std::unique_ptr<Initializer> initializer;
 
   /// Reporter reports the given `interactor::Report` and exits the program.
@@ -223,7 +223,7 @@ struct DefaultInitializer : Initializer {
    * Initialize state according to default behavior.
    *
    * @param argv0 The name of the program.
-   * @param args The command line arguments.
+   * @param args The command-line arguments.
    */
   auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
 };

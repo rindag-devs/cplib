@@ -50,13 +50,13 @@ The main difference between the generator and other CPLib work mode is reflected
 - The 2nd parameter is the name of the namespace bound to the command-line arguments.
 - The 3rd to the last parameters (if exists) are the parsers of command-line arguments. The format is `parser_name = ParserType(constructor_arguments)`.
 
-Here, `args` is set as the name of the namespace that binds to command line arguments. This will export a namespace named `args` in the global namespace, and store the results of parser into variables in this namespace. The variable name of each parser's parsing result is the same as `parser_name`.
+Here, `args` is set as the name of the namespace that binds to command-line arguments. This will export a namespace named `args` in the global namespace, and store the results of parser into variables in this namespace. The variable name of each parser's parsing result is the same as `parser_name`.
 
-Parsers will automatically parsing the command line arguments during initialization. There are two parser types currently supported:
+Parsers will automatically parsing the command-line arguments during initialization. There are two parser types currently supported:
 
-- `Flag`: A parser for "flag-style" (`--var`) arguments. The constructor of `Flag` takes a `std::string` as the name of the command line argument (i.e., the `var` part in `--var`, excluding the preceding two dashes). When running this parser, it checks if `--var` exists in the command line arguments. If it does, it sets the member variable `value` to `true`; otherwise, it sets it to `false`.
+- `Flag`: A parser for "flag-style" (`--var`) arguments. The constructor of `Flag` takes a `std::string` as the name of the command-line argument (i.e., the `var` part in `--var`, excluding the preceding two dashes). When running this parser, it checks if `--var` exists in the command-line arguments. If it does, it sets the member variable `value` to `true`; otherwise, it sets it to `false`.
 
-- `Var<T>`: A parser for "variable-style" (`--var=<value>`) arguments, where `T` is the type of a variable template (which needs to be derived from the `cplib::var::Var`). The constructor of the `Var<T>` type takes an instance of type `T`, and the return value of its `name()` method serves as the name of the command line argument (i.e., the `var` part in `--var=<value>`, excluding the preceding two dashes). When running this parser, it calls the `read_from` function of type `T` to parse the `<value>` string, and stores the parsing result in the `value` member variable.
+- `Var<T>`: A parser for "variable-style" (`--var=<value>`) arguments, where `T` is the type of a variable template (which needs to be derived from the `cplib::var::Var`). The constructor of the `Var<T>` type takes an instance of type `T`, and the return value of its `name()` method serves as the name of the command-line argument (i.e., the `var` part in `--var=<value>`, excluding the preceding two dashes). When running this parser, it calls the `read_from` function of type `T` to parse the `<value>` string, and stores the parsing result in the `value` member variable.
 
 The `Var<T>` and `Flag` structures are defined in a hidden namespace, so there is no need to worry about global namespace pollution.
 
