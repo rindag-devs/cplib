@@ -2664,10 +2664,14 @@ inline auto Reader::fail(std::string_view message) -> void {
 
 template <class T, class D>
 inline auto Reader::read(const Var<T, D>& v) -> T {
+#ifdef CPLIB_ENABLE_READER_TRACE
   traces_.emplace_back(
       Trace{std::string(v.name()), inner().line_num(), inner().col_num(), inner().byte_num()});
+#endif
   auto result = v.read_from(*this);
+#ifdef CPLIB_ENABLE_READER_TRACE
   traces_.pop_back();
+#endif
   return result;
 }
 
