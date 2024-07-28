@@ -1,2 +1,3 @@
 -Iinclude
 -std=c++17
+-DCPLIB_ENABLE_READER_TRACE

@@ -127,7 +127,7 @@ void checker_main() {
 打开终端，切换到刚才建立的工作目录．执行编译命令来编译 Checker，它通常类似于这样：
 
 ```bash
-g++ chk.cpp -o chk -std=c++17
+g++ chk.cpp -o chk -std=c++17 -DCPLIB_ENABLE_READER_TRACE
 ```
 
 <Callout type="warning">
@@ -165,7 +165,7 @@ CPLib 所需的最低 C++ 标准为 C++ 17．
 打开 cmd.exe 或 Windows Terminal 程序，切换到刚才建立的工作目录．执行编译命令来编译 Checker，它通常类似于这样：
 
 ```cmd
-g++ chk.cpp -o chk.exe -std=c++17
+g++ chk.cpp -o chk.exe -std=c++17 -DCPLIB_ENABLE_READER_TRACE
 ```
 
 <Callout type="warning">
