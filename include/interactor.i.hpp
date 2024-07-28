@@ -216,7 +216,7 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 // Disable stdin & stdout
 inline auto disable_stdio() -> void {
   std::ios_base::sync_with_stdio(false);
-  /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
+  /* FIXME: Under msvc stdin/stdout is an rvalue, cannot prevent users from using stdio. */
   // stdin = nullptr;
   // stdout = nullptr;
   std::cin.rdbuf(nullptr);
