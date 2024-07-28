@@ -17,6 +17,7 @@
 /* cplib_embed_ignore end */
 
 #include <algorithm>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -33,7 +34,7 @@ auto split_var(std::string_view var) -> std::pair<std::string_view, std::string_
 }  // namespace detail
 
 ParsedArgs::ParsedArgs(const std::vector<std::string>& args) {
-  std::optional<std::string_view> last_flag;
+  std::optional<std::string> last_flag;
 
   for (const auto& arg : args) {
     if (arg.size() >= 2 && arg[0] == '-' && arg[1] == '-') {
@@ -41,9 +42,15 @@ ParsedArgs::ParsedArgs(const std::vector<std::string>& args) {
         // `--var=value`
         auto [key, value] = detail::split_var(arg);
         vars.emplace(std::string(key), std::string(value));
+        if (last_flag.has_value()) {
+          flags.emplace_back(*last_flag);
+        }
         last_flag = std::nullopt;
       } else {
         // `--flag` or `--var value`
+        if (last_flag.has_value()) {
+          flags.emplace_back(*last_flag);
+        }
         last_flag = arg.substr(2);
       }
     } else if (last_flag.has_value()) {

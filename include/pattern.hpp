@@ -8,12 +8,12 @@
 #ifndef CPLIB_PATTERN_HPP_
 #define CPLIB_PATTERN_HPP_
 
-#include <regex.h>
-
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
+
+#include "regex.h"
 
 namespace cplib {
 /**

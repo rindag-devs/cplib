@@ -16,13 +16,13 @@
 #endif
 /* cplib_embed_ignore end */
 
-#include <regex.h>
-
 #include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
+
+#include "regex.h"
 
 /* cplib_embed_ignore start */
 #include "utils.hpp"
