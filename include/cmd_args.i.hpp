@@ -17,7 +17,6 @@
 /* cplib_embed_ignore end */
 
 #include <algorithm>
-#include <iostream>
 #include <optional>
 #include <string>
 #include <string_view>
