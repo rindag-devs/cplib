@@ -43,8 +43,12 @@ namespace detail {
 struct FdOutBuf : std::streambuf {
  public:
   explicit FdOutBuf(int fd) : fd_(fd) {
-#ifdef ON_WINDOWS
-    _setmode(fd_, _O_BINARY);  // Sets file mode to binary
+    /*
+      We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
+      Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
+    */
+#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+    _setmode(fd_, _O_BINARY);
 #endif
   }
 
@@ -80,8 +84,12 @@ struct FdInBuf : std::streambuf {
    * => Force underflow()
    */
   explicit FdInBuf(int fd) : fd_(fd) {
-#ifdef ON_WINDOWS
-    _setmode(fd_, _O_BINARY);  // Sets file mode to binary
+    /*
+      We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
+      Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
+    */
+#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+    _setmode(fd_, _O_BINARY);
 #endif
     setg(buf_.data() + PB_SIZE,   // Beginning of putback area
          buf_.data() + PB_SIZE,   // Read position

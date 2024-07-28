@@ -29,7 +29,6 @@
 
 /* cplib_embed_ignore start */
 #include "cmd_args.hpp"
-#include "io.hpp"
 #include "json.hpp"
 #include "macros.hpp"
 #include "utils.hpp"
@@ -135,17 +134,8 @@ inline State::~State() {
   if (!exited_) panic("Interactor must exit by calling method `State::quit*`");
 }
 
-inline auto State::disable_check_dirt() -> void { check_dirt_ = true; }
-
-inline auto State::quit(Report report) -> void {
+inline auto State::quit(const Report& report) -> void {
   exited_ = true;
-
-  if (check_dirt_ &&
-      (report.status == Report::Status::ACCEPTED ||
-       report.status == Report::Status::PARTIALLY_CORRECT) &&
-      !from_user.inner().seek_eof()) {
-    report = Report(Report::Status::WRONG_ANSWER, 0.0, "Extra content in the user output");
-  }
 
   reporter->report(report);
 

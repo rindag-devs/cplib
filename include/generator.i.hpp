@@ -171,8 +171,12 @@ inline auto get_args_usage(const State& state) {
 }
 
 inline auto set_binary_mode() {
-#ifdef ON_WINDOWS
-  _setmode(fileno(stdout), _O_BINARY);  // Sets file mode to binary
+  /*
+    We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
+    Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
+  */
+#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+  _setmode(fileno(stdout), _O_BINARY);
 #endif
 }
 }  // namespace detail

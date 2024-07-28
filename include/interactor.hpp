@@ -175,16 +175,11 @@ struct State {
   ~State();
 
   /**
-   * Disables the check for redundant content of `from_user` stream.
-   */
-  auto disable_check_dirt() -> void;
-
-  /**
    * Quits the interactor with the given report.
    *
    * @param report The report to be reported.
    */
-  [[noreturn]] auto quit(Report report) -> void;
+  [[noreturn]] auto quit(const Report& report) -> void;
 
   /**
    * Quits the interactor with the `report::Status::ACCEPTED` status.
@@ -210,9 +205,6 @@ struct State {
  private:
   /// Whether the program has exited.
   bool exited_{false};
-
-  /// Whether to check for redundant content in the `from_user` stream.
-  bool check_dirt_{true};
 };
 
 /**
