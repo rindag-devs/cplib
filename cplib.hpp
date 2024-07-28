@@ -3399,7 +3399,6 @@ struct ParsedArgs {
 
 
 #include <algorithm>
-#include <iostream>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -6273,6 +6272,12 @@ inline auto get_args_usage(const State& state) {
 
   return join(builder.begin(), builder.end(), ' ');
 }
+
+inline auto set_binary_mode() {
+#ifdef ON_WINDOWS
+  _setmode(fileno(stdout), _O_BINARY);  // Sets file mode to binary
+#endif
+}
 }  // namespace detail
 
 inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<std::string>& args)
@@ -6326,6 +6331,8 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
 
   // Unsynchronize to speed up std::cout output.
   std::ios_base::sync_with_stdio(false);
+
+  detail::set_binary_mode();
 
   state_->rnd.reseed(args);
 }
