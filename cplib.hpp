@@ -1552,8 +1552,12 @@ namespace detail {
 struct FdOutBuf : std::streambuf {
  public:
   explicit FdOutBuf(int fd) : fd_(fd) {
-#ifdef ON_WINDOWS
-    _setmode(fd_, _O_BINARY);  // Sets file mode to binary
+    /*
+      We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
+      Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
+    */
+#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+    _setmode(fd_, _O_BINARY);
 #endif
   }
 
@@ -1589,8 +1593,12 @@ struct FdInBuf : std::streambuf {
    * => Force underflow()
    */
   explicit FdInBuf(int fd) : fd_(fd) {
-#ifdef ON_WINDOWS
-    _setmode(fd_, _O_BINARY);  // Sets file mode to binary
+    /*
+      We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
+      Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
+    */
+#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+    _setmode(fd_, _O_BINARY);
 #endif
     setg(buf_.data() + PB_SIZE,   // Beginning of putback area
          buf_.data() + PB_SIZE,   // Read position
@@ -4270,16 +4278,11 @@ struct State {
   ~State();
 
   /**
-   * Disables the check for redundant content of `from_user` stream.
-   */
-  auto disable_check_dirt() -> void;
-
-  /**
    * Quits the interactor with the given report.
    *
    * @param report The report to be reported.
    */
-  [[noreturn]] auto quit(Report report) -> void;
+  [[noreturn]] auto quit(const Report& report) -> void;
 
   /**
    * Quits the interactor with the `report::Status::ACCEPTED` status.
@@ -4305,9 +4308,6 @@ struct State {
  private:
   /// Whether the program has exited.
   bool exited_{false};
-
-  /// Whether to check for redundant content in the `from_user` stream.
-  bool check_dirt_{true};
 };
 
 /**
@@ -4401,7 +4401,6 @@ struct ColoredTextReporter : Reporter {
 #include <string_view>
 #include <utility>
 #include <vector>
-
 
 
 
@@ -4510,17 +4509,8 @@ inline State::~State() {
   if (!exited_) panic("Interactor must exit by calling method `State::quit*`");
 }
 
-inline auto State::disable_check_dirt() -> void { check_dirt_ = true; }
-
-inline auto State::quit(Report report) -> void {
+inline auto State::quit(const Report& report) -> void {
   exited_ = true;
-
-  if (check_dirt_ &&
-      (report.status == Report::Status::ACCEPTED ||
-       report.status == Report::Status::PARTIALLY_CORRECT) &&
-      !from_user.inner().seek_eof()) {
-    report = Report(Report::Status::WRONG_ANSWER, 0.0, "Extra content in the user output");
-  }
 
   reporter->report(report);
 
@@ -4591,7 +4581,7 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 // Disable stdin & stdout
 inline auto disable_stdio() -> void {
   std::ios_base::sync_with_stdio(false);
-  /* FIXME: Under msvc stdin/stdout is an lvalue, cannot prevent users from using stdio. */
+  /* FIXME: Under msvc stdin/stdout is an rvalue, cannot prevent users from using stdio. */
   // stdin = nullptr;
   // stdout = nullptr;
   std::cin.rdbuf(nullptr);
@@ -6274,8 +6264,12 @@ inline auto get_args_usage(const State& state) {
 }
 
 inline auto set_binary_mode() {
-#ifdef ON_WINDOWS
-  _setmode(fileno(stdout), _O_BINARY);  // Sets file mode to binary
+  /*
+    We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
+    Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
+  */
+#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+  _setmode(fileno(stdout), _O_BINARY);
 #endif
 }
 }  // namespace detail
