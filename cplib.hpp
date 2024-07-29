@@ -1832,8 +1832,8 @@ inline auto InStream::read_line() -> std::optional<std::string> {
 
 
 
-#ifndef CPLIB_READER_TRACE_LEVEL_MAX
-#define CPLIB_READER_TRACE_LEVEL_MAX static_cast<int>(::cplib::var::Reader::TraceLevel::FULL)
+#ifndef CPLIB_VAR_READER_TRACE_LEVEL_MAX
+#define CPLIB_VAR_READER_TRACE_LEVEL_MAX static_cast<int>(::cplib::var::Reader::TraceLevel::FULL)
 #endif
 
 namespace cplib::var {
@@ -2893,7 +2893,7 @@ inline Reader::Reader(std::unique_ptr<io::InStream> inner, Reader::TraceLevel tr
                       FailFunc fail_func)
     : inner_(std::move(inner)),
       trace_level_(static_cast<Reader::TraceLevel>(
-          std::min(static_cast<int>(trace_level), CPLIB_READER_TRACE_LEVEL_MAX))),
+          std::min(static_cast<int>(trace_level), CPLIB_VAR_READER_TRACE_LEVEL_MAX))),
       fail_func_(std::move(fail_func)),
       trace_stack_(),
       trace_tree_root_(std::make_unique<TraceTreeNode>(Trace("<root>", 0, 0, 0))),
