@@ -10,36 +10,30 @@
   },
   "type": "module",
   "devDependencies": {
-    "@babel/core": "^7.23.7",
-    "@babel/eslint-parser": "^7.23.3",
-    "@tsconfig/node16": "^16.1.1",
+    "@babel/core": "^7.24.9",
+    "@babel/eslint-parser": "^7.25.1",
+    "@tsconfig/node18": "^18.2.4",
     "@types/fancy-log": "^2.0.2",
     "@types/gulp": "^4.0.17",
-    "@types/lodash": "^4.14.202",
+    "@types/lodash": "^4.17.7",
     "@types/minimist": "^1.2.5",
-    "@types/vinyl": "^2.0.11",
-    "@typescript-eslint/eslint-plugin": "^6.17.0",
-    "@typescript-eslint/parser": "^6.17.0",
+    "@types/vinyl": "^2.0.12",
     "del": "^7.1.0",
-    "eslint": "^8.56.0",
+    "eslint": "^8.57.0",
     "eslint-config-alloy": "^5.1.2",
     "fancy-log": "^2.0.0",
-    "gulp": "^4.0.2",
-    "gulp-eslint-new": "^1.9.0",
-    "gulp-plugin-extras": "^0.3.0",
+    "gulp": "^5.0.0",
+    "gulp-eslint-new": "^2.2.0",
+    "gulp-plugin-extras": "^1.0.0",
     "lodash": "^4.17.21",
     "minimist": "^1.2.8",
-    "prettier": "^3.1.1",
+    "prettier": "^3.3.3",
     "pupa": "^3.1.0",
     "ts-node": "^10.9.2",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^7.17.0",
     "vinyl": "^3.0.0"
   },
-  "pnpm": {
-    "overrides": {
-      "glob-parent@<5.1.2": ">=5.1.2"
-    }
-  },
-  "packageManager": "pnpm@8.15.1+sha256.245fe901f8e7fa8782d7f17d32b6a83995e2ae03984cb5b62b8949bfdc27c7b5"
+  "packageManager": "pnpm@9.6.0+sha512.38dc6fba8dba35b39340b9700112c2fe1e12f10b17134715a4aa98ccf7bb035e76fd981cf0bb384dfa98f8d6af5481c2bef2f4266a24bfa20c34eb7147ce0b5e"
 }

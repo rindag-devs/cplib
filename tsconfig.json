@@ -1,5 +1,5 @@
 {
-  "extends": "@tsconfig/node16/tsconfig.json",
-  "include": ["**/*.ts"],
+  "extends": "@tsconfig/node18/tsconfig.json",
+  "include": ["**/*.ts", "eslint.config.js"],
   "exclude": ["node_modules", "**/*.spec.ts", "docs"]
 }
