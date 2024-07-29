@@ -1,1 +1,1 @@
-{"message":"","status":"valid","traits":{"m_positive":true,"n_positive":true}}
+{"message":"","reader_trace_tree":[{"tag":{"#t":"i","#v":1},"trace":{"b":0,"l":1,"n":"n"}},{"tag":{"#t":"i","#v":2},"trace":{"b":2,"l":1,"n":"m"}}],"status":"valid","traits":{"m_positive":true,"n_positive":true}}

@@ -35,6 +35,10 @@ inline Value::~Value() = default;
 
 inline String::String(std::string inner) : inner(std::move(inner)) {}
 
+[[nodiscard]] inline auto String::clone() const -> std::unique_ptr<Value> {
+  return std::make_unique<String>(*this);
+}
+
 inline auto String::to_string() -> std::string {
   std::stringbuf buf(std::ios_base::out);
   buf.sputc('\"');
@@ -84,13 +88,25 @@ inline auto String::to_string() -> std::string {
 
 inline Int::Int(std::int64_t inner) : inner(inner) {}
 
+[[nodiscard]] inline auto Int::clone() const -> std::unique_ptr<Value> {
+  return std::make_unique<Int>(*this);
+}
+
 inline auto Int::to_string() -> std::string { return std::to_string(inner); }
 
 inline Real::Real(double inner) : inner(inner) {}
 
+[[nodiscard]] inline auto Real::clone() const -> std::unique_ptr<Value> {
+  return std::make_unique<Real>(*this);
+}
+
 inline auto Real::to_string() -> std::string { return cplib::format("%.10g", inner); }
 
 inline Bool::Bool(bool inner) : inner(inner) {}
+
+[[nodiscard]] inline auto Bool::clone() const -> std::unique_ptr<Value> {
+  return std::make_unique<Bool>(*this);
+}
 
 inline auto Bool::to_string() -> std::string {
   if (inner) {
@@ -101,6 +117,17 @@ inline auto Bool::to_string() -> std::string {
 }
 
 inline List::List(std::vector<std::unique_ptr<Value>> inner) : inner(std::move(inner)) {}
+
+[[nodiscard]] inline auto List::clone() const -> std::unique_ptr<Value> {
+  std::vector<std::unique_ptr<Value>> list;
+  list.reserve(inner.size());
+
+  for (const auto& value : inner) {
+    list.push_back(value->clone());
+  }
+
+  return std::make_unique<List>(std::move(list));
+}
 
 inline auto List::to_string() -> std::string {
   std::stringbuf buf(std::ios_base::out);
@@ -121,6 +148,16 @@ inline auto List::to_string() -> std::string {
 }
 
 inline Map::Map(std::map<std::string, std::unique_ptr<Value>> inner) : inner(std::move(inner)) {}
+
+[[nodiscard]] inline auto Map::clone() const -> std::unique_ptr<Value> {
+  std::map<std::string, std::unique_ptr<Value>> map;
+
+  for (const auto& [key, value] : inner) {
+    map.emplace(key, value->clone());
+  }
+
+  return std::make_unique<Map>(std::move(map));
+}
 
 inline auto Map::to_string() -> std::string {
   std::stringbuf buf(std::ios_base::out);

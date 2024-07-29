@@ -64,64 +64,78 @@ inline Initializer::~Initializer() = default;
 
 inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
 
-inline auto Initializer::set_inf_fileno(int fileno) -> void {
+inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
-      fileno, "inf", false,
-      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
-        state_->reporter->attach_trace_stack(traces);
+      fileno, "inf", false, trace_level,
+      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+        }
         panic(msg);
       });
 }
 
-inline auto Initializer::set_ouf_fileno(int fileno) -> void {
+inline auto Initializer::set_ouf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
   state_->ouf = var::detail::make_reader_by_fileno(
-      fileno, "ouf", false,
-      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
-        state_->reporter->attach_trace_stack(traces);
+      fileno, "ouf", false, trace_level,
+      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+        }
         state_->quit_wa(msg);
       });
 }
 
-inline auto Initializer::set_ans_fileno(int fileno) -> void {
+inline auto Initializer::set_ans_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
   state_->ans = var::detail::make_reader_by_fileno(
-      fileno, "ans", false,
-      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
-        state_->reporter->attach_trace_stack(traces);
+      fileno, "ans", false, trace_level,
+      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+        }
         panic(msg);
       });
 }
 
-inline auto Initializer::set_inf_path(std::string_view path) -> void {
+inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
+    -> void {
   state_->inf = var::detail::make_reader_by_path(
-      path, "inf", false,
-      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
-        state_->reporter->attach_trace_stack(traces);
+      path, "inf", false, trace_level,
+      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+        }
         panic(msg);
       });
 }
 
-inline auto Initializer::set_ouf_path(std::string_view path) -> void {
+inline auto Initializer::set_ouf_path(std::string_view path, var::Reader::TraceLevel trace_level)
+    -> void {
   state_->ouf = var::detail::make_reader_by_path(
-      path, "ouf", false,
-      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
-        state_->reporter->attach_trace_stack(traces);
+      path, "ouf", false, trace_level,
+      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+        }
         state_->quit_wa(msg);
       });
 }
 
-inline auto Initializer::set_ans_path(std::string_view path) -> void {
+inline auto Initializer::set_ans_path(std::string_view path, var::Reader::TraceLevel trace_level)
+    -> void {
   state_->ans = var::detail::make_reader_by_path(
-      path, "ans", false,
-      [this](std::string_view msg, const cplib::var::Reader::TraceStack& traces) {
-        state_->reporter->attach_trace_stack(traces);
+      path, "ans", false, trace_level,
+      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+        }
         panic(msg);
       });
 }
 
 inline Reporter::~Reporter() = default;
 
-inline auto Reporter::attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack)
-    -> void {
+inline auto Reporter::attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void {
   trace_stack_ = trace_stack;
 }
 
@@ -129,9 +143,9 @@ inline auto Reporter::attach_trace_stack(const cplib::var::Reader::TraceStack& t
 
 inline State::State(std::unique_ptr<Initializer> initializer)
     : rnd(),
-      inf(var::Reader(nullptr, {})),
-      ouf(var::Reader(nullptr, {})),
-      ans(var::Reader(nullptr, {})),
+      inf(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
+      ouf(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
+      ans(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
       initializer(std::move(initializer)),
       reporter(std::make_unique<JsonReporter>()) {
   this->initializer->set_state(*this);
@@ -229,7 +243,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
     -> void {
   detail::detect_reporter(*state_);
 
-  auto parsed_args = cplib::cmd_args::ParsedArgs(args);
+  auto parsed_args = cmd_args::ParsedArgs(args);
 
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
@@ -257,9 +271,9 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
   auto ouf_path = parsed_args.ordered[1];
   auto ans_path = parsed_args.ordered[2];
 
-  set_inf_path(inf_path);
-  set_ouf_path(ouf_path);
-  set_ans_path(ans_path);
+  set_inf_path(inf_path, var::Reader::TraceLevel::STACK_ONLY);
+  set_ouf_path(ouf_path, var::Reader::TraceLevel::STACK_ONLY);
+  set_ans_path(ans_path, var::Reader::TraceLevel::STACK_ONLY);
 }
 // /Impl DefaultInitializer }}}
 
@@ -299,17 +313,16 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }  // namespace detail
 
 inline auto JsonReporter::report(const Report& report) -> void {
-  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
-  map.emplace("status",
-              std::make_unique<cplib::json::String>(std::string(report.status.to_string())));
-  map.emplace("score", std::make_unique<cplib::json::Real>(report.score));
-  map.emplace("message", std::make_unique<cplib::json::String>(report.message));
+  std::map<std::string, std::unique_ptr<json::Value>> map;
+  map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
+  map.emplace("score", std::make_unique<json::Real>(report.score));
+  map.emplace("message", std::make_unique<json::String>(report.message));
 
   if (trace_stack_.has_value()) {
     map.emplace("reader_trace_stack", trace_stack_->to_json());
   }
 
-  std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
+  std::clog << json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 

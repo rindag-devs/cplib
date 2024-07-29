@@ -189,7 +189,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
   std::sort(state_->required_flag_args.begin(), state_->required_flag_args.end());
   std::sort(state_->required_var_args.begin(), state_->required_var_args.end());
 
-  auto parsed_args = cplib::cmd_args::ParsedArgs(args);
+  auto parsed_args = cmd_args::ParsedArgs(args);
   auto args_usage = detail::get_args_usage(*state_);
   std::set<std::string> flag_args;
   std::map<std::string, std::string> var_args;
@@ -267,12 +267,11 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }  // namespace detail
 
 inline auto JsonReporter::report(const Report& report) -> void {
-  std::map<std::string, std::unique_ptr<cplib::json::Value>> map;
-  map.emplace("status",
-              std::make_unique<cplib::json::String>(std::string(report.status.to_string())));
-  map.emplace("message", std::make_unique<cplib::json::String>(report.message));
+  std::map<std::string, std::unique_ptr<json::Value>> map;
+  map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
+  map.emplace("message", std::make_unique<json::String>(report.message));
 
-  std::clog << cplib::json::Map(std::move(map)).to_string() << '\n';
+  std::clog << json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 

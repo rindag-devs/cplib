@@ -19,6 +19,8 @@ namespace cplib::json {
 struct Value {
   virtual ~Value() = 0;
 
+  [[nodiscard]] virtual auto clone() const -> std::unique_ptr<Value> = 0;
+
   virtual auto to_string() -> std::string = 0;
 };
 
@@ -26,6 +28,8 @@ struct String : Value {
   std::string inner;
 
   explicit String(std::string inner);
+
+  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
 
   auto to_string() -> std::string override;
 };
@@ -35,6 +39,8 @@ struct Int : Value {
 
   explicit Int(std::int64_t inner);
 
+  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
+
   auto to_string() -> std::string override;
 };
 
@@ -42,6 +48,8 @@ struct Real : Value {
   double inner;
 
   explicit Real(double inner);
+
+  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
 
   auto to_string() -> std::string override;
 };
@@ -51,6 +59,8 @@ struct Bool : Value {
 
   explicit Bool(bool inner);
 
+  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
+
   auto to_string() -> std::string override;
 };
 
@@ -59,6 +69,8 @@ struct List : Value {
 
   explicit List(std::vector<std::unique_ptr<Value>> inner);
 
+  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
+
   auto to_string() -> std::string override;
 };
 
@@ -66,6 +78,8 @@ struct Map : Value {
   std::map<std::string, std::unique_ptr<Value>> inner;
 
   explicit Map(std::map<std::string, std::unique_ptr<Value>> inner);
+
+  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
 
   auto to_string() -> std::string override;
 };

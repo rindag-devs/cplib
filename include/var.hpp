@@ -8,6 +8,7 @@
 #ifndef CPLIB_VAR_HPP_
 #define CPLIB_VAR_HPP_
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <functional>
@@ -26,6 +27,10 @@
 #include "utils.hpp"
 /* cplib_embed_ignore end */
 
+#ifndef CPLIB_VAR_READER_TRACE_LEVEL_MAX
+#define CPLIB_VAR_READER_TRACE_LEVEL_MAX static_cast<int>(::cplib::var::Reader::TraceLevel::FULL)
+#endif
+
 namespace cplib::var {
 template <class T, class D>
 struct Var;
@@ -36,6 +41,15 @@ struct Var;
 struct Reader {
  public:
   /**
+   * Trace level.
+   */
+  enum struct TraceLevel {
+    NONE,        /// Do not trace.
+    STACK_ONLY,  /// Enable trace stack only.
+    FULL,        /// Trace the whole input stream. Enable trace stack and trace tree.
+  };
+
+  /**
    * `Trace` represents trace information for a variable.
    */
   struct Trace {
@@ -43,17 +57,30 @@ struct Reader {
     std::size_t line_num;
     std::size_t col_num;
     std::size_t byte_num;
+
+    /// The length of the variable in the raw stream, units of bytes.
+    /// Incomplete variables will have zero length.
+    std::size_t byte_length{0};
+
+    explicit Trace(std::string var_name, std::size_t line_num, std::size_t col_num,
+                   std::size_t byte_num);
+
+    /// Convert incomplete trace to JSON map.
+    [[nodiscard]] auto to_json_incomplete() const -> std::unique_ptr<json::Map>;
+
+    /// Convert complete trace to JSON map.
+    [[nodiscard]] auto to_json_complete() const -> std::unique_ptr<json::Map>;
   };
 
   /**
-   * `TraceStack` represents a stack of trace.;
+   * `TraceStack` represents a stack of trace.
    */
   struct TraceStack {
     std::vector<Trace> stack;
     std::string stream_name;
 
     /// Convert to JSON map.
-    [[nodiscard]] auto to_json() const -> std::unique_ptr<cplib::json::Map>;
+    [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
 
     /// Convert to human-friendly plain text.
     /// Each line does not contain the trailing `\n` character.
@@ -64,14 +91,77 @@ struct Reader {
     [[nodiscard]] auto to_colored_text_lines() const -> std::vector<std::string>;
   };
 
-  using FailFunc = UniqueFunction<auto(std::string_view, const TraceStack&)->void>;
+  /**
+   * `TraceTreeNode` represents a node of trace tree.
+   */
+  struct TraceTreeNode {
+   public:
+    Trace trace;
+    std::unique_ptr<json::Map> json_tag{nullptr};
+
+    /**
+     * Create a TraceTreeNode with trace.
+     *
+     * @param trace The trace of the node.
+     */
+    explicit TraceTreeNode(Trace trace);
+
+    /// Copy constructor (deleted to prevent copying).
+    TraceTreeNode(const TraceTreeNode&) = delete;
+
+    /// Copy assignment operator (deleted to prevent copying).
+    auto operator=(const TraceTreeNode&) -> TraceTreeNode& = delete;
+
+    /// Move constructor.
+    TraceTreeNode(TraceTreeNode&&) = default;
+
+    /// Move assignment operator.
+    auto operator=(TraceTreeNode&&) -> TraceTreeNode& = default;
+
+    /**
+     * Get the children of the node.
+     *
+     * @return The children of the node.
+     */
+    [[nodiscard]] auto get_children() const -> const std::vector<std::unique_ptr<TraceTreeNode>>&;
+
+    /**
+     * Get the parent of the node.
+     *
+     * @return The parent of the node.
+     */
+    [[nodiscard]] auto get_parent() -> TraceTreeNode*;
+
+    /**
+     * Convert to JSON value.
+     *
+     * If node has tag `#hidden`, return `nullptr`.
+     *
+     * @return The JSON value or nullptr.
+     */
+    [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
+
+    /**
+     * Convert a node to its child and return it again (as reference).
+     *
+     * @param child The child node.
+     * @return The child node.
+     */
+    auto add_child(std::unique_ptr<TraceTreeNode> child) -> std::unique_ptr<TraceTreeNode>&;
+
+   private:
+    std::vector<std::unique_ptr<TraceTreeNode>> children_{};
+    TraceTreeNode* parent_{nullptr};
+  };
+
+  using FailFunc = UniqueFunction<auto(const Reader&, std::string_view)->void>;
 
   /**
-   * Create a root reader of input stream.
+   * Create a reader of input stream.
    *
    * @param inner The inner input stream to wrap.
    */
-  explicit Reader(std::unique_ptr<io::InStream> inner, FailFunc fail_func);
+  explicit Reader(std::unique_ptr<io::InStream> inner, TraceLevel trace_level, FailFunc fail_func);
 
   /// Copy constructor (deleted to prevent copying).
   Reader(const Reader&) = delete;
@@ -120,10 +210,41 @@ struct Reader {
   template <class... T>
   auto operator()(T... vars) -> std::tuple<typename T::Var::Target...>;
 
+  /**
+   * Get the trace level.
+   */
+  [[nodiscard]] auto get_trace_level() const -> TraceLevel;
+
+  /**
+   * Get the trace stack.
+   *
+   * Only available when `TraceLevel::STACK_ONLY` or higher is set.
+   * Otherwise, an error will be panicked.
+   */
+  [[nodiscard]] auto get_trace_stack() const -> TraceStack;
+
+  /**
+   * Get the trace tree.
+   *
+   * Only available when `TraceLevel::FULL` is set.
+   * Otherwise, an error will be panicked.
+   */
+  [[nodiscard]] auto get_trace_tree() const -> const TraceTreeNode*;
+
+  /**
+   * Attach a JSON tag to the current trace.
+   *
+   * @param tag The JSON tag.
+   */
+  auto attach_json_tag(std::string_view key, std::unique_ptr<json::Value> value);
+
  private:
   std::unique_ptr<io::InStream> inner_;
-  std::vector<Trace> traces_{};
+  TraceLevel trace_level_;
   FailFunc fail_func_;
+  std::vector<Trace> trace_stack_;
+  std::unique_ptr<TraceTreeNode> trace_tree_root_;
+  TraceTreeNode* trace_tree_current_;
 };
 
 template <class T>
@@ -590,8 +711,8 @@ struct Mat : Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>> {
 };
 
 /**
- * `Pair` is a variable reading template that reads two variables separated by a given separator and
- * returns them as `std::pair`.
+ * `Pair` is a variable reading template that reads two variables separated by a given separator
+ * and returns them as `std::pair`.
  *
  * @tparam F The type of the first variable reading template.
  * @tparam S The type of the second variable reading template.
@@ -705,8 +826,8 @@ struct Tuple : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
 /**
  * `FnVar` is used to wrap a function into a variable reading template.
  *
- * The type of the first parameter of the wrapped function must be `cplib::var::Reader`, and
- * subsequent parameters (which may not exist) are arbitrary.
+ * The type of the first parameter of the wrapped function must be `var::Reader`, and subsequent
+ * parameters (which may not exist) are arbitrary.
  *
  * @tparam F The type of the function.
  */
@@ -743,8 +864,8 @@ struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
  * For a type `T` which has implemented `static auto T::read(var::Reader&, ...) -> T`,
  * `ExtVar<T>` provides a variable template for creating `T` by calling `T::read`.
  *
- * @tparam T The type of the variable, which must have a static `auto T::read(var::Reader&, ...) ->
- * T`
+ * @tparam T The type of the variable, which must have a static `auto T::read(var::Reader&, ...)
+ * -> T`
  */
 template <class T>
 struct ExtVar : Var<T, ExtVar<T>> {

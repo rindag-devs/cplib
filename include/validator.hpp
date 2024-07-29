@@ -137,10 +137,10 @@ struct Initializer {
   virtual auto init(std::string_view argv0, const std::vector<std::string>& args) -> void = 0;
 
  protected:
-  State* state_;
+  State* state_{};
 
-  auto set_inf_fileno(int fileno) -> void;
-  auto set_inf_path(std::string_view path) -> void;
+  auto set_inf_fileno(int fileno, var::Reader::TraceLevel level) -> void;
+  auto set_inf_path(std::string_view path, var::Reader::TraceLevel level) -> void;
 };
 
 /**
@@ -152,13 +152,16 @@ struct Reporter {
 
   [[noreturn]] virtual auto report(const Report& report) -> void = 0;
 
-  auto attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack) -> void;
+  auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
+
+  auto attach_trace_tree(const var::Reader::TraceTreeNode* root) -> void;
 
   auto attach_trait_status(const std::map<std::string, bool>& trait_status) -> void;
 
  protected:
-  std::optional<cplib::var::Reader::TraceStack> trace_stack_;
-  std::map<std::string, bool> trait_status_;
+  std::optional<var::Reader::TraceStack> trace_stack_{};
+  const var::Reader::TraceTreeNode* trace_tree_{};
+  std::map<std::string, bool> trait_status_{};
 };
 
 struct State {

@@ -9,6 +9,7 @@
  */
 
 #include <cstdint>
+#include <tuple>
 
 #include "cplib.hpp"
 

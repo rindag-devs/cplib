@@ -103,7 +103,7 @@ struct Initializer {
   virtual auto init(std::string_view argv0, const std::vector<std::string>& args) -> void = 0;
 
  protected:
-  State* state_;
+  State* state_{};
 };
 
 /**

@@ -109,14 +109,14 @@ struct Initializer {
   virtual auto init(std::string_view argv0, const std::vector<std::string>& args) -> void = 0;
 
  protected:
-  State* state_;
+  State* state_{};
 
-  auto set_inf_fileno(int fileno) -> void;
-  auto set_ouf_fileno(int fileno) -> void;
-  auto set_ans_fileno(int fileno) -> void;
-  auto set_inf_path(std::string_view path) -> void;
-  auto set_ouf_path(std::string_view path) -> void;
-  auto set_ans_path(std::string_view path) -> void;
+  auto set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
+  auto set_ouf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
+  auto set_ans_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
+  auto set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
+  auto set_ouf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
+  auto set_ans_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
 };
 
 /**
@@ -128,10 +128,10 @@ struct Reporter {
 
   [[noreturn]] virtual auto report(const Report& report) -> void = 0;
 
-  auto attach_trace_stack(const cplib::var::Reader::TraceStack& trace_stack) -> void;
+  auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
 
  protected:
-  std::optional<cplib::var::Reader::TraceStack> trace_stack_;
+  std::optional<var::Reader::TraceStack> trace_stack_{};
 };
 
 /**
