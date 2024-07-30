@@ -3764,13 +3764,13 @@ struct ParsedArgs {
 namespace cplib::cmd_args {
 
 namespace detail {
-auto split_var(std::string_view var) -> std::pair<std::string_view, std::string_view> {
+inline auto split_var(std::string_view var) -> std::pair<std::string_view, std::string_view> {
   auto eq_pos = var.find('=');
   return {var.substr(2, eq_pos - 2), var.substr(eq_pos + 1)};
 }
 }  // namespace detail
 
-ParsedArgs::ParsedArgs(const std::vector<std::string>& args) {
+inline ParsedArgs::ParsedArgs(const std::vector<std::string>& args) {
   std::optional<std::string> last_flag;
 
   for (const auto& arg : args) {
@@ -3809,7 +3809,7 @@ ParsedArgs::ParsedArgs(const std::vector<std::string>& args) {
   std::sort(flags.begin(), flags.end());
 }
 
-auto ParsedArgs::has_flag(std::string_view name) const -> bool {
+inline auto ParsedArgs::has_flag(std::string_view name) const -> bool {
   return std::binary_search(flags.begin(), flags.end(), name);
 }
 
