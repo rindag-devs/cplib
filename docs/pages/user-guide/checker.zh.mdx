@@ -291,10 +291,10 @@ struct Output {
   }
 
   static void check(const Output& expected, const Output& result) {
-    if (result.sum < expected.sum)
+    if (result.sum > expected.sum)
       chk.quit_wa(format("Wrong sum, expected %d, got %d", expected.sum, result.sum));
 
-    if (result.sum > expected.sum)
+    if (result.sum < expected.sum)
       panic(format("Contestant answers are better than standard answers, expected %d, got %d",
                    expected.sum, result.sum));
   }
