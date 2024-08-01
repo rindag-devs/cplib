@@ -1,0 +1,90 @@
+import { Callout } from "nextra-theme-docs";
+
+# Trace
+
+Trace 是 CPLib 的特色功能，它可以记录变量读入时的包含关系．通过此功能，CPLib 可以在变量读入出现错误时候提供读入栈轨迹，或是将输入文件转化为易于解析的 JSON 格式．
+
+## 简介
+
+Trace 的原理是在使用 `cplib::var::Reader::read` 读取变量时维护一个变量包含关系组成的栈（或同时有树），在即将读入变量时将输入流当前的行列位置、字节序数、变量名称等信息入栈（或在树上当前结点添加叶子），在变量读入结束时候出栈（或回溯至树上的父亲结点）．
+
+CPLib 中具有两种形式的 trace：trace stack 和 trace tree，分别对应栈和树．其中，trace stack 仅包含变量基本信息，而 trace tree 允许在结点上添加附加 JSON tag 来描述附加信息．
+
+## JSON Tag
+
+你可以在 trace tree 的结点上添加 JSON tag 来描述更加详细的信息．JSON tag 是一个字符串键名到任意 CPLib 所支持的 JSON value 的映射．
+
+在实现自定义类型（如 `FnVar` 或 `ExtVar`）时，可以调用 `in.attach_json_tag(key, value)` 来自定义一个键名为 `key`，值为 `value` 附加信息（`in` 是当前读入的 Reader）．`key` 不要重复，否则后定义的会覆盖先定义的．
+
+CPLib 内置变量读入模版（`cplib::var::Separator` 除外）在读入变量结束时会添加一个键 `#t` 表示变量的类型．若读入的类型属于基本类型或字符串，还会额外添加一个键 `#v` 表示变量读入到的值．变量读入模版和 `#t` 的值对应如下：
+
+|     Var     | #t  |
+| ----------- | --- |
+| Int         | i   |
+| Float       | f   |
+| StrictFloat | sf  |
+| YesNo       | yn  |
+| String      | s   |
+| Line        | l   |
+| Vec         | v   |
+| Mat         | m   |
+| Pair        | p   |
+| Tuple       | t   |
+| FnVar       | F   |
+| ExtVar      | E   |
+
+`#hidden` 是一个特殊的键，若一个结点的 JSON tag 中存在这个键（无论值如何），当前结点的子树内结点会在编码为 JSON 时被忽略．变量读入模版`cplib::var::Separator` 会在读入完成时为当前结点添加 `#hidden`．
+
+<Callout type="warning">
+  以 `#` 开头的 `key` 名称均视为 CPLib 保留或有特殊用途．自定义附加信息时最好不要使用特殊前缀开头．
+</Callout>
+
+## 接口
+
+CPLib 中与 trace 相关的接口如下．
+
+### `cplib::var::Reader::TraceLevel`
+
+`cplib::var::Reader::TraceLevel` 表示 Reader 的 trace 启用级别，有三种取值：
+
+- `NONE`（0）：完全关闭 trace．
+- `STACK_ONLY`（1）：仅启用 trace stack．
+- `FULL`（2）：开启 trace stack 和 trace tree．
+
+在使用 `DefaultInitializer` 的默认情况下，validator 模式的 inf 读入器具有 `FULL` 级别，其他模式下的 Reader 均具有 `STACK_ONLY` 级别．
+
+你可以使用 `CPLIB_VAR_READER_TRACE_LEVEL_MAX` 宏来设置 DefaultInitializer 使用的最高 trace level．具体方式可以在编译时添加命令行参数 `-DCPLIB_VAR_READER_TRACE_LEVEL_MAX={int}` 或在 `#include "cplib.h"` 之前定义 `#define CPLIB_VAR_READER_TRACE_LEVEL_MAX {int}`．
+
+你可以使用 `cplib::var::Reader::get_trace_level()` 方法获取当前 Reader 的 trace level．
+
+### `cplib::var::Reader::Trace`
+
+包含一个变量的基本信息：
+
+- `var_name`：变量名称．
+- `line_num`：读入开始时的行号，从 0 编号．
+- `col_num`：读入开始时的列号，从 0 编号．
+- `byte_num`：读入开始时的字节序数，从 0 编号．
+- `byte_length`：变量对应原始内容的字节长度．特别地，未完成读入的变量为 0．
+
+提供 `to_json_incomplete` 和 `to_json_complete` 两个函数来将自身内容编码为 JSON，分别适用于未完成读入的变量和已完成读入的变量．其中，`to_json_incomplete` 会使用原有名称导出除 `byte_length` 所有字段；而 `to_json_complete` 仅会导出 `var_name`、`byte_num`、`byte_length` 三个字段，且为了避免生成的 JSON 过长，三个字段会被重命名为 `n`、`b`、`l`．
+
+### `cplib::var::Reader::TraceStack`
+
+记录当前变量的读入栈，或者也可以视为读入树从根（不包含）到当前结点（包含）的链．
+
+提供 `to_json()`、`to_plain_text_lines()`、`to_colored_text_lines()` 三个方法来将其转换为对应格式．
+
+对于开启了 `STACK_ONLY` 及以上级别的 Reader，你可以使用 `cplib::var::Reader::get_trace_stack()` 方法获取当前读入的变量的 trace stack．
+
+### `cplib::var::Reader::TraceTreeNode`
+
+表示 trace tree 上的一个结点．
+
+字段 `trace` 以 `cplib::var::Reader::Trace` 类型记录变量基本信息，`json_tag` 记录变量附加信息．
+
+提供 `get_children()` 方法获取当前结点的子节点；`get_parent()` 方法获取当前结点的父结点，若不存在返回 `nullptr`．
+
+提供 `to_json()` 方法来将其子树转换为 JSON．
+
+对于开启了 `FULL` 级别的 Reader，你可以使用 `cplib::var::Reader::get_trace_tree()` 方法获取该 Reader 读入的所有变量的 trace tree 的根结点．根结点的 Trace 变量名为 `<root>`．

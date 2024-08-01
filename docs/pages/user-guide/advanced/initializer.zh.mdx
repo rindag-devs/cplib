@@ -1,0 +1,129 @@
+import { Callout } from "nextra-theme-docs";
+
+# Initializer
+
+如果你需要在不原生适配 CPLib 的评测平台使用 CPLib，最好的使用方式是实现一个自定义的 initializer．下面将以为 [CMS](https://cms-dev.github.io/) 平台编写 checker 为实例，展示自定义 initializer 的编写方式．
+
+Initializer 需要做的事情可分为三步：
+
+1. 读取并解析命令行参数．
+1. 设置程序所需要的输入输出流和变量 Reader．
+1. 设置报告器（Reporter）．
+
+根据 [CMS 官方文档](https://github.com/cms-dev/cms/blob/v1.4/docs/Task%20types.rst#standard-manager-output)，该平台的 checker 执行细节如下：
+
+- 使用 `./checker <inf> <ans> <ouf>` 命令行参数运行程序．
+- 汇报时在 stdout 输出 $[0,1]$ 范围内的实数作为分数，在 stderr 输出一行一个字符串 `translate:success`、`translate:wrong` 或 `translate:partial`， 分别代表结果 AC，WA 或 PC．
+- 在不发生内部错误的情况下，checker 的运行返回值必须为 0．
+
+下面是一个示例实现：
+
+```cpp
+struct CmsReporter : cplib::checker::Reporter {
+
+  [[noreturn]] auto report(const cplib::checker::Report &report)
+      -> void override {
+    std::cout << std::fixed << std::setprecision(10) << report.score << '\n';
+
+    switch (report.status) {
+    case cplib::checker::Report::Status::INTERNAL_ERROR:
+      std::clog << "FAIL " << report.status << '\n';
+      std::exit(1);
+    case cplib::checker::Report::Status::ACCEPTED:
+      std::clog << "translate:success\n";
+      break;
+    case cplib::checker::Report::Status::WRONG_ANSWER:
+      std::clog << "translate:wrong\n";
+      break;
+    case cplib::checker::Report::Status::PARTIALLY_CORRECT:
+      std::clog << "translate:partial\n";
+      break;
+    default:
+      std::clog << "FAIL invalid status\n";
+      std::exit(1);
+    }
+    std::exit(0);
+  }
+};
+
+struct CmsInitializer : cplib::checker::Initializer {
+  auto init(std::string_view arg0, const std::vector<std::string> &args)
+      -> void override {
+    if (args.size() != 3) {
+      std::cerr << "Usage: " << arg0 << " <inf> <ans> <ouf>";
+      std::exit(1);
+    }
+
+    auto& state = this->state();
+
+    state.reporter = std::make_unique<CmsReporter>();
+
+    auto inf = args[0];
+    auto ouf = args[2];
+    auto ans = args[1];
+
+    set_inf_path(inf, cplib::var::Reader::TraceLevel::NONE);
+    set_ouf_path(ouf, cplib::var::Reader::TraceLevel::NONE);
+    set_ans_path(ans, cplib::var::Reader::TraceLevel::NONE);
+  }
+};
+```
+
+Reporter 需继承自 `cplib::<work-mode>::Reporter` 并实现 `[[noreturn]] auto report(const cplib::<work-mode>::Report &report) -> void` 函数．
+
+Initializer 需继承自 `cplib::<work-modeInitializerReporter` 并实现 `auto init(std::string_view arg0, const std::vector<std::string> &args) -> void` 函数．
+
+我们聚焦 `CmsInitializer` 的实现．它首先实现了 `init` 函数，其中的参数 `arg0` 表示命令行参数的第一项（`./chk`），即调用程序自己的路径．而 `args` 代表了后续的参数（`<inf> <ans> <ouf>`）．
+
+首先调用 `this->state()` 获取准备初始化的 `cplib::checker::State` 的对象．之后从 args 参数中提取输入输出文件的路径．对于本例，由于命令行参数较为简单，可以直接处理．但如果遇到命令行参数较为复杂的情况，可借助 `cplib::cmd_args::ParsedArgs` 进行处理．
+
+<Callout type="info">
+  例如，若某平台要求的命令行参数格式如 `./chk <inf> <ouf> <ans> --full-score={int} [--report-as-json]`，可通过以下代码进行处理： 
+
+  ```cpp
+  auto parsed_args = cplib::cmd_args::ParsedArgs(args);
+
+  bool report_as_json = parsed_args.has_flag("report-as-json");
+  int full_score = cplib::var::i32("full-score", 0, std::nullopt)
+                       .parse(parsed_args.vars.at("full-score"));
+  auto inf = parsed_args.ordered[0];
+  auto ouf = parsed_args.ordered[1];
+  auto ans = parsed_args.ordered[2];
+  ```
+
+  ParsedArgs 会将所有命令行参数分为三类：
+
+  - `var`：形如 `--var=value` 或 `--var value`．
+  - `flag`：形如 `--flag`．
+  - `ordered`：不属于前两类的元素按照相对顺序存储于 `ordered`．
+</Callout>
+
+值得注意的是 `set_(inf|ouf|ans)_path` 函数的使用．为初始化输入输出流和 Reader 方便，CPLib 对于继承了 `cplib::checker::Initializer` 的对象提供了形如 `set_<name>_<source>` 的一系列函数，其中 `<name>` 代表 Reader 或输出流的名称，`<source>` 是 `fileno` 或 `path` 的其中之一，分别代表使用 [fileno（stdio 流的文件描述符）](https://www.man7.org/linux/man-pages/man3/fileno.3.html) 和本地文件作为内容．
+
+对于 checker，可用的 `<name>` 取值如下表格所式：
+
+| 名称 |  类型  |      描述      |
+| ---- | ------ | -------------- |
+| inf  | Reader | 测试点输入文件 |
+| ouf  | Reader | 选手输出文件   |
+| ans  | Reader | 标准答案文件   |
+
+对于 interactor，可用的 `<name>` 取值如下表格所式：
+
+|   名称    |  类型   |      描述      |
+| --------- | ------- | -------------- |
+| inf       | Reader  | 测试点输入文件 |
+| from_user | Reader  | 用户输入流     |
+| to_user   | ostream | 用户输出流     |
+
+对于 validator，可用的 `<name>` 取值如下表格所式：
+
+| 名称 |  类型  |      描述      |
+| ---- | ------ | -------------- |
+| inf  | Reader | 测试点输入文件 |
+
+若 `<name>` 类型为 Reader，则还需额外传递一个参数代表 Reader 的 trace level，具体含义见 [Trace](/user-guide/advanced/trace) 一章说明．
+
+<Callout type="warning">
+  不要在实现 `Reporter::report` 的时候通过调用 `cplib::panic` 函数报告错误．因为 CPLib 程序在初始化的时候会将 panic 实现修改为以 INTERNAL_ERROR 作为 status 调用 `Reporter::report`．这会引起无限递归．
+</Callout>

@@ -1,0 +1,127 @@
+import { Callout } from "nextra-theme-docs";
+
+# Initializer
+
+If you need to use CPLib on an evaluation platform that does not natively support it, the best way to use it is to implement a custom initializer. The following will use the example of writing a checker for the [CMS](https://cms-dev.github.io/) platform to demonstrate how to write a custom initializer.
+
+The initializer needs to do three things:
+
+1. Read and parse the command line arguments.
+1. Set up the input/output streams and the Reader variable required by the program.
+1. Set up the reporter.
+
+According to the [CMS official documentation](https://github.com/cms-dev/cms/blob/v1.4/docs/Task%20types.rst#standard-manager-output), the execution details of the checker on this platform are as follows:
+
+- The program is run using the command `./checker <inf> <ans> <ouf>`.
+- When reporting, output a real number in the range $[0,1]$ to stdout as the score, and output a single string `translate:success`, `translate:wrong`, or `translate:partial` to stderr, representing the result AC, WA, or PC, respectively.
+- If no internal errors occur, the checker's return value must be 0.
+
+Here is a sample implementation:
+
+```cpp
+struct CmsReporter : cplib::checker::Reporter {
+
+  [[noreturn]] auto report(const cplib::checker::Report &report)
+      -> void override {
+    std::cout << std::fixed << std::setprecision(10) << report.score << '\n';
+
+    switch (report.status) {
+    case cplib::checker::Report::Status::INTERNAL_ERROR:
+      std::clog << "FAIL " << report.status << '\n';
+      std::exit(1);
+    case cplib::checker::Report::Status::ACCEPTED:
+      std::clog << "translate:success\n";
+      break;
+    case cplib::checker::Report::Status::WRONG_ANSWER:
+      std::clog << "translate:wrong\n";
+      break;
+    case cplib::checker::Report::Status::PARTIALLY_CORRECT:
+      std::clog << "translate:partial\n";
+      break;
+    default:
+      std::clog << "FAIL invalid status\n";
+      std::exit(1);
+    }
+
+    std::exit(0);
+  }
+};
+
+struct CmsInitializer : cplib::checker::Initializer {
+  auto init(std::string_view arg0, const std::vector<std::string> &args)
+      -> void override {
+    if (args.size() != 3) {
+      std::cerr << "Usage: " << arg0 << " <inf> <ans> <ouf>";
+      std::exit(1);
+    }
+
+    state_->reporter = std::make_unique<CmsReporter>();
+
+    auto inf = args[0];
+    auto ans = args[1];
+    auto ouf = args[2];
+
+    set_inf_path(inf, cplib::var::Reader::TraceLevel::NONE);
+    set_ouf_path(ouf, cplib::var::Reader::TraceLevel::NONE);
+    set_ans_path(ans, cplib::var::Reader::TraceLevel::NONE);
+  }
+};
+```
+The Reporter needs to inherit from `cplib::<work-mode>::Reporter` and implement the `[[noreturn]] auto report(const cplib::<work-mode>::Report &report) -> void` function.
+
+The initializer needs to inherit from `cplib::<work-mode>Initializer` and implement the `auto init(std::string_view arg0, const std::vector<std::string> &args) -> void` function.
+
+Let's focus on the implementation of `CmsInitializer`. It first implements the `init` function, where the parameter `arg0` represents the first item of the command line arguments (i.e., the path to the program being called), and `args` represents the subsequent arguments (`<inf> <ans> <ouf>`).
+
+First, it calls `this->state()` to get the `cplib::checker::State` object that needs to be initialized. Then it extracts the paths of the input and output files from the `args` parameter. In this example, since the command line arguments are relatively simple, they can be processed directly. However, if the command line arguments are more complex, you can use `cplib::cmd_args::ParsedArgs` to process them.
+
+<Callout type="info">
+  For example, if a platform requires the command line arguments to be in the format `./chk <inf> <ouf> <ans> --full-score={int} [--report-as-json]`, you can process them as follows:
+
+  ```cpp
+  auto parsed_args = cplib::cmd_args::ParsedArgs(args);
+
+  bool report_as_json = parsed_args.has_flag("report-as-json");
+  int full_score = cplib::var::i32("full-score", 0, std::nullopt)
+                       .parse(parsed_args.vars.at("full-score"));
+  auto inf = parsed_args.ordered[0];
+  auto ouf = parsed_args.ordered[1];
+  auto ans = parsed_args.ordered[2];
+  ```
+
+  ParsedArgs will divide all command line arguments into three categories:
+
+  - `var`: In the form of `--var=value` or `--var value`.
+  - `flag`: In the form of `--flag`.
+  - `ordered`: Elements that do not belong to the first two categories are stored in `ordered` in the order they appear.
+</Callout>
+
+Of note is the use of the `set_(inf|ouf|ans)_path` functions. To facilitate the initialization of input/output streams and the Reader, CPLib provides a series of functions in the form of `set_<name>_<source>` for objects that inherit from `cplib::checker::Initializer`, where `<name>` represents the name of the Reader or output stream, and `<source>` is either `fileno` or `path`, representing the use of the [fileno (file descriptor of stdio stream)](https://www.man7.org/linux/man-pages/man3/fileno.3.html) and local files as content, respectively.
+
+For checkers, the available `<name>` values are as follows:
+
+| Name |  Type  |       Description       |
+| ---- | ------ | ----------------------- |
+| inf  | Reader | Input file              |
+| ouf  | Reader | Participant output file |
+| ans  | Reader | Answer file             |
+
+For interactors, the available `<name>` values are as follows:
+
+| Name     | Type    | Description    |
+| --------- | ------- | -------------- |
+| inf       | Reader  | Input file     |
+| from_user | Reader  | User input     |
+| to_user   | ostream | User output    |
+
+For validators, the available `<name>` values are as follows:
+
+| Name | Type   | Description    |
+| ---- | ------ | -------------- |
+| inf  | Reader | Input file     |
+
+If the `<name>` type is Reader, an additional parameter representing the Reader's trace level needs to be passed, the meaning of which is explained in the [Trace](/user-guide/advanced/trace) chapter.
+
+<Callout type="warning">
+  Do not report errors by calling the `cplib::panic` function when implementing `Reporter::report`. This is because CPLib programs modify the panic implementation during initialization to call `Reporter::report` with `INTERNAL_ERROR` as the status, which will cause an infinite recursion.
+</Callout>

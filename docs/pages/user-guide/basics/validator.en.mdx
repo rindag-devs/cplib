@@ -2,7 +2,7 @@ import { Callout } from "nextra-theme-docs";
 
 # Validator
 
-Before reading this chapter, please make sure you have read the [Checker](/user-guide/checker) chapter and are familiar with the basic usage of `cplib::var::Var`. This chapter will not repeat the introduction to this part.
+Before reading this chapter, please make sure you have read the [Checker](/user-guide/basics/checker) chapter and are familiar with the basic usage of `cplib::var::Var`. This chapter will not repeat the introduction to this part.
 
 Validator is usually used to validate the validity of the input file for the test case and the "traits" that the input file conforms to.
 
@@ -109,7 +109,7 @@ As you can see, the overall structure of the validator is similar to the checker
 CPLIB_REGISTER_VALIDATOR(val);
 ```
 
-Similar to the checker, validator needs to use the `CPLIB_REGISTER_VALIDATOR` macro to register the program as a CPLib checker and save the Checker's state in a global variable, named `val` in this case.
+Similar to the checker, validator needs to use the `CPLIB_REGISTER_VALIDATOR` macro to register the program as a CPLib checker and save the checker's state in a global variable, named `val` in this case.
 
 ```cpp
     auto [u, _, v] = in(var::i32(1, n, "u"), var::space, var::i32(1, n, "v"));
@@ -145,7 +145,7 @@ The dependency relationships between traits must form a directed acyclic graph, 
 
 ## Usage
 
-The usage of validator is similar to Checker. The only difference is that when calling validator, you only need to pass a file argument `<input-file>`. Also, to be compatible with the usage habits of Testlib validator, the `<input-file>` parameter can be omitted, and the standard input stream (stdin) will be automatically used as the input file.
+The usage of validator is similar to checker. The only difference is that when calling validator, you only need to pass a file argument `<input-file>`. Also, to be compatible with the usage habits of Testlib validator, the `<input-file>` parameter can be omitted, and the standard input stream (stdin) will be automatically used as the input file.
 
 ## Suggestions
 

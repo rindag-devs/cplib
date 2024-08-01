@@ -2,7 +2,7 @@ import { Callout } from "nextra-theme-docs";
 
 # Interactor
 
-Before reading this chapter, please make sure you have read the [Checker](/user-guide/checker) chapter and are familiar with the basic usage of `cplib::var::Var`. This chapter will not repeat the introduction to this part.
+Before reading this chapter, please make sure you have read the [Checker](/user-guide/basics/checker) chapter and are familiar with the basic usage of `cplib::var::Var`. This chapter will not repeat the introduction to this part.
 
 The interactor is used to interact with the standard input/output of the participant's program in "stdio"-interactive problems.
 
@@ -166,4 +166,4 @@ In summary, when writing more complex interactors, we recommend the following su
 
 - Use `std::variant` to describe different operations of the contestant.
 - Use `intr.from_user` and `intr.to_user` to communicate with the contestant program in any case. **Do not** use `std::cin` / `std::cout` or C-style input functions to read from `stdin` / `stdout` for input and output. These functions usually do not have the error handling mechanism required by interactor, and using these functions will also destroy the internal state of `intr.from_user` and `intr.to_user`, leading to unpredictable behavior.
-- And all the suggestions mentioned in the chapter [Checker](/user-guide/checker#suggestions).
+- And all the suggestions mentioned in the chapter [Checker](/user-guide/basics/checker#suggestions).

@@ -21,7 +21,7 @@ Checker 通常需要检测两个条件：
 本节的相关代码见 [GitHub 仓库](https://github.com/rindag-devs/cplib/tree/main/tests/checker/0-i32-a-plus-b)．
 </Callout>
 
-我们先从一道简单的题目开始讲解 Checker 的编写和使用．
+我们先从一道简单的题目开始讲解 checker 的编写和使用．
 
 > **题目描述**：给定两个整数 $a$ 和 $b$（$-1000 \le a,b \le 1000$）．你需要输出 $a$ 与 $b$ 的和．
 
@@ -62,13 +62,13 @@ CPLib 的主要功能都存放在命名空间 `cplib` 中．由于算法竞赛�
 CPLIB_REGISTER_CHECKER(chk);
 ```
 
-`CPLIB_REGISTER_CHECKER(name)` 宏将所含程序注册成一个 CPLib Checker，并将 Checker 的状态保存至名称为 `name` 的全局变量中．（代码中名称为 `chk`）．`name` 可替换为任意符合 C++ 语法的变量名，但在本文档中，为了可读性和简洁性，均会使用 `chk` 作为全局状态变量名．
+`CPLIB_REGISTER_CHECKER(name)` 宏将所含程序注册成一个 CPLib checker，并将 checker 的状态保存至名称为 `name` 的全局变量中．（代码中名称为 `chk`）．`name` 可替换为任意符合 C++ 语法的变量名，但在本文档中，为了可读性和简洁性，均会使用 `chk` 作为全局状态变量名．
 
 ```cpp
 void checker_main() {
 ```
 
-`checker_main` 是一个被注册为 CPLib Checker 的程序的主函数，该函数将会在 CPLib 完成初始化后调用一次，类似于一般 C++ 程序中的 `main` 函数．而真正的 `main` 函数将会由 CPLib 实现．
+`checker_main` 是一个被注册为 CPLib checker 的程序的主函数，该函数将会在 CPLib 完成初始化后调用一次，类似于一般 C++ 程序中的 `main` 函数．而真正的 `main` 函数将会由 CPLib 实现．
 
 ```cpp
   auto var_ans = var::i32("ans", -2000, 2000);
@@ -124,7 +124,7 @@ void checker_main() {
 
 <Tabs items={['UNIX-like', 'Windows']} storageKey="selected-os">
 <Tab>
-打开终端，切换到刚才建立的工作目录．执行编译命令来编译 Checker，它通常类似于这样：
+打开终端，切换到刚才建立的工作目录．执行编译命令来编译 checker，它通常类似于这样：
 
 ```bash
 g++ chk.cpp -o chk -std=c++17
@@ -134,7 +134,7 @@ g++ chk.cpp -o chk -std=c++17
 CPLib 所需的最低 C++ 标准为 C++ 17．
 </Callout>
 
-接下来在工作目录下创建文件夹 `data/`，用于存储测试 Checker 使用的测试点，并放入测试数据．本例中以 `data/0.in`、`data/0.out`、`data/0.ans` 作为测试数据的名称以作演示．
+接下来在工作目录下创建文件夹 `data/`，用于存储测试 checker 使用的测试点，并放入测试数据．本例中以 `data/0.in`、`data/0.out`、`data/0.ans` 作为测试数据的名称以作演示．
 
 此时的你的工作目录结构应该如下图所示：
 
@@ -148,13 +148,13 @@ CPLib 所需的最低 C++ 标准为 C++ 17．
   <FileTree.File name="cplib.hpp" />
 </FileTree>
 
-在终端中执行以下命令来测试你的 Checker：
+在终端中执行以下命令来测试你的 checker：
 
 ```bash
 ./chk data/0.in data/0.out data/0.ans
 ```
 
-如果到此为止一切正常，你会看到 Checker 输出以下结果：
+如果到此为止一切正常，你会看到 checker 输出以下结果：
 
 ```ansi
 [0;32mAccepted[0m, scores [0;33m100.0[0m of 100.
@@ -162,7 +162,7 @@ CPLib 所需的最低 C++ 标准为 C++ 17．
 
 </Tab>
 <Tab>
-打开 cmd.exe 或 Windows Terminal 程序，切换到刚才建立的工作目录．执行编译命令来编译 Checker，它通常类似于这样：
+打开 cmd.exe 或 Windows Terminal 程序，切换到刚才建立的工作目录．执行编译命令来编译 checker，它通常类似于这样：
 
 ```cmd
 g++ chk.cpp -o chk.exe -std=c++17
@@ -172,7 +172,7 @@ g++ chk.cpp -o chk.exe -std=c++17
 CPLib 所需的最低 C++ 标准为 C++ 17．
 </Callout>
 
-接下来在工作目录下创建文件夹 `data\`，用于存储测试 Checker 使用的测试点，并放入测试数据．本例中以 `data\0.in`、`data\0.out`、`data\0.ans` 作为测试数据的名称以作演示．
+接下来在工作目录下创建文件夹 `data\`，用于存储测试 checker 使用的测试点，并放入测试数据．本例中以 `data\0.in`、`data\0.out`、`data\0.ans` 作为测试数据的名称以作演示．
 
 此时的你的工作目录结构应该如下图所示：
 
@@ -186,24 +186,24 @@ CPLib 所需的最低 C++ 标准为 C++ 17．
   <FileTree.File name="cplib.hpp" />
 </FileTree>
 
-在终端中执行以下命令来测试你的 Checker：
+在终端中执行以下命令来测试你的 checker：
 
 ```cmd
 .\chk data\0.in data\0.out data\0.ans
 ```
 
-如果到此为止一切正常，你会看到 Checker 输出以下结果：
+如果到此为止一切正常，你会看到 checker 输出以下结果：
 
 ```ansi
 [0;32mAccepted[0m, scores [0;33m100.0[0m of 100.
 ```
 
 <Callout type="warning">
-Windows 10 [自 v1511 起](https://www.reddit.com/r/Windows10/comments/44czox/windows_10_v1511_adds_support_for_ansi_escape/) 支持 ANSI 颜色．如果你在使用早期版本的 Windows，且 Checker 的输出包含无法识别的乱码，可以尝试以下几种解决方案：
+Windows 10 [自 v1511 起](https://www.reddit.com/r/Windows10/comments/44czox/windows_10_v1511_adds_support_for_ansi_escape/) 支持 ANSI 颜色．如果你在使用早期版本的 Windows，且 checker 的输出包含无法识别的乱码，可以尝试以下几种解决方案：
 
 - 安装 [ANSICON](https://github.com/adoxa/ansicon)，这会在 cmd.exe 中启用 ANSI 颜色．
 - 使用其他支持 ANSI 颜色的终端模拟器．
-- 设置 `NO_COLOR=1` 环境变量，这会直接禁用 Checker 的颜色输出．
+- 设置 `NO_COLOR=1` 环境变量，这会直接禁用 checker 的颜色输出．
 </Callout>
 </Tab>
 </Tabs>
@@ -211,8 +211,8 @@ Windows 10 [自 v1511 起](https://www.reddit.com/r/Windows10/comments/44czox/wi
 <Callout>
 如果你想要自己动手操作，可以：
 
-- 尝试更改你的测试点输入文件、选手输出文件和标准答案文件中的内容，并观察 Checker 输出的变化．
-- 执行 `./chk --help`，观察改变 `--report-format` 命令行参数和设置 `NO_COLOR=1` 或 `CLICOLOR_FORCE=1` 环境变量对 Checker 输出的影响．
+- 尝试更改你的测试点输入文件、选手输出文件和标准答案文件中的内容，并观察 checker 输出的变化．
+- 执行 `./chk --help`，观察改变 `--report-format` 命令行参数和设置 `NO_COLOR=1` 或 `CLICOLOR_FORCE=1` 环境变量对 checker 输出的影响．
 </Callout>
 
 ## 进阶
@@ -229,7 +229,7 @@ Windows 10 [自 v1511 起](https://www.reddit.com/r/Windows10/comments/44czox/wi
 >
 > **输出格式**：第一行输出一个整数 $\mathit{sum}$，表示第一问的答案．第二行首先输出一个在 $[1,n^2]$ 区间内的整数 $\mathit{len}$，表示最短路径经过的点数．然后输出 $\mathit{len}$ 个整数，表示最短路径依次经过的结点编号（需要包含最开始的 $1$ 和最末尾的 $n$）．
 
-编写更为复杂的 Checker 时，像上个示例一样把全部逻辑都写在 `checker_main` 里是一种 **非常错误** 的选择．下面给出了一个更易阅读和维护的 Checker 实现：
+编写更为复杂的 checker 时，像上个示例一样把全部逻辑都写在 `checker_main` 里是一种 **非常错误** 的选择．下面给出了一个更易阅读和维护的 checker 实现：
 
 ```cpp filename="chk.cpp" copy showLineNumbers
 #include <map>
@@ -323,13 +323,13 @@ CPLib 提供了 `cplib::var::Vec` 来创建 `std::vector` 的变量读入模板�
 
 编写完 `Edge::read` 后，我们就可以使用 `cplib::var::ExtVar<Edge>` 来创建一个通过调用 `Edge::read` 来读入 `Edge` 类型的变量读入模板了．当实例化一个以 `T` 为目标读入类型的 `cplib::var::ExtVar<T>` 时，若 `T::read` 的参数数量大于等于 $2$ 个，则你需要根据 `T::read` 的第二个至最后一个形参来向 `cplib::var::ExtVar<T>` 的构造函数传递实参．如果像本例的 `Edge` 类型这样，其 `Edge::read` 方法只有一个形参，则构造函数不需要传递任何实参．
 
-在可以提前（在读入全部选手输出前）检查选手输出是否具有「有效性」时，我们推荐你把检查「有效性」的逻辑写在对应类型的 `read` 方法里，例如本例中 `Output::read` 的实现．若出现读入不符合题目要求的情况，应使用 `in.fail(message)` 函数来报告错误．该函数会以传入的参数 `message` 和当前的读入栈轨迹（Trace）生成错误报告并退出程序，`Reader` 对应输入流的不同决定报告的错误类型．例如在 Checker 中，对 `chk.inf` 和 `chk.ans` 流调用 `fail` 会返回 `Internal Error` 错误类型，而 `chk.ouf` 流则是 `Wrong Answer`．
+在可以提前（在读入全部选手输出前）检查选手输出是否具有「有效性」时，我们推荐你把检查「有效性」的逻辑写在对应类型的 `read` 方法里，例如本例中 `Output::read` 的实现．若出现读入不符合题目要求的情况，应使用 `in.fail(message)` 函数来报告错误．该函数会以传入的参数 `message` 和当前的读入栈轨迹（stack trace）生成错误报告并退出程序，`Reader` 对应输入流的不同决定报告的错误类型．例如在 checker 中，对 `chk.inf` 和 `chk.ans` 流调用 `fail` 会返回 `Internal Error` 错误类型，而 `chk.ouf` 流则是 `Wrong Answer`．
 
 检查完「有效性」之后，下一步就是检查选手输出和标准答案的「等价性」，我们推荐你在每个需要进行比较的类型上实现一个静态的 `check(expected, result)` 方法，并在 `checker_main` 中调用最外层类型 `Output` 的 `check` 方法．最后在 `check` 均通过后调用 `chk.quit_ac`．
 
 ## 建议
 
-综上所述，在编写较为复杂的 Checker 时，我们推荐你遵循如下建议：
+综上所述，在编写较为复杂的 checker 时，我们推荐你遵循如下建议：
 
 - 使用自定义类型和 `cplib::var::ExtVar` 封装你的代码，而不是完全使用基本类型读入．
 - 检验 `T` 的「有效性」时，优先考虑在 `T::read` 中实现．其次考虑在 `T::check` 中对 `result` 参数单独检验．
@@ -339,7 +339,7 @@ CPLib 提供了 `cplib::var::Vec` 来创建 `std::vector` 的变量读入模板�
 <Callout>
 如果你想要自己动手操作，可以：
 
-尝试编写以下题目的 Checker．
+尝试编写以下题目的 checker．
 
 **题目描述**：对于一个 $n$（$1 \le n \le 10^5$）个节点 $m$（$1 \le m \le 10^5$）条无向边的图，请输出其边双连通分量的个数，并且输出每个边双连通分量．
 
