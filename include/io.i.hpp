@@ -44,12 +44,36 @@ struct FdOutBuf : std::streambuf {
  public:
   explicit FdOutBuf(int fd) : fd_(fd) {
     /*
-      We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
-      Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
+      We recommend using binary mode on Windows. However, Codeforces Polygon
+      doesn’t think so. Since the only Online Judge that uses Windows seems to
+      be Codeforces, make it happy.
     */
 #if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
     _setmode(fd_, _O_BINARY);
 #endif
+  }
+
+  explicit FdOutBuf(std::string_view path) {
+    int flags = 0;
+#ifdef ON_WINDOWS
+    flags |= _O_WRONLY | _O_CREAT | _O_TRUNC;
+#ifndef ONLINE_JUDGE
+    flags |= _O_BINARY;
+#endif
+#else
+    flags |= O_WRONLY | O_CREAT | O_TRUNC;
+#endif
+    fd_ = open(path.data(), flags, 0666);
+    if (fd_ < 0) {
+      panic("Failed to open file: " + std::string(path));
+    }
+    need_close_ = true;
+  }
+
+  ~FdOutBuf() override {
+    if (need_close_) {
+      close(fd_);
+    }
   }
 
  protected:
@@ -64,11 +88,12 @@ struct FdOutBuf : std::streambuf {
     return c;
   }
   // Write multiple characters
-  auto xsputn(const char* s, std::streamsize num) -> std::streamsize override {
+  auto xsputn(const char *s, std::streamsize num) -> std::streamsize override {
     return write(fd_, s, num);
   }
 
   int fd_;  // File descriptor
+  bool need_close_;
 };
 
 // A stream buffer that reads on a file descriptor

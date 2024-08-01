@@ -272,11 +272,7 @@ inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
 // Open the givin file and create a `std::::ostream`
 inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf>& buf,
                                  std::ostream& stream) -> void {
-  auto filebuf = std::make_unique<std::filebuf>();
-  if (!filebuf->open(path.data(), std::ios_base::binary | std::ios_base::out)) {
-    panic(format("Can not open file `%s` as output stream", path.data()));
-  }
-  buf = std::move(filebuf);
+  buf = std::make_unique<io::detail::FdOutBuf>(path);
   stream.rdbuf(buf.get());
 }
 

@@ -27,6 +27,7 @@
 #pragma warning(disable : 4458)
 #endif
 #else
+#include <fcntl.h>   // IWYU pragma: export
 #include <unistd.h>  // IWYU pragma: export
 #endif
 
