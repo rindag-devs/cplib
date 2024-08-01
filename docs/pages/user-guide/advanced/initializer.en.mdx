@@ -55,7 +55,9 @@ struct CmsInitializer : cplib::checker::Initializer {
       std::exit(1);
     }
 
-    state_->reporter = std::make_unique<CmsReporter>();
+    auto& state = this->state();
+
+    state.reporter = std::make_unique<CmsReporter>();
 
     auto inf = args[0];
     auto ans = args[1];
