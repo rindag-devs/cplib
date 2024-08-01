@@ -60,6 +60,8 @@ inline Initializer::~Initializer() = default;
 
 inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
 
+inline auto Initializer::state() -> State& { return *state_; };
+
 inline Reporter::~Reporter() = default;
 
 // Impl State {{{
@@ -181,26 +183,28 @@ inline auto set_binary_mode() {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
     -> void {
-  detail::detect_reporter(*state_);
+  auto& state = this->state();
+
+  detail::detect_reporter(state);
 
   // required args are initially unordered, sort them to ensure subsequent binary_search is correct
-  std::sort(state_->required_flag_args.begin(), state_->required_flag_args.end());
-  std::sort(state_->required_var_args.begin(), state_->required_var_args.end());
+  std::sort(state.required_flag_args.begin(), state.required_flag_args.end());
+  std::sort(state.required_var_args.begin(), state.required_var_args.end());
 
   auto parsed_args = cmd_args::ParsedArgs(args);
-  auto args_usage = detail::get_args_usage(*state_);
+  auto args_usage = detail::get_args_usage(state);
   std::set<std::string> flag_args;
   std::map<std::string, std::string> var_args;
 
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
-      if (!detail::set_report_format(*state_, value)) {
+      if (!detail::set_report_format(state, value)) {
         panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
       }
     } else {
-      if (!std::binary_search(state_->required_var_args.begin(), state_->required_var_args.end(),
+      if (!std::binary_search(state.required_var_args.begin(), state.required_var_args.end(),
                               key)) {
         panic("Unknown command-line argument variable: " + key);
       }
@@ -215,9 +219,9 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
 
   for (const auto& flag : parsed_args.flags) {
     if (flag == "help") {
-      detail::print_help_message(argv0, args_usage);
+      detail::print_help_message(arg0, args_usage);
     } else {
-      if (!std::binary_search(state_->required_flag_args.begin(), state_->required_flag_args.end(),
+      if (!std::binary_search(state.required_flag_args.begin(), state.required_flag_args.end(),
                               flag)) {
         panic("Unknown command-line argument flag: " + flag);
       }
@@ -225,17 +229,17 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
     }
   }
 
-  detail::validate_required_arguments(*state_, var_args);
+  detail::validate_required_arguments(state, var_args);
 
-  for (const auto& parser : state_->flag_parsers) parser(flag_args);
-  for (const auto& parser : state_->var_parsers) parser(var_args);
+  for (const auto& parser : state.flag_parsers) parser(flag_args);
+  for (const auto& parser : state.var_parsers) parser(var_args);
 
   // Unsynchronize to speed up std::cout output.
   std::ios_base::sync_with_stdio(false);
 
   detail::set_binary_mode();
 
-  state_->rnd.reseed(args);
+  state.rnd.reseed(args);
 }
 // /Impl DefaultInitializer }}}
 

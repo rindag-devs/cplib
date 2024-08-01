@@ -108,10 +108,10 @@ struct Initializer {
 
   auto set_state(State& state) -> void;
 
-  virtual auto init(std::string_view argv0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
 
  protected:
-  State* state_{};
+  auto state() -> State&;
 
   auto set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
   auto set_from_user_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
@@ -119,6 +119,9 @@ struct Initializer {
   auto set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
   auto set_from_user_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
   auto set_to_user_path(std::string_view path) -> void;
+
+ private:
+  State* state_{};
 };
 
 /**
@@ -214,10 +217,10 @@ struct DefaultInitializer : Initializer {
   /**
    * Initialize state according to default behavior.
    *
-   * @param argv0 The name of the program.
+   * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
 };
 
 /**

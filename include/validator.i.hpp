@@ -74,6 +74,8 @@ inline Initializer::~Initializer() = default;
 
 inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
 
+inline auto Initializer::state() -> State& { return *state_; };
+
 inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", true, trace_level,
@@ -322,15 +324,17 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
     -> void {
-  detail::detect_reporter(*state_);
+  auto& state = this->state();
+
+  detail::detect_reporter(state);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
 
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
-      if (!detail::set_report_format(*state_, value)) {
+      if (!detail::set_report_format(state, value)) {
         panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
       }
     } else {
@@ -340,7 +344,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
 
   for (const auto& flag : parsed_args.flags) {
     if (flag == "help") {
-      detail::print_help_message(argv0);
+      detail::print_help_message(arg0);
     } else {
       panic("Unknown command-line argument flag: " + flag);
     }
