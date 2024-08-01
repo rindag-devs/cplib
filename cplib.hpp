@@ -1,8 +1,16 @@
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_HPP_
@@ -11,10 +19,18 @@
 // clang-format off
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_MACROS_HPP_
@@ -52,10 +68,18 @@
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_UTILS_HPP_
@@ -281,10 +305,18 @@ auto get_work_mode() -> WorkMode;
 }  // namespace cplib
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 
@@ -537,10 +569,18 @@ inline auto get_work_mode() -> WorkMode { return detail::work_mode; }
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_NO_RAND_HPP_
@@ -585,10 +625,18 @@ srand(unsigned int) CPLIB_RAND_THROW_STATEMENT->void {
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_JSON_HPP_
@@ -673,10 +721,18 @@ struct Map : Value {
 }  // namespace cplib::json
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 
@@ -867,10 +923,18 @@ inline auto Map::to_string() -> std::string {
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_PATTERN_HPP_
@@ -923,10 +987,18 @@ struct Pattern {
 }  // namespace cplib
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 
@@ -998,10 +1070,18 @@ inline auto Pattern::src() const -> std::string_view { return src_; }
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_RANDOM_HPP_
@@ -1171,10 +1251,18 @@ struct Random {
 }  // namespace cplib
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 
@@ -1393,10 +1481,18 @@ inline auto Random::shuffle(Container& container) -> void {
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_IO_HPP_
@@ -1559,10 +1655,18 @@ struct InStream {
 }  // namespace cplib::io
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 
@@ -1830,10 +1934,18 @@ inline auto InStream::read_line() -> std::optional<std::string> {
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_VAR_HPP_
@@ -2746,10 +2858,18 @@ const auto eoln = Separator("eoln", '\n');
 };  // namespace cplib::var
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 
@@ -3721,10 +3841,18 @@ inline auto ExtVar<T>::read_from(Reader& in) const -> T {
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_CMD_ARGS_HPP_
@@ -3759,10 +3887,18 @@ struct ParsedArgs {
 }  // namespace cplib::cmd_args
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 
@@ -3841,10 +3977,18 @@ inline auto ParsedArgs::has_flag(std::string_view name) const -> bool {
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_CHECKER_HPP_
@@ -4117,10 +4261,18 @@ struct ColoredTextReporter : Reporter {
 }  // namespace cplib::checker
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 
@@ -4491,10 +4643,18 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_INTERACTOR_HPP_
@@ -4766,10 +4926,18 @@ struct ColoredTextReporter : Reporter {
 }  // namespace cplib::interactor
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 
@@ -5131,10 +5299,18 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_VALIDATOR_HPP_
@@ -5428,10 +5604,18 @@ struct ColoredTextReporter : Reporter {
 }  // namespace cplib::validator
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 
@@ -6015,10 +6199,18 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
 #endif
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CPLIB_GENERATOR_HPP_
@@ -6609,10 +6801,18 @@ struct ColoredTextReporter : Reporter {
 }  // namespace cplib::generator
 
 /*
- * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of
- * the MPL was not distributed with this file, You can obtain one at http://mozilla.org/MPL/2.0/
+ * This file is part of CPLib.
  *
- * See https://github.com/rindag-devs/cplib/ to get latest version or bug tracker.
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
  */
 
 
