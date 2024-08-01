@@ -39,6 +39,7 @@
 #pragma warning(disable : 4458)
 #endif
 #else
+#include <fcntl.h>   
 #include <unistd.h>  
 #endif
 
@@ -1603,12 +1604,36 @@ struct FdOutBuf : std::streambuf {
  public:
   explicit FdOutBuf(int fd) : fd_(fd) {
     /*
-      We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
-      Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
+      We recommend using binary mode on Windows. However, Codeforces Polygon
+      doesn’t think so. Since the only Online Judge that uses Windows seems to
+      be Codeforces, make it happy.
     */
 #if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
     _setmode(fd_, _O_BINARY);
 #endif
+  }
+
+  explicit FdOutBuf(std::string_view path) {
+    int flags = 0;
+#ifdef ON_WINDOWS
+    flags |= _O_WRONLY | _O_CREAT | _O_TRUNC;
+#ifndef ONLINE_JUDGE
+    flags |= _O_BINARY;
+#endif
+#else
+    flags |= O_WRONLY | O_CREAT | O_TRUNC;
+#endif
+    fd_ = open(path.data(), flags, 0666);
+    if (fd_ < 0) {
+      panic("Failed to open file: " + std::string(path));
+    }
+    need_close_ = true;
+  }
+
+  ~FdOutBuf() override {
+    if (need_close_) {
+      close(fd_);
+    }
   }
 
  protected:
@@ -1623,11 +1648,12 @@ struct FdOutBuf : std::streambuf {
     return c;
   }
   // Write multiple characters
-  auto xsputn(const char* s, std::streamsize num) -> std::streamsize override {
+  auto xsputn(const char *s, std::streamsize num) -> std::streamsize override {
     return write(fd_, s, num);
   }
 
   int fd_;  // File descriptor
+  bool need_close_;
 };
 
 // A stream buffer that reads on a file descriptor
@@ -2993,11 +3019,7 @@ inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
 // Open the givin file and create a `std::::ostream`
 inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf>& buf,
                                  std::ostream& stream) -> void {
-  auto filebuf = std::make_unique<std::filebuf>();
-  if (!filebuf->open(path.data(), std::ios_base::binary | std::ios_base::out)) {
-    panic(format("Can not open file `%s` as output stream", path.data()));
-  }
-  buf = std::move(filebuf);
+  buf = std::make_unique<io::detail::FdOutBuf>(path);
   stream.rdbuf(buf.get());
 }
 
@@ -3926,17 +3948,19 @@ struct Initializer {
 
   auto set_state(State& state) -> void;
 
-  virtual auto init(std::string_view argv0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
 
  protected:
-  State* state_{};
-
+  auto state() -> State&;
   auto set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
   auto set_ouf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
   auto set_ans_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
   auto set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
   auto set_ouf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
   auto set_ans_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
+
+ private:
+  State* state_{};
 };
 
 /**
@@ -4037,10 +4061,10 @@ struct DefaultInitializer : Initializer {
   /**
    * Initialize state according to default behavior.
    *
-   * @param argv0 The name of the program.
+   * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
 };
 
 /**
@@ -4157,6 +4181,8 @@ inline Report::Report(Report::Status status, double score, std::string message)
 inline Initializer::~Initializer() = default;
 
 inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
+
+inline auto Initializer::state() -> State& { return *state_; };
 
 inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
@@ -4333,15 +4359,17 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
     -> void {
-  detail::detect_reporter(*state_);
+  auto& state = this->state();
+
+  detail::detect_reporter(state);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
 
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
-      if (!detail::set_report_format(*state_, value)) {
+      if (!detail::set_report_format(state, value)) {
         panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
       }
     } else {
@@ -4351,7 +4379,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
 
   for (const auto& flag : parsed_args.flags) {
     if (flag == "help") {
-      detail::print_help_message(argv0);
+      detail::print_help_message(arg0);
     } else {
       panic("Unknown command-line argument flag: " + flag);
     }
@@ -4572,10 +4600,10 @@ struct Initializer {
 
   auto set_state(State& state) -> void;
 
-  virtual auto init(std::string_view argv0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
 
  protected:
-  State* state_{};
+  auto state() -> State&;
 
   auto set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
   auto set_from_user_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
@@ -4583,6 +4611,9 @@ struct Initializer {
   auto set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
   auto set_from_user_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
   auto set_to_user_path(std::string_view path) -> void;
+
+ private:
+  State* state_{};
 };
 
 /**
@@ -4678,10 +4709,10 @@ struct DefaultInitializer : Initializer {
   /**
    * Initialize state according to default behavior.
    *
-   * @param argv0 The name of the program.
+   * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
 };
 
 /**
@@ -4798,6 +4829,8 @@ inline Report::Report(Report::Status status, double score, std::string message)
 inline Initializer::~Initializer() = default;
 
 inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
+
+inline auto Initializer::state() -> State& { return *state_; };
 
 inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
@@ -4966,15 +4999,17 @@ inline auto disable_stdio() -> void {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
     -> void {
-  detail::detect_reporter(*state_);
+  auto& state = this->state();
+
+  detail::detect_reporter(state);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
 
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
-      if (!detail::set_report_format(*state_, value)) {
+      if (!detail::set_report_format(state, value)) {
         panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
       }
     } else {
@@ -4984,7 +5019,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
 
   for (const auto& flag : parsed_args.flags) {
     if (flag == "help") {
-      detail::print_help_message(argv0);
+      detail::print_help_message(arg0);
     } else {
       panic("Unknown command-line argument flag: " + flag);
     }
@@ -5231,13 +5266,16 @@ struct Initializer {
 
   auto set_state(State& state) -> void;
 
-  virtual auto init(std::string_view argv0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
 
  protected:
-  State* state_{};
+  auto state() -> State&;
 
   auto set_inf_fileno(int fileno, var::Reader::TraceLevel level) -> void;
   auto set_inf_path(std::string_view path, var::Reader::TraceLevel level) -> void;
+
+ private:
+  State* state_{};
 };
 
 /**
@@ -5333,10 +5371,10 @@ struct DefaultInitializer : Initializer {
   /**
    * Initialize state according to default behavior.
    *
-   * @param argv0 The name of the program.
+   * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
 };
 
 /**
@@ -5464,6 +5502,8 @@ inline Trait::Trait(std::string name, CheckFunc check_func, std::vector<std::str
 inline Initializer::~Initializer() = default;
 
 inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
+
+inline auto Initializer::state() -> State& { return *state_; };
 
 inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
@@ -5713,15 +5753,17 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
     -> void {
-  detail::detect_reporter(*state_);
+  auto& state = this->state();
+
+  detail::detect_reporter(state);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
 
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
-      if (!detail::set_report_format(*state_, value)) {
+      if (!detail::set_report_format(state, value)) {
         panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
       }
     } else {
@@ -5731,7 +5773,7 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
 
   for (const auto& flag : parsed_args.flags) {
     if (flag == "help") {
-      detail::print_help_message(argv0);
+      detail::print_help_message(arg0);
     } else {
       panic("Unknown command-line argument flag: " + flag);
     }
@@ -6074,9 +6116,12 @@ struct Initializer {
 
   auto set_state(State& state) -> void;
 
-  virtual auto init(std::string_view argv0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
 
  protected:
+  auto state() -> State&;
+
+ private:
   State* state_{};
 };
 
@@ -6155,10 +6200,10 @@ struct DefaultInitializer : Initializer {
   /**
    * Initialize state according to default behavior.
    *
-   * @param argv0 The name of the program.
+   * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view argv0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
 };
 
 /**
@@ -6625,6 +6670,8 @@ inline Initializer::~Initializer() = default;
 
 inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
 
+inline auto Initializer::state() -> State& { return *state_; };
+
 inline Reporter::~Reporter() = default;
 
 // Impl State {{{
@@ -6746,26 +6793,28 @@ inline auto set_binary_mode() {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
     -> void {
-  detail::detect_reporter(*state_);
+  auto& state = this->state();
+
+  detail::detect_reporter(state);
 
   // required args are initially unordered, sort them to ensure subsequent binary_search is correct
-  std::sort(state_->required_flag_args.begin(), state_->required_flag_args.end());
-  std::sort(state_->required_var_args.begin(), state_->required_var_args.end());
+  std::sort(state.required_flag_args.begin(), state.required_flag_args.end());
+  std::sort(state.required_var_args.begin(), state.required_var_args.end());
 
   auto parsed_args = cmd_args::ParsedArgs(args);
-  auto args_usage = detail::get_args_usage(*state_);
+  auto args_usage = detail::get_args_usage(state);
   std::set<std::string> flag_args;
   std::map<std::string, std::string> var_args;
 
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
-      if (!detail::set_report_format(*state_, value)) {
+      if (!detail::set_report_format(state, value)) {
         panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
       }
     } else {
-      if (!std::binary_search(state_->required_var_args.begin(), state_->required_var_args.end(),
+      if (!std::binary_search(state.required_var_args.begin(), state.required_var_args.end(),
                               key)) {
         panic("Unknown command-line argument variable: " + key);
       }
@@ -6780,9 +6829,9 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
 
   for (const auto& flag : parsed_args.flags) {
     if (flag == "help") {
-      detail::print_help_message(argv0, args_usage);
+      detail::print_help_message(arg0, args_usage);
     } else {
-      if (!std::binary_search(state_->required_flag_args.begin(), state_->required_flag_args.end(),
+      if (!std::binary_search(state.required_flag_args.begin(), state.required_flag_args.end(),
                               flag)) {
         panic("Unknown command-line argument flag: " + flag);
       }
@@ -6790,17 +6839,17 @@ inline auto DefaultInitializer::init(std::string_view argv0, const std::vector<s
     }
   }
 
-  detail::validate_required_arguments(*state_, var_args);
+  detail::validate_required_arguments(state, var_args);
 
-  for (const auto& parser : state_->flag_parsers) parser(flag_args);
-  for (const auto& parser : state_->var_parsers) parser(var_args);
+  for (const auto& parser : state.flag_parsers) parser(flag_args);
+  for (const auto& parser : state.var_parsers) parser(var_args);
 
   // Unsynchronize to speed up std::cout output.
   std::ios_base::sync_with_stdio(false);
 
   detail::set_binary_mode();
 
-  state_->rnd.reseed(args);
+  state.rnd.reseed(args);
 }
 // /Impl DefaultInitializer }}}
 
