@@ -7,7 +7,7 @@
 [badge.license]: https://img.shields.io/github/license/rindag-devs/cplib
 [badge.docs]: https://img.shields.io/github/deployments/rindag-devs/cplib/Production?label=docs
 [header]: https://github.com/rindag-devs/cplib/blob/single-header-snapshot/cplib.hpp
-[license]: https://github.com/rindag-devs/cplib/blob/main/LICENSE
+[license]: https://github.com/rindag-devs/cplib/blob/main/COPYING.LESSER
 [docs]: https://cplib.vercel.app/
 
 ## Getting Started
@@ -45,6 +45,6 @@ The above example demonstrates a core logic of CPLib: "variable input template".
 
 ## License
 
-[MPL-2.0][license]
+[LGPL-3.0-or-later][license]
 
 Copyright (c) 2023-present, rindag-devs
