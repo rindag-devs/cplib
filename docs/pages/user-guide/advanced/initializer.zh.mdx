@@ -127,3 +127,7 @@ Initializer 需继承自 `cplib::<work-modeInitializerReporter` 并实现 `auto 
 <Callout type="warning">
   不要在实现 `Reporter::report` 的时候通过调用 `cplib::panic` 函数报告错误．因为 CPLib 程序在初始化的时候会将 panic 实现修改为以 INTERNAL_ERROR 作为 status 调用 `Reporter::report`．这会引起无限递归．
 </Callout>
+
+<Callout type="warning">
+  根据 LGPL 许可证要求，当你分发使用 CPLib 的软件时，你需要在某处说明该软件使用 CPLib，并且 CPLib 是 LGPL 许可的．我们推荐的方式是在命令行参数包含 `--help` 时输出有关信息．本教程为保证代码简短并未做出实现，在实际项目中请务必注意严格遵守开源许可证．
+</Callout>

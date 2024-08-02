@@ -127,3 +127,7 @@ If the `<name>` type is Reader, an additional parameter representing the Reader'
 <Callout type="warning">
   Do not report errors by calling the `cplib::panic` function when implementing `Reporter::report`. This is because CPLib programs modify the panic implementation during initialization to call `Reporter::report` with `INTERNAL_ERROR` as the status, which will cause an infinite recursion.
 </Callout>
+
+<Callout type="warning">
+According to the LGPL license requirements, when you distribute software that uses CPLib, you need to indicate somewhere that the software uses CPLib, and that CPLib is licensed under the LGPL. Our recommended approach is to output relevant information when the command line argument contains `--help`. This tutorial has not been implemented to keep the code short. In actual projects, please be sure to strictly abide by the open source license.
+</Callout>

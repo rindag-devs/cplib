@@ -118,9 +118,7 @@ inline auto parse_arg(std::string_view arg) -> std::pair<std::string, std::optio
 
 inline auto print_help_message(std::string_view program_name, std::string_view args_usage) -> void {
   std::string msg =
-      format("cplib (CPLib) " CPLIB_VERSION
-             "\n"
-             "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
+      format(CPLIB_STARTUP_TEXT
              "\n"
              "Usage:\n"
              "  %s %s\n"

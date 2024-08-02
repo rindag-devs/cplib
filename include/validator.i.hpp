@@ -286,10 +286,7 @@ constexpr std::string_view ARGS_USAGE = "[<input_file>] [--report-format={auto|j
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
-      format("cplib (CPLib) " CPLIB_VERSION
-             "\n"
-             "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023\n"
-             "\n"
+      format(CPLIB_STARTUP_TEXT
              "Usage:\n"
              "  %s %s\n"
              "\n"

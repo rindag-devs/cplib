@@ -18,6 +18,11 @@
 
 #define CPLIB_VERSION "0.0.1-SNAPSHOT"
 
+#define CPLIB_STARTUP_TEXT       \
+  "cplib (CPLib) " CPLIB_VERSION \
+  "\n"                           \
+  "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023-2024\n"
+
 #if (_WIN32 || __WIN32__ || __WIN32 || _WIN64 || __WIN64__ || __WIN64 || WINNT || __WINNT || \
      __WINNT__ || __CYGWIN__)
 #if !defined(_MSC_VER) || _MSC_VER > 1400
