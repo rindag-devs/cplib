@@ -21,3 +21,33 @@ if (str.size() > 1000000) {
   // handle error
 }
 ```
+
+## License Agreement
+
+CPLib is licensed under the [LGPL-3.0-or-later](https://www.gnu.org/licenses/lgpl-3.0.html) license. This license is relatively permissive compared to the GPL license. You can use CPLib in any software, including proprietary software, without the need to disclose your own source code.
+
+### What you are required to do
+
+When you distribute software that uses CPLib, the LGPL requires you to:
+
+- Indicate somewhere that the software uses CPLib, and that CPLib is licensed under the LGPL.
+- Provide a link to the LGPL license text.
+
+However, you don't need to worry about this, as when using the DefaultInitializer, the program written using CPLib will automatically output the relevant information when called with the `--help` command-line argument.
+
+Without constituting a fork, the LGPL license is almost entirely equivalent to the 2-clause BSD license. This will be explained further in the following.
+
+### Forking
+
+Forking CPLib means modifying CPLib itself and distributing software based on the modified CPLib. In this case, there are additional requirements:
+
+- If you want to distribute software based on the modified CPLib, you must provide the modified CPLib under the LGPL license.
+- The only content you must provide under the LGPL is the modified CPLib. You still do not need to provide any other software under the LGPL, not even software that uses CPLib or your modified CPLib.
+
+Simply using CPLib in your software does not constitute a fork. Forking CPLib involves modifying the CPLib files themselves in some way. The LGPL also explicitly states (in Section 0) that subclassing CPLib classes (also known as inheriting from CPLib classes, such as customizing the initializer) does not constitute a fork.
+
+### Why is CPLib, a header-only library, compatible with LGPL?
+
+This question has been addressed in the LGPL version 3. The relevant part is in Section 3.
+
+Linking, whether static or not, does not apply to CPLib, as it only contains header files. In CPLib, there is no linkable content.

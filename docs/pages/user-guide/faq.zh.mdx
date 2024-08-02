@@ -21,3 +21,33 @@ if (str.size() > 1000000) {
   // handle error
 }
 ```
+
+## 许可协议
+
+CPLib 采用 [LGPL-3.0-or-later](https://www.gnu.org/licenses/lgpl-3.0.html) 协议．它（相较于 GPL 协议）相当宽松．你可以将 CPLib 用于含专有软件在内的任何软件，而无需披露属于自己的源代码．
+
+### 你被要求做什么
+
+当你分发使用 CPLib 的软件时，LGPL 要求你：
+
+- 在某处说明该软件使用 CPLib，并且 CPLib 是 LGPL 许可的．
+- 提供 LGPL 许可证文本的链接．
+
+不过这点你并不需要担心，因为在使用 DefaultInitializer 时，以 `--help` 命令行参数调用使用 CPLib 编写的程序会自动输出有关信息．
+
+在不构成 fork 的情况下，LGPL 许可协议与 2-clause BSD 许可协议几乎完全相同．这点将会在后续进行说明．
+
+### Fork
+
+Fork CPLib 意味着修改 CPLib 本身并根据修改后的 CPLib 分发软件．在这种情况下，还有以下附加要求：
+
+- 如果你要基于修改后的 CPLib 分发软件，则必须在 LGPL 许可证下提供修改后的 CPLib．
+- 你必须在 LGPL 下提供的唯一内容是修改后的 CPLib．你仍然不必在 LGPL 下提供任何其他软件，甚至不需要使用 CPLib 的软件或使用你修改的 CPLib 的软件．
+
+仅在软件中使用 CPLib 并不构成 fork．Fork CPLib 涉及以某种方式修改 CPLib 自己的文件．LGPL 还明确指出（在第 0 节中）子类化 CPLib 类（也称为从 CPLib 类继承，例如自定义 initializer）并不构成 fork．
+
+### CPLib 是 headery-only 的库，为何它适配 LGPL？
+
+该问题已在 LGPL 第 3 版中得到解决．LGPL3 的相关部分是第 3 节．
+
+链接，无论是否静态，都不适用于 CPLib，它仅包含头文件．在 CPLib 中，没有任何可链接的内容．
