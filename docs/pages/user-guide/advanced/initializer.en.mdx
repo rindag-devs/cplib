@@ -20,7 +20,6 @@ Here is a sample implementation:
 
 ```cpp
 struct CmsReporter : cplib::checker::Reporter {
-
   [[noreturn]] auto report(const cplib::checker::Report &report)
       -> void override {
     std::cout << std::fixed << std::setprecision(10) << report.score << '\n';
@@ -42,7 +41,6 @@ struct CmsReporter : cplib::checker::Reporter {
       std::clog << "FAIL invalid status\n";
       std::exit(1);
     }
-
     std::exit(0);
   }
 };
@@ -51,7 +49,7 @@ struct CmsInitializer : cplib::checker::Initializer {
   auto init(std::string_view arg0, const std::vector<std::string> &args)
       -> void override {
     if (args.size() != 3) {
-      std::cerr << "Usage: " << arg0 << " <inf> <ans> <ouf>";
+      std::cerr << "Usage: " << arg0 << " <inf> <ans> <ouf>\n";
       std::exit(1);
     }
 
@@ -60,8 +58,8 @@ struct CmsInitializer : cplib::checker::Initializer {
     state.reporter = std::make_unique<CmsReporter>();
 
     auto inf = args[0];
-    auto ans = args[1];
     auto ouf = args[2];
+    auto ans = args[1];
 
     set_inf_path(inf, cplib::var::Reader::TraceLevel::NONE);
     set_ouf_path(ouf, cplib::var::Reader::TraceLevel::NONE);
@@ -69,6 +67,7 @@ struct CmsInitializer : cplib::checker::Initializer {
   }
 };
 ```
+
 The Reporter needs to inherit from `cplib::<work-mode>::Reporter` and implement the `[[noreturn]] auto report(const cplib::<work-mode>::Report &report) -> void` function.
 
 The initializer needs to inherit from `cplib::<work-mode>Initializer` and implement the `auto init(std::string_view arg0, const std::vector<std::string> &args) -> void` function.

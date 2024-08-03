@@ -20,7 +20,6 @@ Initializer 需要做的事情可分为三步：
 
 ```cpp
 struct CmsReporter : cplib::checker::Reporter {
-
   [[noreturn]] auto report(const cplib::checker::Report &report)
       -> void override {
     std::cout << std::fixed << std::setprecision(10) << report.score << '\n';
@@ -50,7 +49,7 @@ struct CmsInitializer : cplib::checker::Initializer {
   auto init(std::string_view arg0, const std::vector<std::string> &args)
       -> void override {
     if (args.size() != 3) {
-      std::cerr << "Usage: " << arg0 << " <inf> <ans> <ouf>";
+      std::cerr << "Usage: " << arg0 << " <inf> <ans> <ouf>\n";
       std::exit(1);
     }
 
