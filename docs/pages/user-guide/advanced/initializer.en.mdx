@@ -2,6 +2,10 @@ import { Callout } from "nextra-theme-docs";
 
 # Initializer
 
+<Callout type="info">
+  The CPLib team maintains a set of initializers for mainstream platforms in the [cplib-initializers](https://github.com/rindag-devs/cplib-initializers) project. If your goal is solely to run your own programs on the target platform, you can visit the project repository to learn more about the details.
+</Callout>
+
 If you need to use CPLib on an evaluation platform that does not natively support it, the best way to use it is to implement a custom initializer. The following will use the example of writing a checker for the [CMS](https://cms-dev.github.io/) platform to demonstrate how to write a custom initializer.
 
 The initializer needs to do three things:
@@ -128,5 +132,5 @@ If the `<name>` type is Reader, an additional parameter representing the Reader'
 </Callout>
 
 <Callout type="warning">
-According to the LGPL license requirements, when you distribute software that uses CPLib, you need to indicate somewhere that the software uses CPLib, and that CPLib is licensed under the LGPL. Our recommended approach is to output relevant information when the command line argument contains `--help`. This tutorial has not been implemented to keep the code short. In actual projects, please be sure to strictly abide by the open source license.
+  According to the LGPL license requirements, when you distribute software that uses CPLib, you need to indicate somewhere that the software uses CPLib, and that CPLib is licensed under the LGPL. Our recommended approach is to output relevant information when the command line argument contains `--help`. This tutorial has not been implemented to keep the code short. In actual projects, please be sure to strictly abide by the open source license.
 </Callout>
