@@ -26,7 +26,7 @@ Here is a sample implementation:
 struct CmsReporter : cplib::checker::Reporter {
   [[noreturn]] auto report(const cplib::checker::Report &report)
       -> void override {
-    std::cout << std::fixed << std::setprecision(10) << report.score << '\n';
+    std::cout << std::fixed << std::setprecision(9) << report.score << '\n';
 
     switch (report.status) {
     case cplib::checker::Report::Status::INTERNAL_ERROR:
