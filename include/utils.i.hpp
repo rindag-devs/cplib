@@ -82,7 +82,7 @@ inline auto hex_encode(std::string_view s) -> std::string {
 // Impl panic {{{
 namespace detail {
 inline UniqueFunction<auto(std::string_view)->void> panic_impl = [](std::string_view s) {
-  std::ostream stream(std::clog.rdbuf());
+  std::ostream stream(std::cerr.rdbuf());
   stream << "Unrecoverable error: " << s << '\n';
   exit(EXIT_FAILURE);
 };

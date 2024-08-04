@@ -184,7 +184,7 @@ inline auto State::quit(Report report) -> void {
 
   reporter->report(report);
 
-  std::ostream stream(std::clog.rdbuf());
+  std::ostream stream(std::cerr.rdbuf());
   stream << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
 }
