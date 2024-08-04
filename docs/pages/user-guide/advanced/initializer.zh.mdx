@@ -24,26 +24,30 @@ Initializer 需要做的事情可分为三步：
 
 ```cpp
 struct CmsReporter : cplib::checker::Reporter {
-  [[noreturn]] auto report(const cplib::checker::Report &report)
-      -> void override {
-    std::cout << std::fixed << std::setprecision(9) << report.score << '\n';
+  [[noreturn]] auto report(const cplib::checker::Report& report) -> void override {
+    // Do not use std::cout or std::clog directly: need to prevent the behavior of the user code
+    // setting the format for them from affecting the Reporter output
+    std::ostream score_stream(std::cout.rdbuf());
+    std::ostream status_stream(std::clog.rdbuf());
+
+    score_stream << std::fixed << std::setprecision(9) << report.score << '\n';
 
     switch (report.status) {
-    case cplib::checker::Report::Status::INTERNAL_ERROR:
-      std::clog << "FAIL " << report.status << '\n';
-      std::exit(1);
-    case cplib::checker::Report::Status::ACCEPTED:
-      std::clog << "translate:success\n";
-      break;
-    case cplib::checker::Report::Status::WRONG_ANSWER:
-      std::clog << "translate:wrong\n";
-      break;
-    case cplib::checker::Report::Status::PARTIALLY_CORRECT:
-      std::clog << "translate:partial\n";
-      break;
-    default:
-      std::clog << "FAIL invalid status\n";
-      std::exit(1);
+      case cplib::checker::Report::Status::INTERNAL_ERROR:
+        status_stream << "FAIL " << report.status << '\n';
+        std::exit(1);
+      case cplib::checker::Report::Status::ACCEPTED:
+        status_stream << "translate:success\n";
+        break;
+      case cplib::checker::Report::Status::WRONG_ANSWER:
+        status_stream << "translate:wrong\n";
+        break;
+      case cplib::checker::Report::Status::PARTIALLY_CORRECT:
+        status_stream << "translate:partial\n";
+        break;
+      default:
+        status_stream << "FAIL invalid status\n";
+        std::exit(1);
     }
     std::exit(0);
   }
@@ -52,14 +56,16 @@ struct CmsReporter : cplib::checker::Reporter {
 struct CmsInitializer : cplib::checker::Initializer {
   auto init(std::string_view arg0, const std::vector<std::string> &args)
       -> void override {
-    if (args.size() != 3) {
-      std::cerr << "Usage: " << arg0 << " <inf> <ans> <ouf>\n";
-      std::exit(1);
-    }
-
     auto& state = this->state();
 
+    // Set the reporter as early as possible to ensure that errors reported during init can also be
+    // reported in the correct way.
     state.reporter = std::make_unique<CmsReporter>();
+
+    if (args.size() != 3) {
+      cplib::panic("Program must be run with the following arguments:\n  <inf> <ans> <ouf>");
+      std::exit(1);
+    }
 
     auto inf = args[0];
     auto ouf = args[2];

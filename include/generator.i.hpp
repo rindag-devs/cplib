@@ -31,6 +31,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <set>
 #include <string>
 #include <string_view>
@@ -97,7 +98,8 @@ inline auto State::quit(const Report& report) -> void {
 
   reporter->report(report);
 
-  std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
+  std::ostream stream(std::clog.rdbuf());
+  stream << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
 }
 
@@ -281,30 +283,34 @@ inline auto JsonReporter::report(const Report& report) -> void {
   map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
   map.emplace("message", std::make_unique<json::String>(report.message));
 
-  std::clog << json::Map(std::move(map)).to_string() << '\n';
+  std::ostream stream(std::clog.rdbuf());
+  stream << json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 inline auto PlainTextReporter::report(const Report& report) -> void {
+  std::ostream stream(std::clog.rdbuf());
+
   if (report.status == Report::Status::OK && report.message.empty()) {
     // Do nothing when the report is OK and message is empty.
     std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
   }
 
-  std::clog << detail::status_to_title_string(report.status).c_str() << ".\n"
-            << report.message << '\n';
+  stream << detail::status_to_title_string(report.status) << ".\n" << report.message << '\n';
 
   std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 inline auto ColoredTextReporter::report(const Report& report) -> void {
+  std::ostream stream(std::clog.rdbuf());
+
   if (report.status == Report::Status::OK && report.message.empty()) {
     // Do nothing when the report is OK and message is empty.
     std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
   }
 
-  std::clog << detail::status_to_colored_title_string(report.status).c_str() << ".\n"
-            << report.message << '\n';
+  stream << detail::status_to_colored_title_string(report.status) << ".\n"
+         << report.message << '\n';
 
   std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
 }

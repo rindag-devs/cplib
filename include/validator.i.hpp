@@ -33,6 +33,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <queue>
 #include <string>
 #include <string_view>
@@ -269,7 +270,8 @@ inline auto State::quit(Report report) -> void {
 
   reporter->report(report);
 
-  std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
+  std::ostream stream(std::clog.rdbuf());
+  stream << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
 }
 
@@ -410,7 +412,8 @@ inline auto trait_status_to_json(const std::map<std::string, bool>& traits)
 }
 
 inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t depth,
-                             std::size_t& n_remaining_node, bool colored_output) -> void {
+                             std::size_t& n_remaining_node, bool colored_output, std::ostream& os)
+    -> void {
   if (!node || depth >= 8 || (node->json_tag && node->json_tag->inner.count("#hidden"))) {
     return;
   }
@@ -420,35 +423,35 @@ inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t
 
     // indentation
     for (std::size_t i = 0; i < depth - 1; ++i) {
-      std::clog << "  ";
+      os << "  ";
     }
-    std::clog << "- ";
+    os << "- ";
 
     // name
     if (colored_output) {
-      std::clog << "\x1b[0;33m";
+      os << "\x1b[0;33m";
     }
-    std::clog << node->trace.var_name;
+    os << node->trace.var_name;
     if (colored_output) {
-      std::clog << "\x1b[0m";
+      os << "\x1b[0m";
     }
 
     // type
     if (node->json_tag && node->json_tag->inner.count("#t")) {
       if (colored_output) {
-        std::clog << "\x1b[0;90m";
+        os << "\x1b[0;90m";
       }
-      std::clog << ": " << node->json_tag->inner.at("#t")->to_string();
+      os << ": " << node->json_tag->inner.at("#t")->to_string();
       if (colored_output) {
-        std::clog << "\x1b[0m";
+        os << "\x1b[0m";
       }
     }
 
     // value
     if (node->json_tag && node->json_tag->inner.count("#v")) {
-      std::clog << " = " << node->json_tag->inner.at("#v")->to_string();
+      os << " = " << node->json_tag->inner.at("#v")->to_string();
     }
-    std::clog << '\n';
+    os << '\n';
   }
 
   std::size_t n_visible_children = 0;
@@ -464,13 +467,13 @@ inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t
     }
     if (!n_remaining_node) {
       for (std::size_t i = 0; i < depth; ++i) {
-        std::clog << "  ";
+        os << "  ";
       }
-      std::clog << "- ... and " << n_visible_children << " more\n";
+      os << "- ... and " << n_visible_children << " more\n";
       break;
     }
     --n_visible_children;
-    print_trace_tree(child.get(), depth + 1, n_remaining_node, colored_output);
+    print_trace_tree(child.get(), depth + 1, n_remaining_node, colored_output, os);
   }
 }
 }  // namespace detail
@@ -495,26 +498,29 @@ inline auto JsonReporter::report(const Report& report) -> void {
     }
   }
 
-  std::clog << json::Map(std::move(map)).to_string() << '\n';
+  std::ostream stream(std::clog.rdbuf());
+  stream << json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 inline auto PlainTextReporter::report(const Report& report) -> void {
-  std::clog << detail::status_to_title_string(report.status).c_str() << ".\n";
+  std::ostream stream(std::clog.rdbuf());
+
+  stream << detail::status_to_title_string(report.status) << ".\n";
 
   if (report.status != Report::Status::VALID || !report.message.empty()) {
-    std::clog << report.message << '\n';
+    stream << report.message << '\n';
   }
 
   if (trace_stack_.has_value()) {
-    std::clog << "\nReader trace stack (most recent variable last):\n";
+    stream << "\nReader trace stack (most recent variable last):\n";
     for (const auto& line : trace_stack_->to_plain_text_lines()) {
-      std::clog << "  " << line << '\n';
+      stream << "  " << line << '\n';
     }
   }
 
   if (report.status == Report::Status::VALID && !trait_status_.empty()) {
-    std::clog << "\nTraits satisfactions:\n";
+    stream << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
     for (auto [name, satisfaction] : trait_status_) {
@@ -526,38 +532,40 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
     }
 
     for (const auto& name : satisfied) {
-      std::clog << "+ " << cplib::detail::hex_encode(name) << '\n';
+      stream << "+ " << cplib::detail::hex_encode(name) << '\n';
     }
     for (const auto& name : dissatisfied) {
-      std::clog << "- " << cplib::detail::hex_encode(name) << '\n';
+      stream << "- " << cplib::detail::hex_encode(name) << '\n';
     }
   }
 
   if (trace_tree_) {
-    std::clog << "\nReader trace tree:\n";
+    stream << "\nReader trace tree:\n";
     std::size_t n_remaining_node = 32;
-    detail::print_trace_tree(trace_tree_, 0, n_remaining_node, false);
+    detail::print_trace_tree(trace_tree_, 0, n_remaining_node, false, stream);
   }
 
   std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 inline auto ColoredTextReporter::report(const Report& report) -> void {
-  std::clog << detail::status_to_colored_title_string(report.status).c_str() << ".\n";
+  std::ostream stream(std::clog.rdbuf());
+
+  stream << detail::status_to_colored_title_string(report.status) << ".\n";
 
   if (report.status != Report::Status::VALID || !report.message.empty()) {
-    std::clog << report.message << '\n';
+    stream << report.message << '\n';
   }
 
   if (trace_stack_.has_value()) {
-    std::clog << "\nReader trace stack (most recent variable last):\n";
+    stream << "\nReader trace stack (most recent variable last):\n";
     for (const auto& line : trace_stack_->to_colored_text_lines()) {
-      std::clog << "  " << line << '\n';
+      stream << "  " << line << '\n';
     }
   }
 
   if (report.status == Report::Status::VALID && !trait_status_.empty()) {
-    std::clog << "\nTraits satisfactions:\n";
+    stream << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
     for (auto [name, satisfaction] : trait_status_) {
@@ -569,17 +577,17 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
     }
 
     for (const auto& name : satisfied) {
-      std::clog << "\x1b[0;32m+\x1b[0m " << name << '\n';
+      stream << "\x1b[0;32m+\x1b[0m " << name << '\n';
     }
     for (const auto& name : dissatisfied) {
-      std::clog << "\x1b[0;31m-\x1b[0m " << name << '\n';
+      stream << "\x1b[0;31m-\x1b[0m " << name << '\n';
     }
   }
 
   if (trace_tree_) {
-    std::clog << "\nReader trace tree:\n";
+    stream << "\nReader trace tree:\n";
     std::size_t n_remaining_node = 32;
-    detail::print_trace_tree(trace_tree_, 0, n_remaining_node, true);
+    detail::print_trace_tree(trace_tree_, 0, n_remaining_node, true, stream);
   }
 
   std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);

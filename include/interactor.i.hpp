@@ -30,6 +30,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -159,7 +160,8 @@ inline auto State::quit(const Report& report) -> void {
 
   reporter->report(report);
 
-  std::clog << "Unrecoverable error: Reporter didn't exit the program\n";
+  std::ostream stream(std::clog.rdbuf());
+  stream << "Unrecoverable error: Reporter didn't exit the program\n";
   std::exit(EXIT_FAILURE);
 }
 
@@ -323,23 +325,25 @@ inline auto JsonReporter::report(const Report& report) -> void {
     map.emplace("reader_trace_stack", trace_stack_->to_json());
   }
 
-  std::clog << json::Map(std::move(map)).to_string() << '\n';
+  std::ostream stream(std::clog.rdbuf());
+  stream << json::Map(std::move(map)).to_string() << '\n';
   std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
 inline auto PlainTextReporter::report(const Report& report) -> void {
-  std::clog << std::fixed << std::setprecision(2)
-            << detail::status_to_title_string(report.status).c_str() << ", scores "
-            << report.score * 100.0 << " of 100.\n";
+  std::ostream stream(std::clog.rdbuf());
+
+  stream << std::fixed << std::setprecision(2) << detail::status_to_title_string(report.status)
+         << ", scores " << report.score * 100.0 << " of 100.\n";
 
   if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
-    std::clog << report.message << '\n';
+    stream << report.message << '\n';
   }
 
   if (trace_stack_.has_value()) {
-    std::clog << "\nReader trace stack (most recent variable last):\n";
+    stream << "\nReader trace stack (most recent variable last):\n";
     for (const auto& line : trace_stack_->to_plain_text_lines()) {
-      std::clog << "  " << line << '\n';
+      stream << "  " << line << '\n';
     }
   }
 
@@ -347,17 +351,19 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
 }
 
 inline auto ColoredTextReporter::report(const Report& report) -> void {
-  std::clog << std::fixed << std::setprecision(2)
-            << detail::status_to_colored_title_string(report.status).c_str()
-            << ", scores \x1b[0;33m" << report.score * 100.0 << "\x1b[0m of 100.\n";
+  std::ostream stream(std::clog.rdbuf());
+
+  stream << std::fixed << std::setprecision(2)
+         << detail::status_to_colored_title_string(report.status) << ", scores \x1b[0;33m"
+         << report.score * 100.0 << "\x1b[0m of 100.\n";
   if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
-    std::clog << report.message << '\n';
+    stream << report.message << '\n';
   }
 
   if (trace_stack_.has_value()) {
-    std::clog << "\nReader trace stack (most recent variable last):\n";
+    stream << "\nReader trace stack (most recent variable last):\n";
     for (const auto& line : trace_stack_->to_colored_text_lines()) {
-      std::clog << "  " << line << '\n';
+      stream << "  " << line << '\n';
     }
   }
 
