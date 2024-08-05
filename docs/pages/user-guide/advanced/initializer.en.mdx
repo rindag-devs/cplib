@@ -40,13 +40,13 @@ struct CmsReporter : cplib::checker::Reporter {
         status_stream << "FAIL " << report.message << '\n';
         return 1;
       case Status::ACCEPTED:
-        status_stream << (report.message.empty() ? "translate:success\n" : report.message);
+        status_stream << (report.message.empty() ? "translate:success" : report.message) << '\n';
         break;
       case Status::WRONG_ANSWER:
-        status_stream << (report.message.empty() ? "translate:wrong\n" : report.message);
+        status_stream << (report.message.empty() ? "translate:wrong" : report.message) << '\n';
         break;
       case Status::PARTIALLY_CORRECT:
-        status_stream << (report.message.empty() ? "translate:partial\n" : report.message);
+        status_stream << (report.message.empty() ? "translate:partial" : report.message) << '\n';
         break;
       default:
         status_stream << "FAIL invalid status\n";
