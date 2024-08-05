@@ -613,7 +613,7 @@ __attribute__((error("Don not use `rand`, use `rnd.next` instead")))
 #pragma warning(disable : 4273)
 #endif
 inline auto
-rand() CPLIB_RAND_THROW_STATEMENT->int {
+rand() CPLIB_RAND_THROW_STATEMENT -> int {
   cplib::panic("Don not use `rand`, use `rnd.next` instead");
 }
 
@@ -624,7 +624,7 @@ __attribute__((error("Don not use `srand`, you should use `cplib::Random` for ra
 #pragma warning(disable : 4273)
 #endif
 inline auto
-srand(unsigned int) CPLIB_RAND_THROW_STATEMENT->void {
+srand(unsigned int) CPLIB_RAND_THROW_STATEMENT -> void {
   cplib::panic("Don not use `srand`, you should use `cplib::Random` for random generator");
 }
 
@@ -1045,19 +1045,16 @@ inline Pattern::Pattern(std::string src)
         if (p->second) regfree(&p->first);
         delete p;
       }) {
-  using namespace std::string_literals;
   // In function `regexec`, a match anywhere within the string is considered successful unless the
   // regular expression contains `^` or `$`.
-  if (int err = regcomp(&re_->first, ("^"s + src_ + "$"s).c_str(), REG_EXTENDED | REG_NOSUB); err) {
+  if (int err = regcomp(&re_->first, ("^" + src_ + "$").c_str(), REG_EXTENDED | REG_NOSUB); err) {
     auto err_msg = detail::get_regex_err_msg(err, &re_->first);
-    panic("pattern constructor failed: "s + err_msg);
+    panic("pattern constructor failed: " + err_msg);
   }
   re_->second = true;
 }
 
 inline auto Pattern::match(std::string_view s) const -> bool {
-  using namespace std::string_literals;
-
   int result = regexec(&re_->first, s.data(), 0, nullptr, 0);
 
   if (!result) return true;
@@ -1065,7 +1062,7 @@ inline auto Pattern::match(std::string_view s) const -> bool {
   if (result == REG_NOMATCH) return false;
 
   auto err_msg = detail::get_regex_err_msg(result, &re_->first);
-  panic("pattern match failed: "s + err_msg);
+  panic("pattern match failed: " + err_msg);
   return false;
 }
 
@@ -3122,8 +3119,8 @@ inline auto Reader::attach_json_tag(std::string_view key, std::unique_ptr<json::
 namespace detail {
 // Open the given file and create a `var::Reader`
 inline auto make_reader_by_path(std::string_view path, std::string name, bool strict,
-                                Reader::TraceLevel trace_level, Reader::FailFunc fail_func)
-    -> var::Reader {
+                                Reader::TraceLevel trace_level,
+                                Reader::FailFunc fail_func) -> var::Reader {
   auto buf = std::make_unique<std::filebuf>();
   if (!buf->open(path.data(), std::ios_base::binary | std::ios_base::in)) {
     panic(format("Can not open file `%s` as input stream", path.data()));
@@ -3134,8 +3131,8 @@ inline auto make_reader_by_path(std::string_view path, std::string name, bool st
 
 // Use file with givin fileno as input stream and create a `var::Reader`
 inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
-                                  Reader::TraceLevel trace_level, Reader::FailFunc fail_func)
-    -> var::Reader {
+                                  Reader::TraceLevel trace_level,
+                                  Reader::FailFunc fail_func) -> var::Reader {
   auto buf = std::make_unique<io::detail::FdInBuf>(fileno);
   var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
                      trace_level, std::move(fail_func));
@@ -4376,8 +4373,8 @@ inline auto Initializer::set_ans_fileno(int fileno, var::Reader::TraceLevel trac
       });
 }
 
-inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_inf_path(std::string_view path,
+                                      var::Reader::TraceLevel trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -4388,8 +4385,8 @@ inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceL
       });
 }
 
-inline auto Initializer::set_ouf_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_ouf_path(std::string_view path,
+                                      var::Reader::TraceLevel trace_level) -> void {
   state_->ouf = var::detail::make_reader_by_path(
       path, "ouf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -4400,8 +4397,8 @@ inline auto Initializer::set_ouf_path(std::string_view path, var::Reader::TraceL
       });
 }
 
-inline auto Initializer::set_ans_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_ans_path(std::string_view path,
+                                      var::Reader::TraceLevel trace_level) -> void {
   state_->ans = var::detail::make_reader_by_path(
       path, "ans", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -4517,8 +4514,8 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
-    -> void {
+inline auto DefaultInitializer::init(std::string_view arg0,
+                                     const std::vector<std::string>& args) -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
@@ -5022,8 +5019,8 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       });
 }
 
-inline auto Initializer::set_from_user_fileno(int fileno, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_from_user_fileno(int fileno,
+                                              var::Reader::TraceLevel trace_level) -> void {
   state_->from_user = var::detail::make_reader_by_fileno(
       fileno, "from_user", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -5038,8 +5035,8 @@ inline auto Initializer::set_to_user_fileno(int fileno) -> void {
   var::detail::make_ostream_by_fileno(fileno, state_->to_user_buf, state_->to_user);
 }
 
-inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_inf_path(std::string_view path,
+                                      var::Reader::TraceLevel trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -5177,8 +5174,8 @@ inline auto disable_stdio() -> void {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
-    -> void {
+inline auto DefaultInitializer::init(std::string_view arg0,
+                                     const std::vector<std::string>& args) -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
@@ -5715,8 +5712,8 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       });
 }
 
-inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_inf_path(std::string_view path,
+                                      var::Reader::TraceLevel trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", true, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -5950,8 +5947,8 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
-    -> void {
+inline auto DefaultInitializer::init(std::string_view arg0,
+                                     const std::vector<std::string>& args) -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
@@ -6031,8 +6028,8 @@ inline auto trait_status_to_json(const std::map<std::string, bool>& traits)
 }
 
 inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t depth,
-                             std::size_t& n_remaining_node, bool colored_output, std::ostream& os)
-    -> void {
+                             std::size_t& n_remaining_node, bool colored_output,
+                             std::ostream& os) -> void {
   if (!node || depth >= 8 || (node->json_tag && node->json_tag->inner.count("#hidden"))) {
     return;
   }
@@ -6142,7 +6139,7 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
     stream << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (auto [name, satisfaction] : trait_status_) {
+    for (const auto& [name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.emplace_back(name);
       } else {
@@ -6187,7 +6184,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
     stream << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (auto [name, satisfaction] : trait_status_) {
+    for (const auto& [name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.emplace_back(name);
       } else {
@@ -6449,7 +6446,7 @@ struct ColoredTextReporter : Reporter {
     std::string name;                                                                            \
     explicit Flag(std::string name_) : name(std::move(name_)) {                                  \
       state_var_name_.required_flag_args.emplace_back(name);                                     \
-      auto name = this -> name;                                                                  \
+      auto name = this->name;                                                                    \
       state_var_name_.flag_parsers.emplace_back([name](const std::set<std::string>& flag_args) { \
         value_map_[name] = static_cast<ResultType>(flag_args.count(name));                       \
       });                                                                                        \
@@ -6466,7 +6463,7 @@ struct ColoredTextReporter : Reporter {
     template <class... Args>                                                                     \
     explicit Var(Args... args) : var(std::forward<Args>(args)...) {                              \
       state_var_name_.required_var_args.emplace_back(var.name());                                \
-      auto var = this -> var;                                                                    \
+      auto var = this->var;                                                                      \
       state_var_name_.var_parsers.emplace_back(                                                  \
           [var](const std::map<std::string, std::string>& var_args) {                            \
             auto name = std::string(var.name());                                                 \
@@ -6982,21 +6979,19 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   return true;
 }
 
-inline auto validate_required_arguments(const State& state,
-                                        const std::map<std::string, std::string>& var_args)
-    -> void {
+inline auto validate_required_arguments(
+    const State& state, const std::map<std::string, std::string>& var_args) -> void {
   for (const auto& var : state.required_var_args) {
     if (!var_args.count(var)) panic("Missing variable: " + var);
   }
 }
 
 inline auto get_args_usage(const State& state) {
-  using namespace std::string_literals;
   std::vector<std::string> builder;
   builder.reserve(state.required_flag_args.size() + state.required_var_args.size());
-  for (const auto& arg : state.required_flag_args) builder.emplace_back("[--"s + arg + "]"s);
-  for (const auto& arg : state.required_var_args) builder.emplace_back("--"s + arg + "=<value>"s);
-  builder.emplace_back("[--report-format={auto|json|text}]"s);
+  for (const auto& arg : state.required_flag_args) builder.emplace_back("[--" + arg + "]");
+  for (const auto& arg : state.required_var_args) builder.emplace_back("--" + arg + "=<value>");
+  builder.emplace_back("[--report-format={auto|json|text}]");
 
   return join(builder.begin(), builder.end(), ' ');
 }
@@ -7012,8 +7007,8 @@ inline auto set_binary_mode() {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
-    -> void {
+inline auto DefaultInitializer::init(std::string_view arg0,
+                                     const std::vector<std::string>& args) -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
