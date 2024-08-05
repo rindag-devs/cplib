@@ -17,7 +17,7 @@ The initializer needs to do three things:
 According to the [CMS official documentation](https://github.com/cms-dev/cms/blob/v1.4/docs/Task%20types.rst#standard-manager-output), the execution details of the checker on this platform are as follows:
 
 - The program is run using the command `./checker <inf> <ans> <ouf>`.
-- When reporting, output a real number in the range $[0,1]$ to stdout as the score, and output a single string `translate:success`, `translate:wrong`, or `translate:partial` to stderr, representing the result AC, WA, or PC, respectively.
+- When reporting, output a real number in the range $[0,1]$ to stdout as the score, and output a single string `translate:success`, `translate:wrong`, or `translate:partial` to stderr, representing the result AC, WA, or PC, respectively. Custom messages are also allowed.
 - If no internal errors occur, the checker's return value must be 0.
 
 Here is a sample implementation:
@@ -40,18 +40,19 @@ struct CmsReporter : cplib::checker::Reporter {
         status_stream << "FAIL " << report.message << '\n';
         std::exit(1);
       case Status::ACCEPTED:
-        status_stream << "translate:success\n";
+        status_stream << (report.message.empty() ? "translate:success\n" : report.message);
         break;
       case Status::WRONG_ANSWER:
-        status_stream << "translate:wrong\n";
+        status_stream << (report.message.empty() ? "translate:wrong\n" : report.message);
         break;
       case Status::PARTIALLY_CORRECT:
-        status_stream << "translate:partial\n";
+        status_stream << (report.message.empty() ? "translate:partial\n" : report.message);
         break;
       default:
         status_stream << "FAIL invalid status\n";
         std::exit(1);
     }
+
     std::exit(0);
   }
 };

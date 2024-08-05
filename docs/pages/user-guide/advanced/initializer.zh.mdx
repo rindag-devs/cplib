@@ -17,7 +17,7 @@ Initializer 需要做的事情可分为三步：
 根据 [CMS 官方文档](https://github.com/cms-dev/cms/blob/v1.4/docs/Task%20types.rst#standard-manager-output)，该平台的 checker 执行细节如下：
 
 - 使用 `./checker <inf> <ans> <ouf>` 命令行参数运行程序．
-- 汇报时在 stdout 输出 $[0,1]$ 范围内的实数作为分数，在 stderr 输出一行一个字符串 `translate:success`、`translate:wrong` 或 `translate:partial`， 分别代表结果 AC，WA 或 PC．
+- 汇报时在 stdout 输出 $[0,1]$ 范围内的实数作为分数，在 stderr 输出一行一个字符串 `translate:success`、`translate:wrong` 或 `translate:partial`， 分别代表结果 AC、WA、PC．或者也可以使用自定义的文本消息．
 - 在不发生内部错误的情况下，checker 的运行返回值必须为 0．
 
 下面是一个示例实现：
@@ -40,18 +40,19 @@ struct CmsReporter : cplib::checker::Reporter {
         status_stream << "FAIL " << report.message << '\n';
         std::exit(1);
       case Status::ACCEPTED:
-        status_stream << "translate:success\n";
+        status_stream << (report.message.empty() ? "translate:success\n" : report.message);
         break;
       case Status::WRONG_ANSWER:
-        status_stream << "translate:wrong\n";
+        status_stream << (report.message.empty() ? "translate:wrong\n" : report.message);
         break;
       case Status::PARTIALLY_CORRECT:
-        status_stream << "translate:partial\n";
+        status_stream << (report.message.empty() ? "translate:partial\n" : report.message);
         break;
       default:
         status_stream << "FAIL invalid status\n";
         std::exit(1);
     }
+
     std::exit(0);
   }
 };
