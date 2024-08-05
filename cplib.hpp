@@ -4117,7 +4117,7 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
   auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
 
@@ -4218,21 +4218,21 @@ struct DefaultInitializer : Initializer {
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
@@ -4447,11 +4447,8 @@ inline auto State::quit(Report report) -> void {
     report = Report(Report::Status::WRONG_ANSWER, 0.0, "Extra content in the output file");
   }
 
-  reporter->report(report);
-
-  std::ostream stream(std::cerr.rdbuf());
-  stream << "Unrecoverable error: Reporter didn't exit the program\n";
-  std::exit(EXIT_FAILURE);
+  auto exit_code = reporter->report(report);
+  std::exit(exit_code);
 }
 
 inline auto State::quit_ac() -> void { quit(Report(Report::Status::ACCEPTED, 1.0, "")); }
@@ -4589,7 +4586,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> void {
+inline auto JsonReporter::report(const Report& report) -> int {
   std::map<std::string, std::unique_ptr<json::Value>> map;
   map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
   map.emplace("score", std::make_unique<json::Real>(report.score));
@@ -4601,10 +4598,10 @@ inline auto JsonReporter::report(const Report& report) -> void {
 
   std::ostream stream(std::clog.rdbuf());
   stream << json::Map(std::move(map)).to_string() << '\n';
-  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2) << detail::status_to_title_string(report.status)
@@ -4621,10 +4618,10 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
     }
   }
 
-  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2)
@@ -4641,7 +4638,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
     }
   }
 
-  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 // /Impl reporters }}}
 }  // namespace cplib::checker
@@ -4790,7 +4787,7 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
   auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
 
@@ -4886,21 +4883,21 @@ struct DefaultInitializer : Initializer {
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
@@ -5092,11 +5089,8 @@ inline State::~State() {
 inline auto State::quit(const Report& report) -> void {
   exited_ = true;
 
-  reporter->report(report);
-
-  std::ostream stream(std::cerr.rdbuf());
-  stream << "Unrecoverable error: Reporter didn't exit the program\n";
-  std::exit(EXIT_FAILURE);
+  auto exit_code = reporter->report(report);
+  std::exit(exit_code);
 }
 
 inline auto State::quit_ac() -> void { quit(Report(Report::Status::ACCEPTED, 1.0, "")); }
@@ -5249,7 +5243,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> void {
+inline auto JsonReporter::report(const Report& report) -> int {
   std::map<std::string, std::unique_ptr<json::Value>> map;
   map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
   map.emplace("score", std::make_unique<json::Real>(report.score));
@@ -5261,10 +5255,10 @@ inline auto JsonReporter::report(const Report& report) -> void {
 
   std::ostream stream(std::clog.rdbuf());
   stream << json::Map(std::move(map)).to_string() << '\n';
-  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2) << detail::status_to_title_string(report.status)
@@ -5281,10 +5275,10 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
     }
   }
 
-  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2)
@@ -5301,7 +5295,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
     }
   }
 
-  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 // /Impl reporters }}}
 }  // namespace cplib::interactor
@@ -5472,7 +5466,7 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
   auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
 
@@ -5568,21 +5562,21 @@ struct DefaultInitializer : Initializer {
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
@@ -5884,11 +5878,8 @@ inline auto State::quit(Report report) -> void {
     }
   }
 
-  reporter->report(report);
-
-  std::ostream stream(std::cerr.rdbuf());
-  stream << "Unrecoverable error: Reporter didn't exit the program\n";
-  std::exit(EXIT_FAILURE);
+  auto exit_code = reporter->report(report);
+  std::exit(exit_code);
 }
 
 inline auto State::quit_valid() -> void { quit(Report(Report::Status::VALID, "")); }
@@ -6094,7 +6085,7 @@ inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> void {
+inline auto JsonReporter::report(const Report& report) -> int {
   std::map<std::string, std::unique_ptr<json::Value>> map;
   map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
   map.emplace("message", std::make_unique<json::String>(report.message));
@@ -6116,10 +6107,10 @@ inline auto JsonReporter::report(const Report& report) -> void {
 
   std::ostream stream(std::clog.rdbuf());
   stream << json::Map(std::move(map)).to_string() << '\n';
-  std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << detail::status_to_title_string(report.status) << ".\n";
@@ -6161,10 +6152,10 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
     detail::print_trace_tree(trace_tree_, 0, n_remaining_node, false, stream);
   }
 
-  std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << detail::status_to_colored_title_string(report.status) << ".\n";
@@ -6206,7 +6197,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
     detail::print_trace_tree(trace_tree_, 0, n_remaining_node, true, stream);
   }
 
-  std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 // /Impl reporters }}}
 }  // namespace cplib::validator
@@ -6340,7 +6331,7 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 };
 
 struct State {
@@ -6418,21 +6409,21 @@ struct DefaultInitializer : Initializer {
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 #define CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_)                                 \
@@ -6914,11 +6905,8 @@ inline State::~State() {
 inline auto State::quit(const Report& report) -> void {
   exited_ = true;
 
-  reporter->report(report);
-
-  std::ostream stream(std::cerr.rdbuf());
-  stream << "Unrecoverable error: Reporter didn't exit the program\n";
-  std::exit(EXIT_FAILURE);
+  auto exit_code = reporter->report(report);
+  std::exit(exit_code);
 }
 
 inline auto State::quit_ok() -> void { quit(Report(Report::Status::OK, "")); }
@@ -7094,17 +7082,17 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> void {
+inline auto JsonReporter::report(const Report& report) -> int {
   std::map<std::string, std::unique_ptr<json::Value>> map;
   map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
   map.emplace("message", std::make_unique<json::String>(report.message));
 
   std::ostream stream(std::clog.rdbuf());
   stream << json::Map(std::move(map)).to_string() << '\n';
-  std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   if (report.status == Report::Status::OK && report.message.empty()) {
@@ -7114,10 +7102,10 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
 
   stream << detail::status_to_title_string(report.status) << ".\n" << report.message << '\n';
 
-  std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   if (report.status == Report::Status::OK && report.message.empty()) {
@@ -7128,7 +7116,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
   stream << detail::status_to_colored_title_string(report.status) << ".\n"
          << report.message << '\n';
 
-  std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 // /Impl reporters }}}
 }  // namespace cplib::generator
