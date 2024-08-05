@@ -230,7 +230,7 @@ struct ColoredTextReporter : Reporter {
     std::string name;                                                                            \
     explicit Flag(std::string name_) : name(std::move(name_)) {                                  \
       state_var_name_.required_flag_args.emplace_back(name);                                     \
-      auto name = this -> name;                                                                  \
+      auto name = this->name;                                                                    \
       state_var_name_.flag_parsers.emplace_back([name](const std::set<std::string>& flag_args) { \
         value_map_[name] = static_cast<ResultType>(flag_args.count(name));                       \
       });                                                                                        \
@@ -247,7 +247,7 @@ struct ColoredTextReporter : Reporter {
     template <class... Args>                                                                     \
     explicit Var(Args... args) : var(std::forward<Args>(args)...) {                              \
       state_var_name_.required_var_args.emplace_back(var.name());                                \
-      auto var = this -> var;                                                                    \
+      auto var = this->var;                                                                      \
       state_var_name_.var_parsers.emplace_back(                                                  \
           [var](const std::map<std::string, std::string>& var_args) {                            \
             auto name = std::string(var.name());                                                 \

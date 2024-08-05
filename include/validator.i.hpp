@@ -96,8 +96,8 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       });
 }
 
-inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_inf_path(std::string_view path,
+                                      var::Reader::TraceLevel trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", true, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -331,8 +331,8 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
-    -> void {
+inline auto DefaultInitializer::init(std::string_view arg0,
+                                     const std::vector<std::string>& args) -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
@@ -412,8 +412,8 @@ inline auto trait_status_to_json(const std::map<std::string, bool>& traits)
 }
 
 inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t depth,
-                             std::size_t& n_remaining_node, bool colored_output, std::ostream& os)
-    -> void {
+                             std::size_t& n_remaining_node, bool colored_output,
+                             std::ostream& os) -> void {
   if (!node || depth >= 8 || (node->json_tag && node->json_tag->inner.count("#hidden"))) {
     return;
   }
@@ -523,7 +523,7 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
     stream << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (auto [name, satisfaction] : trait_status_) {
+    for (const auto& [name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.emplace_back(name);
       } else {
@@ -568,7 +568,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
     stream << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (auto [name, satisfaction] : trait_status_) {
+    for (const auto& [name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.emplace_back(name);
       } else {

@@ -161,21 +161,19 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   return true;
 }
 
-inline auto validate_required_arguments(const State& state,
-                                        const std::map<std::string, std::string>& var_args)
-    -> void {
+inline auto validate_required_arguments(
+    const State& state, const std::map<std::string, std::string>& var_args) -> void {
   for (const auto& var : state.required_var_args) {
     if (!var_args.count(var)) panic("Missing variable: " + var);
   }
 }
 
 inline auto get_args_usage(const State& state) {
-  using namespace std::string_literals;
   std::vector<std::string> builder;
   builder.reserve(state.required_flag_args.size() + state.required_var_args.size());
-  for (const auto& arg : state.required_flag_args) builder.emplace_back("[--"s + arg + "]"s);
-  for (const auto& arg : state.required_var_args) builder.emplace_back("--"s + arg + "=<value>"s);
-  builder.emplace_back("[--report-format={auto|json|text}]"s);
+  for (const auto& arg : state.required_flag_args) builder.emplace_back("[--" + arg + "]");
+  for (const auto& arg : state.required_var_args) builder.emplace_back("--" + arg + "=<value>");
+  builder.emplace_back("[--report-format={auto|json|text}]");
 
   return join(builder.begin(), builder.end(), ' ');
 }
@@ -191,8 +189,8 @@ inline auto set_binary_mode() {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
-    -> void {
+inline auto DefaultInitializer::init(std::string_view arg0,
+                                     const std::vector<std::string>& args) -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);

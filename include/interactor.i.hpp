@@ -85,8 +85,8 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       });
 }
 
-inline auto Initializer::set_from_user_fileno(int fileno, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_from_user_fileno(int fileno,
+                                              var::Reader::TraceLevel trace_level) -> void {
   state_->from_user = var::detail::make_reader_by_fileno(
       fileno, "from_user", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -101,8 +101,8 @@ inline auto Initializer::set_to_user_fileno(int fileno) -> void {
   var::detail::make_ostream_by_fileno(fileno, state_->to_user_buf, state_->to_user);
 }
 
-inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_inf_path(std::string_view path,
+                                      var::Reader::TraceLevel trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -240,8 +240,8 @@ inline auto disable_stdio() -> void {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
-    -> void {
+inline auto DefaultInitializer::init(std::string_view arg0,
+                                     const std::vector<std::string>& args) -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);

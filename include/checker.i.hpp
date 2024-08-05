@@ -108,8 +108,8 @@ inline auto Initializer::set_ans_fileno(int fileno, var::Reader::TraceLevel trac
       });
 }
 
-inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_inf_path(std::string_view path,
+                                      var::Reader::TraceLevel trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -120,8 +120,8 @@ inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceL
       });
 }
 
-inline auto Initializer::set_ouf_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_ouf_path(std::string_view path,
+                                      var::Reader::TraceLevel trace_level) -> void {
   state_->ouf = var::detail::make_reader_by_path(
       path, "ouf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -132,8 +132,8 @@ inline auto Initializer::set_ouf_path(std::string_view path, var::Reader::TraceL
       });
 }
 
-inline auto Initializer::set_ans_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_ans_path(std::string_view path,
+                                      var::Reader::TraceLevel trace_level) -> void {
   state_->ans = var::detail::make_reader_by_path(
       path, "ans", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -249,8 +249,8 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
-    -> void {
+inline auto DefaultInitializer::init(std::string_view arg0,
+                                     const std::vector<std::string>& args) -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);

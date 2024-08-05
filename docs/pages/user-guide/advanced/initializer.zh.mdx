@@ -22,9 +22,12 @@ Initializer 需要做的事情可分为三步：
 
 下面是一个示例实现：
 
-```cpp
+```cpp filename="initializer.hpp" copy showLineNumbers
 struct CmsReporter : cplib::checker::Reporter {
-  [[noreturn]] auto report(const cplib::checker::Report& report) -> void override {
+  using Report = cplib::checker::Report;
+  using Status = Report::Status;
+
+  [[noreturn]] auto report(const Report &report) -> void override {
     // Do not use std::cout or std::clog directly: need to prevent the behavior of the user code
     // setting the format for them from affecting the Reporter output
     std::ostream score_stream(std::cout.rdbuf());
@@ -33,16 +36,16 @@ struct CmsReporter : cplib::checker::Reporter {
     score_stream << std::fixed << std::setprecision(9) << report.score << '\n';
 
     switch (report.status) {
-      case cplib::checker::Report::Status::INTERNAL_ERROR:
-        status_stream << "FAIL " << report.status << '\n';
+      case Status::INTERNAL_ERROR:
+        status_stream << "FAIL " << report.message << '\n';
         std::exit(1);
-      case cplib::checker::Report::Status::ACCEPTED:
+      case Status::ACCEPTED:
         status_stream << "translate:success\n";
         break;
-      case cplib::checker::Report::Status::WRONG_ANSWER:
+      case Status::WRONG_ANSWER:
         status_stream << "translate:wrong\n";
         break;
-      case cplib::checker::Report::Status::PARTIALLY_CORRECT:
+      case Status::PARTIALLY_CORRECT:
         status_stream << "translate:partial\n";
         break;
       default:
@@ -54,8 +57,7 @@ struct CmsReporter : cplib::checker::Reporter {
 };
 
 struct CmsInitializer : cplib::checker::Initializer {
-  auto init(std::string_view arg0, const std::vector<std::string> &args)
-      -> void override {
+  auto init(std::string_view arg0, const std::vector<std::string> &args) -> void override {
     auto& state = this->state();
 
     // Set the reporter as early as possible to ensure that errors reported during init can also be
@@ -64,12 +66,11 @@ struct CmsInitializer : cplib::checker::Initializer {
 
     if (args.size() != 3) {
       cplib::panic("Program must be run with the following arguments:\n  <inf> <ans> <ouf>");
-      std::exit(1);
     }
 
-    auto inf = args[0];
-    auto ouf = args[2];
-    auto ans = args[1];
+    const auto &inf = args[0];
+    const auto &ouf = args[2];
+    const auto &ans = args[1];
 
     set_inf_path(inf, cplib::var::Reader::TraceLevel::NONE);
     set_ouf_path(ouf, cplib::var::Reader::TraceLevel::NONE);
@@ -89,7 +90,7 @@ Initializer 需继承自 `cplib::<work-modeInitializerReporter` 并实现 `auto 
 <Callout type="info">
   例如，若某平台要求的命令行参数格式如 `./chk <inf> <ouf> <ans> --full-score={int} [--report-as-json]`，可通过以下代码进行处理： 
 
-  ```cpp
+  ```cpp copy
   auto parsed_args = cplib::cmd_args::ParsedArgs(args);
 
   bool report_as_json = parsed_args.has_flag("report-as-json");

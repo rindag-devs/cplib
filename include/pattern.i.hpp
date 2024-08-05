@@ -51,19 +51,16 @@ inline Pattern::Pattern(std::string src)
         if (p->second) regfree(&p->first);
         delete p;
       }) {
-  using namespace std::string_literals;
   // In function `regexec`, a match anywhere within the string is considered successful unless the
   // regular expression contains `^` or `$`.
-  if (int err = regcomp(&re_->first, ("^"s + src_ + "$"s).c_str(), REG_EXTENDED | REG_NOSUB); err) {
+  if (int err = regcomp(&re_->first, ("^" + src_ + "$").c_str(), REG_EXTENDED | REG_NOSUB); err) {
     auto err_msg = detail::get_regex_err_msg(err, &re_->first);
-    panic("pattern constructor failed: "s + err_msg);
+    panic("pattern constructor failed: " + err_msg);
   }
   re_->second = true;
 }
 
 inline auto Pattern::match(std::string_view s) const -> bool {
-  using namespace std::string_literals;
-
   int result = regexec(&re_->first, s.data(), 0, nullptr, 0);
 
   if (!result) return true;
@@ -71,7 +68,7 @@ inline auto Pattern::match(std::string_view s) const -> bool {
   if (result == REG_NOMATCH) return false;
 
   auto err_msg = detail::get_regex_err_msg(result, &re_->first);
-  panic("pattern match failed: "s + err_msg);
+  panic("pattern match failed: " + err_msg);
   return false;
 }
 

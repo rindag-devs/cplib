@@ -37,7 +37,7 @@ __attribute__((error("Don not use `rand`, use `rnd.next` instead")))
 #pragma warning(disable : 4273)
 #endif
 inline auto
-rand() CPLIB_RAND_THROW_STATEMENT->int {
+rand() CPLIB_RAND_THROW_STATEMENT -> int {
   cplib::panic("Don not use `rand`, use `rnd.next` instead");
 }
 
@@ -48,7 +48,7 @@ __attribute__((error("Don not use `srand`, you should use `cplib::Random` for ra
 #pragma warning(disable : 4273)
 #endif
 inline auto
-srand(unsigned int) CPLIB_RAND_THROW_STATEMENT->void {
+srand(unsigned int) CPLIB_RAND_THROW_STATEMENT -> void {
   cplib::panic("Don not use `srand`, you should use `cplib::Random` for random generator");
 }
 

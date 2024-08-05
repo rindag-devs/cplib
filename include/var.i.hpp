@@ -257,8 +257,8 @@ inline auto Reader::attach_json_tag(std::string_view key, std::unique_ptr<json::
 namespace detail {
 // Open the given file and create a `var::Reader`
 inline auto make_reader_by_path(std::string_view path, std::string name, bool strict,
-                                Reader::TraceLevel trace_level, Reader::FailFunc fail_func)
-    -> var::Reader {
+                                Reader::TraceLevel trace_level,
+                                Reader::FailFunc fail_func) -> var::Reader {
   auto buf = std::make_unique<std::filebuf>();
   if (!buf->open(path.data(), std::ios_base::binary | std::ios_base::in)) {
     panic(format("Can not open file `%s` as input stream", path.data()));
@@ -269,8 +269,8 @@ inline auto make_reader_by_path(std::string_view path, std::string name, bool st
 
 // Use file with givin fileno as input stream and create a `var::Reader`
 inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
-                                  Reader::TraceLevel trace_level, Reader::FailFunc fail_func)
-    -> var::Reader {
+                                  Reader::TraceLevel trace_level,
+                                  Reader::FailFunc fail_func) -> var::Reader {
   auto buf = std::make_unique<io::detail::FdInBuf>(fileno);
   var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
                      trace_level, std::move(fail_func));
