@@ -27,7 +27,7 @@ struct CmsReporter : cplib::checker::Reporter {
   using Report = cplib::checker::Report;
   using Status = Report::Status;
 
-  [[noreturn]] auto report(const Report &report) -> void override {
+  auto report(const Report &report) -> int override {
     // Do not use std::cout or std::clog directly: need to prevent the behavior of the user code
     // setting the format for them from affecting the Reporter output
     std::ostream score_stream(std::cout.rdbuf());
@@ -38,7 +38,7 @@ struct CmsReporter : cplib::checker::Reporter {
     switch (report.status) {
       case Status::INTERNAL_ERROR:
         status_stream << "FAIL " << report.message << '\n';
-        std::exit(1);
+        return 1;
       case Status::ACCEPTED:
         status_stream << (report.message.empty() ? "translate:success\n" : report.message);
         break;
@@ -50,10 +50,10 @@ struct CmsReporter : cplib::checker::Reporter {
         break;
       default:
         status_stream << "FAIL invalid status\n";
-        std::exit(1);
+        return 1;
     }
 
-    std::exit(0);
+    return 0;
   }
 };
 
@@ -80,7 +80,7 @@ struct CmsInitializer : cplib::checker::Initializer {
 };
 ```
 
-The Reporter needs to inherit from `cplib::<work-mode>::Reporter` and implement the `[[noreturn]] auto report(const cplib::<work-mode>::Report &report) -> void` function.
+The Reporter needs to inherit from `cplib::<work-mode>::Reporter` and implement the `auto report(const cplib::<work-mode>::Report &report) -> int` function, where the return value represents the exit code.
 
 The initializer needs to inherit from `cplib::<work-mode>Initializer` and implement the `auto init(std::string_view arg0, const std::vector<std::string> &args) -> void` function.
 

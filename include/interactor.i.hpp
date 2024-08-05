@@ -158,11 +158,8 @@ inline State::~State() {
 inline auto State::quit(const Report& report) -> void {
   exited_ = true;
 
-  reporter->report(report);
-
-  std::ostream stream(std::cerr.rdbuf());
-  stream << "Unrecoverable error: Reporter didn't exit the program\n";
-  std::exit(EXIT_FAILURE);
+  auto exit_code = reporter->report(report);
+  std::exit(exit_code);
 }
 
 inline auto State::quit_ac() -> void { quit(Report(Report::Status::ACCEPTED, 1.0, "")); }
@@ -315,7 +312,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> void {
+inline auto JsonReporter::report(const Report& report) -> int {
   std::map<std::string, std::unique_ptr<json::Value>> map;
   map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
   map.emplace("score", std::make_unique<json::Real>(report.score));
@@ -327,10 +324,10 @@ inline auto JsonReporter::report(const Report& report) -> void {
 
   std::ostream stream(std::clog.rdbuf());
   stream << json::Map(std::move(map)).to_string() << '\n';
-  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2) << detail::status_to_title_string(report.status)
@@ -347,10 +344,10 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
     }
   }
 
-  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2)
@@ -367,7 +364,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
     }
   }
 
-  std::exit(report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 // /Impl reporters }}}
 }  // namespace cplib::interactor

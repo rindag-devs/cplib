@@ -139,7 +139,7 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[noreturn]] virtual auto report(const Report& report) -> void = 0;
+  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
   auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
 
@@ -235,21 +235,21 @@ struct DefaultInitializer : Initializer {
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[noreturn]] auto report(const Report& report) -> void override;
+  [[nodiscard]] auto report(const Report& report) -> int override;
 };
 
 /**

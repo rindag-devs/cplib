@@ -268,11 +268,8 @@ inline auto State::quit(Report report) -> void {
     }
   }
 
-  reporter->report(report);
-
-  std::ostream stream(std::cerr.rdbuf());
-  stream << "Unrecoverable error: Reporter didn't exit the program\n";
-  std::exit(EXIT_FAILURE);
+  auto exit_code = reporter->report(report);
+  std::exit(exit_code);
 }
 
 inline auto State::quit_valid() -> void { quit(Report(Report::Status::VALID, "")); }
@@ -478,7 +475,7 @@ inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> void {
+inline auto JsonReporter::report(const Report& report) -> int {
   std::map<std::string, std::unique_ptr<json::Value>> map;
   map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
   map.emplace("message", std::make_unique<json::String>(report.message));
@@ -500,10 +497,10 @@ inline auto JsonReporter::report(const Report& report) -> void {
 
   std::ostream stream(std::clog.rdbuf());
   stream << json::Map(std::move(map)).to_string() << '\n';
-  std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << detail::status_to_title_string(report.status) << ".\n";
@@ -545,10 +542,10 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
     detail::print_trace_tree(trace_tree_, 0, n_remaining_node, false, stream);
   }
 
-  std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << detail::status_to_colored_title_string(report.status) << ".\n";
@@ -590,7 +587,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
     detail::print_trace_tree(trace_tree_, 0, n_remaining_node, true, stream);
   }
 
-  std::exit(report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 // /Impl reporters }}}
 }  // namespace cplib::validator

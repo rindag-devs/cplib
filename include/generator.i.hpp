@@ -96,11 +96,8 @@ inline State::~State() {
 inline auto State::quit(const Report& report) -> void {
   exited_ = true;
 
-  reporter->report(report);
-
-  std::ostream stream(std::cerr.rdbuf());
-  stream << "Unrecoverable error: Reporter didn't exit the program\n";
-  std::exit(EXIT_FAILURE);
+  auto exit_code = reporter->report(report);
+  std::exit(exit_code);
 }
 
 inline auto State::quit_ok() -> void { quit(Report(Report::Status::OK, "")); }
@@ -276,17 +273,17 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> void {
+inline auto JsonReporter::report(const Report& report) -> int {
   std::map<std::string, std::unique_ptr<json::Value>> map;
   map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
   map.emplace("message", std::make_unique<json::String>(report.message));
 
   std::ostream stream(std::clog.rdbuf());
   stream << json::Map(std::move(map)).to_string() << '\n';
-  std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> void {
+inline auto PlainTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   if (report.status == Report::Status::OK && report.message.empty()) {
@@ -296,10 +293,10 @@ inline auto PlainTextReporter::report(const Report& report) -> void {
 
   stream << detail::status_to_title_string(report.status) << ".\n" << report.message << '\n';
 
-  std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> void {
+inline auto ColoredTextReporter::report(const Report& report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   if (report.status == Report::Status::OK && report.message.empty()) {
@@ -310,7 +307,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> void {
   stream << detail::status_to_colored_title_string(report.status) << ".\n"
          << report.message << '\n';
 
-  std::exit(report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE);
+  return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 // /Impl reporters }}}
 }  // namespace cplib::generator
