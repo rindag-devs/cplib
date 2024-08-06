@@ -323,7 +323,7 @@ inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
   auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
                        Reader::TraceLevel::NONE, [](const Reader&, std::string_view msg) {
-                         panic(std::string("Var::parse failed") + msg.data());
+                         panic(std::string("Var::parse failed: ") + msg.data());
                        });
   T result = reader.read(*this);
   if (!reader.inner().eof()) {
