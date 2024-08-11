@@ -1513,6 +1513,7 @@ inline auto Random::shuffle(Container& container) -> void {
 #include <streambuf>
 #include <string>
 #include <string_view>
+#include <vector>
 
 
 
@@ -1535,39 +1536,6 @@ struct Position {
   explicit Position(std::size_t line, std::size_t col, std::size_t byte);
 
   [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
-};
-
-/// Represents a fragment of a file.
-struct FileFragment {
-  struct Direction {
-   public:
-    enum Value { AFTER, AROUND, BEFORE };
-
-    Direction() = default;
-
-    constexpr Direction(Value value);  // NOLINT(google-explicit-constructor)
-
-    constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
-
-    explicit operator bool() const = delete;
-
-    [[nodiscard]] constexpr auto to_string() const -> std::string_view;
-
-   private:
-    Value value_;
-  };
-
-  std::string stream;
-  Position pos;
-  Direction dir;
-
-  explicit FileFragment(std::string stream, Position begin, Direction dir);
-
-  [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
-
-  [[nodiscard]] auto to_plain_text() const -> std::string;
-
-  [[nodiscard]] auto to_colored_text() const -> std::string;
 };
 
 /// Buffer for input stream.
@@ -1722,14 +1690,6 @@ struct InStream {
    */
   auto read_line() -> std::optional<std::string>;
 
-  /**
-   * Make a file fragment using the current position.
-   *
-   * @param dir The direction of the fragment.
-   * @return The file fragment.
-   */
-  [[nodiscard]] auto make_file_fragment(FileFragment::Direction dir) const -> FileFragment;
-
  private:
   std::unique_ptr<std::streambuf> buf_;
   std::string name_;
@@ -1773,6 +1733,7 @@ struct OutBuf : std::streambuf {
  */
 
 
+#include <vector>
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
   
@@ -1820,49 +1781,6 @@ inline auto Position::to_json() const -> std::unique_ptr<json::Map> {
   map.emplace("byte", std::make_unique<json::Int>(byte));
 
   return std::make_unique<json::Map>(std::move(map));
-}
-
-inline constexpr FileFragment::Direction::Direction(Value value) : value_(value) {}
-
-inline constexpr FileFragment::Direction::operator Value() const { return value_; }
-
-inline constexpr auto FileFragment::Direction::to_string() const -> std::string_view {
-  switch (value_) {
-    case Value::AFTER:
-      return "after";
-    case Value::AROUND:
-      return "around";
-    case Value::BEFORE:
-      return "before";
-    default:
-      panic(format("Unknown file fragment direction: %d", static_cast<int>(value_)));
-      return "unknown";
-  }
-}
-
-inline FileFragment::FileFragment(std::string stream, Position pos, Direction dir)
-    : stream(std::move(stream)), pos(pos), dir(dir) {}
-
-inline auto FileFragment::to_json() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-
-  map.emplace("pos", pos.to_json());
-  map.emplace("dir", std::make_unique<json::String>(std::string(dir.to_string())));
-
-  return std::make_unique<json::Map>(std::move(map));
-}
-
-inline auto FileFragment::to_plain_text() const -> std::string {
-  auto dir_str = std::string(dir.to_string());
-  dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
-  return format("%s #%zu byte, in stream `%s`", dir_str.c_str(), pos.byte, stream.c_str());
-}
-
-inline auto FileFragment::to_colored_text() const -> std::string {
-  auto dir_str = std::string(dir.to_string());
-  dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
-  return format("%s #\x1b[0;33m%zu\x1b[0m byte, in stream `\x1b[0;33m%s\x1b[0m`", dir_str.c_str(),
-                pos.byte, stream.c_str());
 }
 
 InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {
@@ -2027,10 +1945,6 @@ inline auto InStream::read_line() -> std::optional<std::string> {
     line.push_back(static_cast<char>(c));
   }
   return line;
-}
-
-[[nodiscard]] auto InStream::make_file_fragment(FileFragment::Direction dir) const -> FileFragment {
-  return FileFragment(std::string(name()), pos(), dir);
 }
 
 // https://www.josuttis.com/cppcode/fdstream.html
@@ -2263,6 +2177,40 @@ struct Reader {
     TraceTreeNode* parent_{nullptr};
   };
 
+  /// Represents a fragment of a file.
+  struct Fragment {
+    struct Direction {
+     public:
+      enum Value { AFTER, AROUND, BEFORE };
+
+      Direction() = default;
+
+      constexpr Direction(Value value);  // NOLINT(google-explicit-constructor)
+
+      constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
+
+      explicit operator bool() const = delete;
+
+      [[nodiscard]] constexpr auto to_string() const -> std::string_view;
+
+     private:
+      Value value_;
+    };
+
+    std::string stream;
+    io::Position pos;
+    Direction dir;
+    std::vector<std::size_t> highlight_lines{};
+
+    explicit Fragment(std::string stream, io::Position begin, Direction dir);
+
+    [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
+
+    [[nodiscard]] auto to_plain_text() const -> std::string;
+
+    [[nodiscard]] auto to_colored_text() const -> std::string;
+  };
+
   using FailFunc = UniqueFunction<auto(const Reader&, std::string_view)->void>;
 
   /**
@@ -2353,6 +2301,14 @@ struct Reader {
    * @param tag The JSON tag.
    */
   auto attach_json_tag(std::string_view key, std::unique_ptr<json::Value> value);
+
+  /**
+   * Make a file fragment using the current position.
+   *
+   * @param dir The direction of the fragment.
+   * @return The file fragment.
+   */
+  [[nodiscard]] auto make_fragment(Fragment::Direction dir) const -> Fragment;
 
  private:
   std::unique_ptr<io::InStream> inner_;
@@ -3149,7 +3105,9 @@ inline Reader::Trace::Trace(std::string var_name, io::Position pos)
   lines.reserve(stack.size() + 1);
 
   auto stream_line = std::string("Stream: \x1b[0;33m") + stream + "\x1b[0m";
-  stream_line += " \x1b[0;31m[fatal]\x1b[0m";
+  if (fatal) {
+    stream_line += " \x1b[0;31m[fatal]\x1b[0m";
+  }
   lines.emplace_back(stream_line);
 
   std::size_t id = 0;
@@ -3207,6 +3165,56 @@ inline auto Reader::TraceTreeNode::add_child(std::unique_ptr<TraceTreeNode> chil
     -> std::unique_ptr<TraceTreeNode>& {
   child->parent_ = this;
   return children_.emplace_back(std::move(child));
+}
+
+inline constexpr Reader::Fragment::Direction::Direction(Value value) : value_(value) {}
+
+inline constexpr Reader::Fragment::Direction::operator Value() const { return value_; }
+
+inline constexpr auto Reader::Fragment::Direction::to_string() const -> std::string_view {
+  switch (value_) {
+    case Value::AFTER:
+      return "after";
+    case Value::AROUND:
+      return "around";
+    case Value::BEFORE:
+      return "before";
+    default:
+      panic(format("Unknown file fragment direction: %d", static_cast<int>(value_)));
+      return "unknown";
+  }
+}
+
+inline Reader::Fragment::Fragment(std::string stream, io::Position pos, Direction dir)
+    : stream(std::move(stream)), pos(pos), dir(dir) {}
+
+inline auto Reader::Fragment::to_json() const -> std::unique_ptr<json::Map> {
+  std::map<std::string, std::unique_ptr<json::Value>> map;
+
+  map.emplace("pos", pos.to_json());
+  map.emplace("dir", std::make_unique<json::String>(std::string(dir.to_string())));
+
+  std::vector<std::unique_ptr<json::Value>> highlight_lines_json;
+  highlight_lines_json.reserve(highlight_lines.size());
+  for (auto line : highlight_lines) {
+    highlight_lines_json.push_back(std::make_unique<json::Int>(line));
+  }
+  map.emplace("highlight_lines", std::make_unique<json::List>(std::move(highlight_lines_json)));
+
+  return std::make_unique<json::Map>(std::move(map));
+}
+
+inline auto Reader::Fragment::to_plain_text() const -> std::string {
+  auto dir_str = std::string(dir.to_string());
+  dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
+  return format("%s #%zu byte, in stream `%s`", dir_str.c_str(), pos.byte, stream.c_str());
+}
+
+inline auto Reader::Fragment::to_colored_text() const -> std::string {
+  auto dir_str = std::string(dir.to_string());
+  dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
+  return format("%s #\x1b[0;33m%zu\x1b[0m byte, in stream `\x1b[0;33m%s\x1b[0m`", dir_str.c_str(),
+                pos.byte, stream.c_str());
 }
 
 inline Reader::Reader(std::unique_ptr<io::InStream> inner, Reader::TraceLevel trace_level,
@@ -3287,6 +3295,21 @@ inline auto Reader::attach_json_tag(std::string_view key, std::unique_ptr<json::
   }
 
   trace_tree_current_->json_tag->inner.emplace(key, std::move(value));
+}
+
+[[nodiscard]] auto Reader::make_fragment(Fragment::Direction dir) const -> Fragment {
+  if (get_trace_level() >= TraceLevel::STACK_ONLY) {
+    auto trace_stack = make_trace_stack(false);
+    if (!trace_stack.stack.empty()) {
+      auto pos = trace_stack.stack.back().pos;
+      auto fragment = Fragment(std::string(inner().name()), pos, dir);
+      fragment.highlight_lines = {pos.line};
+      return fragment;
+    }
+  }
+
+  auto pos = inner().pos();
+  return Fragment(std::string(inner().name()), pos, dir);
 }
 
 namespace detail {
@@ -4163,7 +4186,6 @@ inline auto ParsedArgs::has_flag(std::string_view name) const -> bool {
 
 
 
-
 namespace cplib::checker {
 /**
  * `Report` represents a report showing when checker exits.
@@ -4278,12 +4300,12 @@ struct Reporter {
   auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
   auto detach_trace_stack(const std::string& stream) -> void;
 
-  auto attach_file_fragment(const io::FileFragment& file_fragment) -> void;
-  auto detach_file_fragment(const std::string& stream) -> void;
+  auto attach_fragment(const var::Reader::Fragment& fragment) -> void;
+  auto detach_fragment(const std::string& stream) -> void;
 
  protected:
   std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
-  std::map<std::string, io::FileFragment> file_fragments_{};
+  std::map<std::string, var::Reader::Fragment> fragments_{};
 };
 
 /**
@@ -4460,7 +4482,6 @@ struct ColoredTextReporter : Reporter {
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 
 
@@ -4507,8 +4528,8 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -4520,8 +4541,8 @@ inline auto Initializer::set_ouf_fileno(int fileno, var::Reader::TraceLevel trac
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         state_->quit_wa(msg);
       });
@@ -4533,8 +4554,8 @@ inline auto Initializer::set_ans_fileno(int fileno, var::Reader::TraceLevel trac
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -4547,8 +4568,8 @@ inline auto Initializer::set_inf_path(std::string_view path,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -4561,8 +4582,8 @@ inline auto Initializer::set_ouf_path(std::string_view path,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         state_->quit_wa(msg);
       });
@@ -4575,8 +4596,8 @@ inline auto Initializer::set_ans_path(std::string_view path,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -4592,12 +4613,12 @@ inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
   trace_stacks_.erase(stream);
 }
 
-inline auto Reporter::attach_file_fragment(const io::FileFragment& file_fragment) -> void {
-  file_fragments_.emplace(std::string(file_fragment.stream), file_fragment);
+inline auto Reporter::attach_fragment(const var::Reader::Fragment& fragment) -> void {
+  fragments_.emplace(std::string(fragment.stream), fragment);
 }
 
-inline auto Reporter::detach_file_fragment(const std::string& stream) -> void {
-  file_fragments_.erase(stream);
+inline auto Reporter::detach_fragment(const std::string& stream) -> void {
+  fragments_.erase(stream);
 }
 
 // Impl State {{{
@@ -4782,15 +4803,15 @@ inline auto JsonReporter::report(const Report& report) -> int {
     for (const auto& [name, stack] : trace_stacks_) {
       trace_stacks_map.emplace(name, stack.to_json());
     }
-    map.emplace("trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+    map.emplace("reader_trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
   }
 
-  if (!file_fragments_.empty()) {
-    std::map<std::string, std::unique_ptr<json::Value>> file_fragments_map;
-    for (const auto& [name, file] : file_fragments_) {
-      file_fragments_map.emplace(name, file.to_json());
+  if (!fragments_.empty()) {
+    std::map<std::string, std::unique_ptr<json::Value>> fragments_map;
+    for (const auto& [name, file] : fragments_) {
+      fragments_map.emplace(name, file.to_json());
     }
-    map.emplace("file_fragments", std::make_unique<json::Map>(std::move(file_fragments_map)));
+    map.emplace("reader_fragments", std::make_unique<json::Map>(std::move(fragments_map)));
   }
 
   std::ostream stream(std::clog.rdbuf());
@@ -4818,9 +4839,9 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
     }
   }
 
-  if (!file_fragments_.empty()) {
-    stream << "\nFile fragments:\n";
-    for (const auto& [_, file] : file_fragments_) {
+  if (!fragments_.empty()) {
+    stream << "\nFragments:\n";
+    for (const auto& [_, file] : fragments_) {
       stream << "  - " << file.to_plain_text() << '\n';
     }
   }
@@ -4848,9 +4869,9 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
     }
   }
 
-  if (!file_fragments_.empty()) {
-    stream << "\nFile fragments:\n";
-    for (const auto& [_, file] : file_fragments_) {
+  if (!fragments_.empty()) {
+    stream << "\nFragments:\n";
+    for (const auto& [_, file] : fragments_) {
       stream << "  - " << file.to_colored_text() << '\n';
     }
   }
@@ -4888,7 +4909,6 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 #include <string>
 #include <string_view>
 #include <vector>
-
 
 
 
@@ -5010,12 +5030,12 @@ struct Reporter {
   auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
   auto detach_trace_stack(const std::string& stream) -> void;
 
-  auto attach_file_fragment(const io::FileFragment& file_fragment) -> void;
-  auto detach_file_fragment(const std::string& stream) -> void;
+  auto attach_fragment(const var::Reader::Fragment& fragment) -> void;
+  auto detach_fragment(const std::string& stream) -> void;
 
  protected:
   std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
-  std::map<std::string, io::FileFragment> file_fragments_{};
+  std::map<std::string, var::Reader::Fragment> fragments_{};
 };
 
 /**
@@ -5235,8 +5255,8 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -5249,8 +5269,8 @@ inline auto Initializer::set_from_user_fileno(int fileno,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         state_->quit_wa(msg);
       });
@@ -5267,8 +5287,8 @@ inline auto Initializer::set_inf_path(std::string_view path,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -5281,8 +5301,8 @@ inline auto Initializer::set_from_user_path(std::string_view path,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         state_->quit_wa(msg);
       });
@@ -5302,12 +5322,12 @@ inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
   trace_stacks_.erase(stream);
 }
 
-inline auto Reporter::attach_file_fragment(const io::FileFragment& file_fragment) -> void {
-  file_fragments_.emplace(std::string(file_fragment.stream), file_fragment);
+inline auto Reporter::attach_fragment(const var::Reader::Fragment& fragment) -> void {
+  fragments_.emplace(std::string(fragment.stream), fragment);
 }
 
-inline auto Reporter::detach_file_fragment(const std::string& stream) -> void {
-  file_fragments_.erase(stream);
+inline auto Reporter::detach_fragment(const std::string& stream) -> void {
+  fragments_.erase(stream);
 }
 
 // Impl State {{{
@@ -5498,15 +5518,15 @@ inline auto JsonReporter::report(const Report& report) -> int {
     for (const auto& [name, stack] : trace_stacks_) {
       trace_stacks_map.emplace(name, stack.to_json());
     }
-    map.emplace("trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+    map.emplace("reader_trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
   }
 
-  if (!file_fragments_.empty()) {
-    std::map<std::string, std::unique_ptr<json::Value>> file_fragments_map;
-    for (const auto& [name, file] : file_fragments_) {
-      file_fragments_map.emplace(name, file.to_json());
+  if (!fragments_.empty()) {
+    std::map<std::string, std::unique_ptr<json::Value>> fragments_map;
+    for (const auto& [name, file] : fragments_) {
+      fragments_map.emplace(name, file.to_json());
     }
-    map.emplace("file_fragments", std::make_unique<json::Map>(std::move(file_fragments_map)));
+    map.emplace("reader_fragments", std::make_unique<json::Map>(std::move(fragments_map)));
   }
 
   std::ostream stream(std::clog.rdbuf());
@@ -5534,9 +5554,9 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
     }
   }
 
-  if (!file_fragments_.empty()) {
-    stream << "\nFile fragments:\n";
-    for (const auto& [_, file] : file_fragments_) {
+  if (!fragments_.empty()) {
+    stream << "\nFragments:\n";
+    for (const auto& [_, file] : fragments_) {
       stream << "  - " << file.to_plain_text() << '\n';
     }
   }
@@ -5564,9 +5584,9 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
     }
   }
 
-  if (!file_fragments_.empty()) {
-    stream << "\nFile fragments:\n";
-    for (const auto& [_, file] : file_fragments_) {
+  if (!fragments_.empty()) {
+    stream << "\nFragments:\n";
+    for (const auto& [_, file] : fragments_) {
       stream << "  - " << file.to_colored_text() << '\n';
     }
   }
@@ -5604,7 +5624,6 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 #include <string>
 #include <string_view>
 #include <vector>
-
 
 
 
@@ -5749,15 +5768,15 @@ struct Reporter {
 
   auto attach_trace_tree(const var::Reader::TraceTreeNode* root) -> void;
 
-  auto attach_file_fragment(const io::FileFragment& file_fragment) -> void;
-  auto detach_file_fragment(const std::string& stream) -> void;
+  auto attach_fragment(const var::Reader::Fragment& fragment) -> void;
+  auto detach_fragment(const std::string& stream) -> void;
 
   auto attach_trait_status(const std::map<std::string, bool>& trait_status) -> void;
 
  protected:
   std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
   const var::Reader::TraceTreeNode* trace_tree_{};
-  std::map<std::string, io::FileFragment> file_fragments_{};
+  std::map<std::string, var::Reader::Fragment> fragments_{};
   std::map<std::string, bool> trait_status_{};
 };
 
@@ -5982,8 +6001,8 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         state_->quit_invalid(msg);
       });
@@ -5996,8 +6015,8 @@ inline auto Initializer::set_inf_path(std::string_view path,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
-          state_->reporter->attach_file_fragment(
-              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         state_->quit_invalid(msg);
       });
@@ -6013,12 +6032,12 @@ inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
   trace_stacks_.erase(stream);
 }
 
-inline auto Reporter::attach_file_fragment(const io::FileFragment& file_fragment) -> void {
-  file_fragments_.emplace(std::string(file_fragment.stream), file_fragment);
+inline auto Reporter::attach_fragment(const var::Reader::Fragment& fragment) -> void {
+  fragments_.emplace(std::string(fragment.stream), fragment);
 }
 
-inline auto Reporter::detach_file_fragment(const std::string& stream) -> void {
-  file_fragments_.erase(stream);
+inline auto Reporter::detach_fragment(const std::string& stream) -> void {
+  fragments_.erase(stream);
 }
 
 inline auto Reporter::attach_trace_tree(const var::Reader::TraceTreeNode* root) -> void {
@@ -6392,15 +6411,15 @@ inline auto JsonReporter::report(const Report& report) -> int {
     for (const auto& [name, stack] : trace_stacks_) {
       trace_stacks_map.emplace(name, stack.to_json());
     }
-    map.emplace("trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+    map.emplace("reader_trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
   }
 
-  if (!file_fragments_.empty()) {
-    std::map<std::string, std::unique_ptr<json::Value>> file_fragments_map;
-    for (const auto& [name, file] : file_fragments_) {
-      file_fragments_map.emplace(name, file.to_json());
+  if (!fragments_.empty()) {
+    std::map<std::string, std::unique_ptr<json::Value>> fragments_map;
+    for (const auto& [name, file] : fragments_) {
+      fragments_map.emplace(name, file.to_json());
     }
-    map.emplace("file_fragments", std::make_unique<json::Map>(std::move(file_fragments_map)));
+    map.emplace("reader_fragments", std::make_unique<json::Map>(std::move(fragments_map)));
   }
 
   if (!trait_status_.empty()) {
@@ -6410,7 +6429,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
   if (trace_tree_) {
     auto json = trace_tree_->to_json();
     if (json && json->inner.count("children")) {
-      map.emplace("trace_tree", std::move(json->inner.at("children")));
+      map.emplace("reader_trace_tree", std::move(json->inner.at("children")));
     }
   }
 
@@ -6438,9 +6457,9 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
     }
   }
 
-  if (!file_fragments_.empty()) {
-    stream << "\nFile fragments:\n";
-    for (const auto& [_, file] : file_fragments_) {
+  if (!fragments_.empty()) {
+    stream << "\nFragments:\n";
+    for (const auto& [_, file] : fragments_) {
       stream << "  - " << file.to_plain_text() << '\n';
     }
   }
@@ -6493,9 +6512,9 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
     }
   }
 
-  if (!file_fragments_.empty()) {
-    stream << "\nFile fragments:\n";
-    for (const auto& [_, file] : file_fragments_) {
+  if (!fragments_.empty()) {
+    stream << "\nFragments:\n";
+    for (const auto& [_, file] : fragments_) {
       stream << "  - " << file.to_colored_text() << '\n';
     }
   }
