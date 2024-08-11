@@ -16,14 +16,68 @@
 #ifndef CPLIB_IO_HPP_
 #define CPLIB_IO_HPP_
 
+#include <array>
+#include <cstddef>
 #include <cstdio>
+#include <ios>
 #include <memory>
 #include <optional>
 #include <streambuf>
 #include <string>
 #include <string_view>
+#include <vector>
+
+/* cplib_embed_ignore start */
+#include "json.hpp"
+/* cplib_embed_ignore end */
 
 namespace cplib::io {
+
+/// Represents a position in a file.
+struct Position {
+  /// Line number, starting from 0.
+  std::size_t line;
+
+  /// Column number, starting from 0.
+  std::size_t col;
+
+  /// Byte number, starting from 0.
+  std::size_t byte;
+
+  explicit Position();
+  explicit Position(std::size_t line, std::size_t col, std::size_t byte);
+
+  [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
+};
+
+/// Buffer for input stream.
+struct InBuf : std::streambuf {
+ public:
+  static constexpr int PB_SIZE = 1024;    // Size of putback area
+  static constexpr int BUF_SIZE = 65536;  // Size of the data buffer
+
+  /**
+   * Constructor
+   * - Initialize file descriptor
+   * - Initialize empty data buffer
+   * - No putback area
+   * => Force underflow()
+   */
+  explicit InBuf(int fd);
+
+  explicit InBuf(std::string_view path);
+
+  ~InBuf() override;
+
+ protected:
+  // Insert new characters into the buffer
+  auto underflow() -> int_type override;
+
+  int fd_;
+  bool need_close_;
+  std::array<char, BUF_SIZE + PB_SIZE> buf_;  // Data buffer
+};
+
 /**
  * An input stream struct that provides various functionalities for reading and manipulating
  * streams.
@@ -90,25 +144,11 @@ struct InStream {
   auto set_strict(bool b) -> void;
 
   /**
-   * Returns the current line number, starting from 0.
+   * Returns the current position.
    *
-   * @return The current line number as a size_t.
+   * @return The current line position.
    */
-  [[nodiscard]] auto line_num() const -> std::size_t;
-
-  /**
-   * Returns the current column number, starting from 0.
-   *
-   * @return The current column number as a size_t.
-   */
-  [[nodiscard]] auto col_num() const -> std::size_t;
-
-  /**
-   * Returns the current byte number, starting from 0.
-   *
-   * @return The current byte number as a size_t.
-   */
-  [[nodiscard]] auto byte_num() const -> std::size_t;
+  [[nodiscard]] auto pos() const -> Position;
 
   /**
    * Checks if the current position is EOF.
@@ -166,9 +206,26 @@ struct InStream {
   std::unique_ptr<std::streambuf> buf_;
   std::string name_;
   bool strict_;  // In strict mode, whitespace characters are not ignored
-  std::size_t line_num_{0};
-  std::size_t col_num_{0};
-  std::size_t byte_num_{0};
+  Position pos_{};
+};
+
+/// Output stream buffer.
+struct OutBuf : std::streambuf {
+ public:
+  explicit OutBuf(int fd);
+
+  explicit OutBuf(std::string_view path);
+
+  ~OutBuf() override;
+
+ protected:
+  /// Write one character
+  auto overflow(int_type c) -> int_type override;
+  /// Write multiple characters
+  auto xsputn(const char *s, std::streamsize num) -> std::streamsize override;
+
+  int fd_;  // File descriptor
+  bool need_close_;
 };
 }  // namespace cplib::io
 

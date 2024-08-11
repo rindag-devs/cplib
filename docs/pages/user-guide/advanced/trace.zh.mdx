@@ -62,9 +62,9 @@ CPLib 中与 trace 相关的接口如下．
 包含一个变量的基本信息：
 
 - `var_name`：变量名称．
-- `line_num`：读入开始时的行号，从 0 编号．
-- `col_num`：读入开始时的列号，从 0 编号．
-- `byte_num`：读入开始时的字节序数，从 0 编号．
+- `pos.line`：读入开始时的行号，从 0 编号．
+- `pos.col`：读入开始时的列号，从 0 编号．
+- `pos.byte`：读入开始时的字节序数，从 0 编号．
 - `byte_length`：变量对应原始内容的字节长度．特别地，未完成读入的变量为 0．
 
 提供 `to_json_incomplete` 和 `to_json_complete` 两个函数来将自身内容编码为 JSON，分别适用于未完成读入的变量和已完成读入的变量．其中，`to_json_incomplete` 会使用原有名称导出除 `byte_length` 所有字段；而 `to_json_complete` 仅会导出 `var_name`、`byte_num`、`byte_length` 三个字段，且为了避免生成的 JSON 过长，三个字段会被重命名为 `n`、`b`、`l`．

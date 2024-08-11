@@ -54,7 +54,7 @@ struct Operate : std::variant<Query, Answer> {
 void interactor_main() {
   auto input = intr.inf.read(var::ExtVar<Input>("input"));
 
-  intr.to_user << input.n << "\n";
+  intr.to_user << input.n << '\n';
 
   int use_cnt = 0;
   while (true) {

@@ -31,8 +31,9 @@
 #else
 #include <unistd.h>  // IWYU pragma: export
 #endif
-#include <fcntl.h>  // IWYU pragma: export
-#include <io.h>     // IWYU pragma: export
+#include <fcntl.h>     // IWYU pragma: export
+#include <io.h>        // IWYU pragma: export
+#include <sys/stat.h>  // IWYU pragma: export
 #define ON_WINDOWS
 #if defined(_MSC_VER) && _MSC_VER > 1400
 #pragma warning(disable : 4127)
@@ -40,8 +41,10 @@
 #pragma warning(disable : 4458)
 #endif
 #else
-#include <fcntl.h>   // IWYU pragma: export
-#include <unistd.h>  // IWYU pragma: export
+#include <fcntl.h>      // IWYU pragma: export
+#include <sys/ioctl.h>  // IWYU pragma: export
+#include <sys/stat.h>   // IWYU pragma: export
+#include <unistd.h>     // IWYU pragma: export
 #endif
 
 #if defined(__GNUC__)

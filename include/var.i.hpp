@@ -31,7 +31,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <fstream>
 #include <functional>
 #include <ios>
 #include <iostream>
@@ -40,7 +39,6 @@
 #include <memory>
 #include <optional>
 #include <sstream>
-#include <streambuf>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -57,16 +55,13 @@
 
 namespace cplib::var {
 
-inline Reader::Trace::Trace(std::string var_name, std::size_t line_num, std::size_t col_num,
-                            std::size_t byte_num)
-    : var_name(std::move(var_name)), line_num(line_num), col_num(col_num), byte_num(byte_num) {}
+inline Reader::Trace::Trace(std::string var_name, io::Position pos)
+    : var_name(std::move(var_name)), pos(pos) {}
 
 [[nodiscard]] inline auto Reader::Trace::to_json_incomplete() const -> std::unique_ptr<json::Map> {
   std::map<std::string, std::unique_ptr<json::Value>> map;
   map.emplace("var_name", std::make_unique<json::String>(var_name));
-  map.emplace("line_num", std::make_unique<json::Int>(line_num));
-  map.emplace("col_num", std::make_unique<json::Int>(col_num));
-  map.emplace("byte_num", std::make_unique<json::Int>(byte_num));
+  map.emplace("pos", pos.to_json());
 
   return std::make_unique<json::Map>(std::move(map));
 }
@@ -74,7 +69,7 @@ inline Reader::Trace::Trace(std::string var_name, std::size_t line_num, std::siz
 [[nodiscard]] inline auto Reader::Trace::to_json_complete() const -> std::unique_ptr<json::Map> {
   std::map<std::string, std::unique_ptr<json::Value>> map;
   map.emplace("n", std::make_unique<json::String>(var_name));
-  map.emplace("b", std::make_unique<json::Int>(byte_num));
+  map.emplace("b", std::move(pos.to_json()->inner.at("byte")));
   map.emplace("l", std::make_unique<json::Int>(byte_length));
 
   return std::make_unique<json::Map>(std::move(map));
@@ -90,7 +85,7 @@ inline Reader::Trace::Trace(std::string var_name, std::size_t line_num, std::siz
   }
 
   map.emplace("stack", std::make_unique<json::List>(std::move(stack_list)));
-  map.emplace("stream_name", std::make_unique<json::String>(stream_name));
+  map.emplace("fatal", std::make_unique<json::Bool>(fatal));
   return std::make_unique<json::Map>(std::move(map));
 }
 
@@ -99,12 +94,16 @@ inline Reader::Trace::Trace(std::string var_name, std::size_t line_num, std::siz
   std::vector<std::string> lines;
   lines.reserve(stack.size() + 1);
 
-  lines.emplace_back(std::string("Stream: ") + stream_name);
+  auto stream_line = std::string("Stream: ") + stream;
+  if (fatal) {
+    stream_line += " [fatal]";
+  }
+  lines.emplace_back(stream_line);
 
   std::size_t id = 0;
   for (const auto& trace : stack) {
     auto line = cplib::format("#%zu: %s @ line %zu, col %zu, byte %zu", id, trace.var_name.c_str(),
-                              trace.line_num + 1, trace.col_num + 1, trace.byte_num + 1);
+                              trace.pos.line + 1, trace.pos.col + 1, trace.pos.byte + 1);
     ++id;
     lines.emplace_back(std::move(line));
   }
@@ -117,14 +116,18 @@ inline Reader::Trace::Trace(std::string var_name, std::size_t line_num, std::siz
   std::vector<std::string> lines;
   lines.reserve(stack.size() + 1);
 
-  lines.emplace_back(std::string("Stream: \x1b[0;33m") + stream_name + "\x1b[0m");
+  auto stream_line = std::string("Stream: \x1b[0;33m") + stream + "\x1b[0m";
+  if (fatal) {
+    stream_line += " \x1b[0;31m[fatal]\x1b[0m";
+  }
+  lines.emplace_back(stream_line);
 
   std::size_t id = 0;
   for (const auto& trace : stack) {
     auto line = cplib::format(
         "#%zu: \x1b[0;33m%s\x1b[0m @ line \x1b[0;33m%zu\x1b[0m, col \x1b[0;33m%zu\x1b[0m, byte "
         "\x1b[0;33m%zu\x1b[0m",
-        id, trace.var_name.c_str(), trace.line_num + 1, trace.col_num + 1, trace.byte_num + 1);
+        id, trace.var_name.c_str(), trace.pos.line + 1, trace.pos.col + 1, trace.pos.byte + 1);
     ++id;
     lines.emplace_back(std::move(line));
   }
@@ -176,6 +179,56 @@ inline auto Reader::TraceTreeNode::add_child(std::unique_ptr<TraceTreeNode> chil
   return children_.emplace_back(std::move(child));
 }
 
+inline constexpr Reader::Fragment::Direction::Direction(Value value) : value_(value) {}
+
+inline constexpr Reader::Fragment::Direction::operator Value() const { return value_; }
+
+inline constexpr auto Reader::Fragment::Direction::to_string() const -> std::string_view {
+  switch (value_) {
+    case Value::AFTER:
+      return "after";
+    case Value::AROUND:
+      return "around";
+    case Value::BEFORE:
+      return "before";
+    default:
+      panic(format("Unknown file fragment direction: %d", static_cast<int>(value_)));
+      return "unknown";
+  }
+}
+
+inline Reader::Fragment::Fragment(std::string stream, io::Position pos, Direction dir)
+    : stream(std::move(stream)), pos(pos), dir(dir) {}
+
+inline auto Reader::Fragment::to_json() const -> std::unique_ptr<json::Map> {
+  std::map<std::string, std::unique_ptr<json::Value>> map;
+
+  map.emplace("pos", pos.to_json());
+  map.emplace("dir", std::make_unique<json::String>(std::string(dir.to_string())));
+
+  std::vector<std::unique_ptr<json::Value>> highlight_lines_json;
+  highlight_lines_json.reserve(highlight_lines.size());
+  for (auto line : highlight_lines) {
+    highlight_lines_json.push_back(std::make_unique<json::Int>(line));
+  }
+  map.emplace("highlight_lines", std::make_unique<json::List>(std::move(highlight_lines_json)));
+
+  return std::make_unique<json::Map>(std::move(map));
+}
+
+inline auto Reader::Fragment::to_plain_text() const -> std::string {
+  auto dir_str = std::string(dir.to_string());
+  dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
+  return format("%s #%zu byte, in stream `%s`", dir_str.c_str(), pos.byte, stream.c_str());
+}
+
+inline auto Reader::Fragment::to_colored_text() const -> std::string {
+  auto dir_str = std::string(dir.to_string());
+  dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
+  return format("%s #\x1b[0;33m%zu\x1b[0m byte, in stream `\x1b[0;33m%s\x1b[0m`", dir_str.c_str(),
+                pos.byte, stream.c_str());
+}
+
 inline Reader::Reader(std::unique_ptr<io::InStream> inner, Reader::TraceLevel trace_level,
                       FailFunc fail_func)
     : inner_(std::move(inner)),
@@ -183,10 +236,12 @@ inline Reader::Reader(std::unique_ptr<io::InStream> inner, Reader::TraceLevel tr
           std::min(static_cast<int>(trace_level), CPLIB_VAR_READER_TRACE_LEVEL_MAX))),
       fail_func_(std::move(fail_func)),
       trace_stack_(),
-      trace_tree_root_(std::make_unique<TraceTreeNode>(Trace("<root>", 0, 0, 0))),
+      trace_tree_root_(std::make_unique<TraceTreeNode>(Trace("<root>", io::Position()))),
       trace_tree_current_(trace_tree_root_.get()) {}
 
 inline auto Reader::inner() -> io::InStream& { return *inner_; }
+
+inline auto Reader::inner() const -> const io::InStream& { return *inner_; }
 
 [[noreturn]] inline auto Reader::fail(std::string_view message) -> void {
   fail_func_(*this, message);
@@ -198,7 +253,7 @@ inline auto Reader::read(const Var<T, D>& v) -> T {
   auto trace_level = get_trace_level();
 
   if (trace_level >= TraceLevel::STACK_ONLY) {
-    Trace trace{std::string(v.name()), inner().line_num(), inner().col_num(), inner().byte_num()};
+    Trace trace{std::string(v.name()), inner().pos()};
     trace_stack_.emplace_back(trace);
 
     if (trace_level >= TraceLevel::FULL) {
@@ -210,12 +265,12 @@ inline auto Reader::read(const Var<T, D>& v) -> T {
   auto result = v.read_from(*this);
 
   if (trace_level >= TraceLevel::STACK_ONLY) {
-    trace_stack_.back().byte_length = inner().byte_num() - trace_stack_.back().byte_num;
+    trace_stack_.back().byte_length = inner().pos().byte - trace_stack_.back().pos.byte;
     trace_stack_.pop_back();
 
     if (trace_level >= TraceLevel::FULL) {
       trace_tree_current_->trace.byte_length =
-          inner().byte_num() - trace_tree_current_->trace.byte_num;
+          inner().pos().byte - trace_tree_current_->trace.pos.byte;
       trace_tree_current_ = trace_tree_current_->get_parent();
     }
   }
@@ -229,8 +284,8 @@ inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::Target.
 
 [[nodiscard]] inline auto Reader::get_trace_level() const -> TraceLevel { return trace_level_; }
 
-[[nodiscard]] inline auto Reader::get_trace_stack() const -> TraceStack {
-  return {trace_stack_, std::string(inner_->name())};
+[[nodiscard]] inline auto Reader::make_trace_stack(bool fatal) const -> TraceStack {
+  return {trace_stack_, std::string(inner_->name()), fatal};
 }
 
 [[nodiscard]] inline auto Reader::get_trace_tree() const -> const TraceTreeNode* {
@@ -254,15 +309,27 @@ inline auto Reader::attach_json_tag(std::string_view key, std::unique_ptr<json::
   trace_tree_current_->json_tag->inner.emplace(key, std::move(value));
 }
 
+[[nodiscard]] auto Reader::make_fragment(Fragment::Direction dir) const -> Fragment {
+  if (get_trace_level() >= TraceLevel::STACK_ONLY) {
+    auto trace_stack = make_trace_stack(false);
+    if (!trace_stack.stack.empty()) {
+      auto pos = trace_stack.stack.back().pos;
+      auto fragment = Fragment(std::string(inner().name()), pos, dir);
+      fragment.highlight_lines = {pos.line};
+      return fragment;
+    }
+  }
+
+  auto pos = inner().pos();
+  return Fragment(std::string(inner().name()), pos, dir);
+}
+
 namespace detail {
 // Open the given file and create a `var::Reader`
 inline auto make_reader_by_path(std::string_view path, std::string name, bool strict,
                                 Reader::TraceLevel trace_level,
                                 Reader::FailFunc fail_func) -> var::Reader {
-  auto buf = std::make_unique<std::filebuf>();
-  if (!buf->open(path.data(), std::ios_base::binary | std::ios_base::in)) {
-    panic(format("Can not open file `%s` as input stream", path.data()));
-  }
+  auto buf = std::make_unique<io::InBuf>(path);
   return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
                      trace_level, std::move(fail_func));
 }
@@ -271,26 +338,11 @@ inline auto make_reader_by_path(std::string_view path, std::string name, bool st
 inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
                                   Reader::TraceLevel trace_level,
                                   Reader::FailFunc fail_func) -> var::Reader {
-  auto buf = std::make_unique<io::detail::FdInBuf>(fileno);
+  auto buf = std::make_unique<io::InBuf>(fileno);
   var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
                      trace_level, std::move(fail_func));
   return reader;
 }
-
-// Open the givin file and create a `std::::ostream`
-inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf>& buf,
-                                 std::ostream& stream) -> void {
-  buf = std::make_unique<io::detail::FdOutBuf>(path);
-  stream.rdbuf(buf.get());
-}
-
-// Use file with givin fileno as output stream and create a `std::::ostream`
-inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf>& buf,
-                                   std::ostream& stream) -> void {
-  buf = std::make_unique<io::detail::FdOutBuf>(fileno);
-  stream.rdbuf(buf.get());
-}
-
 }  // namespace detail
 
 namespace detail {

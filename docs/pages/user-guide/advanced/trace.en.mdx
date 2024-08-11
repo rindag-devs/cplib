@@ -62,9 +62,9 @@ You can use the `cplib::var::Reader::get_trace_level()` method to get the trace 
 Contains the basic information of a variable:
 
 - `var_name`: The name of the variable.
-- `line_num`: The line number when the reading started, numbered from 0.
-- `col_num`: The column number when the reading started, numbered from 0.
-- `byte_num`: The byte sequence number when the reading started, numbered from 0.
+- `pos.line`: The line number when the reading started, numbered from 0.
+- `pos.col`: The column number when the reading started, numbered from 0.
+- `pos.byte`: The byte sequence number when the reading started, numbered from 0.
 - `byte_length`: The byte length of the original content corresponding to the variable. Specifically, for variables that have not finished reading, this is 0.
 
 It provides two functions, `to_json_incomplete` and `to_json_complete`, to encode its own content into JSON, which are suitable for variables that have not finished reading and those that have finished reading, respectively. Among them, `to_json_incomplete` will export all fields except `byte_length` using the original name; while `to_json_complete` will only export the three fields `var_name`, `byte_num`, and `byte_length`, and they will be renamed to `n`, `b`, and `l` respectively to avoid generating too long JSON.

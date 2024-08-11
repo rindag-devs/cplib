@@ -14,6 +14,7 @@
  */
 
 /* cplib_embed_ignore start */
+#include "io.hpp"
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
 #include "interactor.hpp"  // IWYU pragma: associated
@@ -79,7 +80,9 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       fileno, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -91,14 +94,16 @@ inline auto Initializer::set_from_user_fileno(int fileno,
       fileno, "from_user", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         state_->quit_wa(msg);
       });
 }
 
 inline auto Initializer::set_to_user_fileno(int fileno) -> void {
-  var::detail::make_ostream_by_fileno(fileno, state_->to_user_buf, state_->to_user);
+  io::detail::make_ostream_by_fileno(fileno, state_->to_user_buf, state_->to_user);
 }
 
 inline auto Initializer::set_inf_path(std::string_view path,
@@ -107,7 +112,9 @@ inline auto Initializer::set_inf_path(std::string_view path,
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -119,20 +126,34 @@ inline auto Initializer::set_from_user_path(std::string_view path,
       path, "from_user", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_fragment(
+              reader.make_fragment(var::Reader::Fragment::Direction::AROUND));
         }
         state_->quit_wa(msg);
       });
 }
 
 inline auto Initializer::set_to_user_path(std::string_view path) -> void {
-  var::detail::make_ostream_by_path(path, state_->to_user_buf, state_->to_user);
+  io::detail::make_ostream_by_path(path, state_->to_user_buf, state_->to_user);
 }
 
 inline Reporter::~Reporter() = default;
 
 inline auto Reporter::attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void {
-  trace_stack_ = trace_stack;
+  trace_stacks_.emplace(std::string(trace_stack.stream), trace_stack);
+}
+
+inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
+  trace_stacks_.erase(stream);
+}
+
+inline auto Reporter::attach_fragment(const var::Reader::Fragment& fragment) -> void {
+  fragments_.emplace(std::string(fragment.stream), fragment);
+}
+
+inline auto Reporter::detach_fragment(const std::string& stream) -> void {
+  fragments_.erase(stream);
 }
 
 // Impl State {{{
@@ -318,8 +339,20 @@ inline auto JsonReporter::report(const Report& report) -> int {
   map.emplace("score", std::make_unique<json::Real>(report.score));
   map.emplace("message", std::make_unique<json::String>(report.message));
 
-  if (trace_stack_.has_value()) {
-    map.emplace("reader_trace_stack", trace_stack_->to_json());
+  if (!trace_stacks_.empty()) {
+    std::map<std::string, std::unique_ptr<json::Value>> trace_stacks_map;
+    for (const auto& [name, stack] : trace_stacks_) {
+      trace_stacks_map.emplace(name, stack.to_json());
+    }
+    map.emplace("reader_trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+  }
+
+  if (!fragments_.empty()) {
+    std::map<std::string, std::unique_ptr<json::Value>> fragments_map;
+    for (const auto& [name, file] : fragments_) {
+      fragments_map.emplace(name, file.to_json());
+    }
+    map.emplace("reader_fragments", std::make_unique<json::Map>(std::move(fragments_map)));
   }
 
   std::ostream stream(std::clog.rdbuf());
@@ -337,10 +370,20 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
     stream << report.message << '\n';
   }
 
-  if (trace_stack_.has_value()) {
-    stream << "\nReader trace stack (most recent variable last):\n";
-    for (const auto& line : trace_stack_->to_plain_text_lines()) {
-      stream << "  " << line << '\n';
+  if (!trace_stacks_.empty()) {
+    stream << "\nReader trace stacks (most recent variable last):";
+    for (const auto& [_, stack] : trace_stacks_) {
+      for (const auto& line : stack.to_plain_text_lines()) {
+        stream << '\n' << "  " << line;
+      }
+      stream << '\n';
+    }
+  }
+
+  if (!fragments_.empty()) {
+    stream << "\nFragments:\n";
+    for (const auto& [_, file] : fragments_) {
+      stream << "  - " << file.to_plain_text() << '\n';
     }
   }
 
@@ -357,10 +400,20 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
     stream << report.message << '\n';
   }
 
-  if (trace_stack_.has_value()) {
-    stream << "\nReader trace stack (most recent variable last):\n";
-    for (const auto& line : trace_stack_->to_colored_text_lines()) {
-      stream << "  " << line << '\n';
+  if (!trace_stacks_.empty()) {
+    stream << "\nReader trace stacks (most recent variable last):";
+    for (const auto& [_, stack] : trace_stacks_) {
+      for (const auto& line : stack.to_colored_text_lines()) {
+        stream << '\n' << "  " << line;
+      }
+      stream << '\n';
+    }
+  }
+
+  if (!fragments_.empty()) {
+    stream << "\nFragments:\n";
+    for (const auto& [_, file] : fragments_) {
+      stream << "  - " << file.to_colored_text() << '\n';
     }
   }
 

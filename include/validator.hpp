@@ -20,7 +20,6 @@
 #include <functional>
 #include <map>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -164,14 +163,19 @@ struct Reporter {
   [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
   auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
+  auto detach_trace_stack(const std::string& stream) -> void;
 
   auto attach_trace_tree(const var::Reader::TraceTreeNode* root) -> void;
+
+  auto attach_fragment(const var::Reader::Fragment& fragment) -> void;
+  auto detach_fragment(const std::string& stream) -> void;
 
   auto attach_trait_status(const std::map<std::string, bool>& trait_status) -> void;
 
  protected:
-  std::optional<var::Reader::TraceStack> trace_stack_{};
+  std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
   const var::Reader::TraceTreeNode* trace_tree_{};
+  std::map<std::string, var::Reader::Fragment> fragments_{};
   std::map<std::string, bool> trait_status_{};
 };
 

@@ -62,16 +62,13 @@ struct Reader {
    */
   struct Trace {
     std::string var_name;
-    std::size_t line_num;
-    std::size_t col_num;
-    std::size_t byte_num;
+    io::Position pos;
 
     /// The length of the variable in the raw stream, units of bytes.
     /// Incomplete variables will have zero length.
     std::size_t byte_length{0};
 
-    explicit Trace(std::string var_name, std::size_t line_num, std::size_t col_num,
-                   std::size_t byte_num);
+    explicit Trace(std::string var_name, io::Position pos);
 
     /// Convert incomplete trace to JSON map.
     [[nodiscard]] auto to_json_incomplete() const -> std::unique_ptr<json::Map>;
@@ -85,7 +82,8 @@ struct Reader {
    */
   struct TraceStack {
     std::vector<Trace> stack;
-    std::string stream_name;
+    std::string stream;
+    bool fatal;
 
     /// Convert to JSON map.
     [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
@@ -162,6 +160,40 @@ struct Reader {
     TraceTreeNode* parent_{nullptr};
   };
 
+  /// Represents a fragment of a file.
+  struct Fragment {
+    struct Direction {
+     public:
+      enum Value { AFTER, AROUND, BEFORE };
+
+      Direction() = default;
+
+      constexpr Direction(Value value);  // NOLINT(google-explicit-constructor)
+
+      constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
+
+      explicit operator bool() const = delete;
+
+      [[nodiscard]] constexpr auto to_string() const -> std::string_view;
+
+     private:
+      Value value_;
+    };
+
+    std::string stream;
+    io::Position pos;
+    Direction dir;
+    std::vector<std::size_t> highlight_lines{};
+
+    explicit Fragment(std::string stream, io::Position begin, Direction dir);
+
+    [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
+
+    [[nodiscard]] auto to_plain_text() const -> std::string;
+
+    [[nodiscard]] auto to_colored_text() const -> std::string;
+  };
+
   using FailFunc = UniqueFunction<auto(const Reader&, std::string_view)->void>;
 
   /**
@@ -188,7 +220,14 @@ struct Reader {
    *
    * @return Reference to the inner input stream.
    */
-  auto inner() -> io::InStream&;
+  [[nodiscard]] auto inner() -> io::InStream&;
+
+  /**
+   * Get the inner wrapped input stream.
+   *
+   * @return Reference to the inner input stream.
+   */
+  [[nodiscard]] auto inner() const -> const io::InStream&;
 
   /**
    * Call `Instream::fail` of the wrapped input stream.
@@ -224,12 +263,12 @@ struct Reader {
   [[nodiscard]] auto get_trace_level() const -> TraceLevel;
 
   /**
-   * Get the trace stack.
+   * Make a trace stack from the current trace.
    *
    * Only available when `TraceLevel::STACK_ONLY` or higher is set.
    * Otherwise, an error will be panicked.
    */
-  [[nodiscard]] auto get_trace_stack() const -> TraceStack;
+  [[nodiscard]] auto make_trace_stack(bool fatal) const -> TraceStack;
 
   /**
    * Get the trace tree.
@@ -245,6 +284,14 @@ struct Reader {
    * @param tag The JSON tag.
    */
   auto attach_json_tag(std::string_view key, std::unique_ptr<json::Value> value);
+
+  /**
+   * Make a file fragment using the current position.
+   *
+   * @param dir The direction of the fragment.
+   * @return The file fragment.
+   */
+  [[nodiscard]] auto make_fragment(Fragment::Direction dir) const -> Fragment;
 
  private:
   std::unique_ptr<io::InStream> inner_;
