@@ -51,8 +51,9 @@
 #else
 #include <unistd.h>  
 #endif
-#include <fcntl.h>  
-#include <io.h>     
+#include <fcntl.h>     
+#include <io.h>        
+#include <sys/stat.h>  
 #define ON_WINDOWS
 #if defined(_MSC_VER) && _MSC_VER > 1400
 #pragma warning(disable : 4127)
@@ -60,8 +61,10 @@
 #pragma warning(disable : 4458)
 #endif
 #else
-#include <fcntl.h>   
-#include <unistd.h>  
+#include <fcntl.h>      
+#include <sys/ioctl.h>  
+#include <sys/stat.h>   
+#include <unistd.h>     
 #endif
 
 #if defined(__GNUC__)
@@ -1501,14 +1504,100 @@ inline auto Random::shuffle(Container& container) -> void {
 #ifndef CPLIB_IO_HPP_
 #define CPLIB_IO_HPP_
 
+#include <array>
+#include <cstddef>
 #include <cstdio>
+#include <ios>
 #include <memory>
 #include <optional>
 #include <streambuf>
 #include <string>
 #include <string_view>
 
+
+
+
+
 namespace cplib::io {
+
+/// Represents a position in a file.
+struct Position {
+  /// Line number, starting from 0.
+  std::size_t line;
+
+  /// Column number, starting from 0.
+  std::size_t col;
+
+  /// Byte number, starting from 0.
+  std::size_t byte;
+
+  explicit Position();
+  explicit Position(std::size_t line, std::size_t col, std::size_t byte);
+
+  [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
+};
+
+/// Represents a fragment of a file.
+struct FileFragment {
+  struct Direction {
+   public:
+    enum Value { AFTER, AROUND, BEFORE };
+
+    Direction() = default;
+
+    constexpr Direction(Value value);  // NOLINT(google-explicit-constructor)
+
+    constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
+
+    explicit operator bool() const = delete;
+
+    [[nodiscard]] constexpr auto to_string() const -> std::string_view;
+
+   private:
+    Value value_;
+  };
+
+  std::string stream;
+  Position pos;
+  Direction dir;
+
+  explicit FileFragment(std::string stream, Position begin, Direction dir);
+
+  [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
+
+  [[nodiscard]] auto to_plain_text() const -> std::string;
+
+  [[nodiscard]] auto to_colored_text() const -> std::string;
+};
+
+/// Buffer for input stream.
+struct InBuf : std::streambuf {
+ public:
+  static constexpr int PB_SIZE = 1024;    // Size of putback area
+  static constexpr int BUF_SIZE = 65536;  // Size of the data buffer
+
+  /**
+   * Constructor
+   * - Initialize file descriptor
+   * - Initialize empty data buffer
+   * - No putback area
+   * => Force underflow()
+   */
+  explicit InBuf(int fd);
+
+  explicit InBuf(std::string_view path);
+
+  ~InBuf() override;
+
+ protected:
+  // Insert new characters into the buffer
+  auto underflow() -> int_type override;
+
+  int fd_;
+  bool need_close_;
+  std::array<char, BUF_SIZE + PB_SIZE> buf_;  // Data buffer
+};
+
 /**
  * An input stream struct that provides various functionalities for reading and manipulating
  * streams.
@@ -1575,25 +1664,11 @@ struct InStream {
   auto set_strict(bool b) -> void;
 
   /**
-   * Returns the current line number, starting from 0.
+   * Returns the current position.
    *
-   * @return The current line number as a size_t.
+   * @return The current line position.
    */
-  [[nodiscard]] auto line_num() const -> std::size_t;
-
-  /**
-   * Returns the current column number, starting from 0.
-   *
-   * @return The current column number as a size_t.
-   */
-  [[nodiscard]] auto col_num() const -> std::size_t;
-
-  /**
-   * Returns the current byte number, starting from 0.
-   *
-   * @return The current byte number as a size_t.
-   */
-  [[nodiscard]] auto byte_num() const -> std::size_t;
+  [[nodiscard]] auto pos() const -> Position;
 
   /**
    * Checks if the current position is EOF.
@@ -1647,13 +1722,38 @@ struct InStream {
    */
   auto read_line() -> std::optional<std::string>;
 
+  /**
+   * Make a file fragment using the current position.
+   *
+   * @param dir The direction of the fragment.
+   * @return The file fragment.
+   */
+  [[nodiscard]] auto make_file_fragment(FileFragment::Direction dir) const -> FileFragment;
+
  private:
   std::unique_ptr<std::streambuf> buf_;
   std::string name_;
   bool strict_;  // In strict mode, whitespace characters are not ignored
-  std::size_t line_num_{0};
-  std::size_t col_num_{0};
-  std::size_t byte_num_{0};
+  Position pos_{};
+};
+
+/// Output stream buffer.
+struct OutBuf : std::streambuf {
+ public:
+  explicit OutBuf(int fd);
+
+  explicit OutBuf(std::string_view path);
+
+  ~OutBuf() override;
+
+ protected:
+  /// Write one character
+  auto overflow(int_type c) -> int_type override;
+  /// Write multiple characters
+  auto xsputn(const char *s, std::streamsize num) -> std::streamsize override;
+
+  int fd_;  // File descriptor
+  bool need_close_;
 };
 }  // namespace cplib::io
 
@@ -1684,12 +1784,14 @@ struct InStream {
 
 
 #include <array>
+#include <cassert>
 #include <cctype>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ios>
+#include <map>
 #include <memory>
 #include <optional>
 #include <streambuf>
@@ -1702,140 +1804,139 @@ struct InStream {
 
 
 
-namespace cplib::io {
-namespace detail {
-// A stream buffer that writes on a file descriptor
-//
-// https://www.josuttis.com/cppcode/fdstream.html
-struct FdOutBuf : std::streambuf {
- public:
-  explicit FdOutBuf(int fd) : fd_(fd) {
-    /*
-      We recommend using binary mode on Windows. However, Codeforces Polygon
-      doesn’t think so. Since the only Online Judge that uses Windows seems to
-      be Codeforces, make it happy.
-    */
-#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
-    _setmode(fd_, _O_BINARY);
-#endif
-  }
 
-  explicit FdOutBuf(std::string_view path) {
-    int flags = 0;
+namespace cplib::io {
+
+inline Position::Position() : line(0), col(0), byte(0) {}
+
+inline Position::Position(std::size_t line, std::size_t col, std::size_t byte)
+    : line(line), col(col), byte(byte) {}
+
+inline auto Position::to_json() const -> std::unique_ptr<json::Map> {
+  std::map<std::string, std::unique_ptr<json::Value>> map;
+
+  map.emplace("line", std::make_unique<json::Int>(line));
+  map.emplace("col", std::make_unique<json::Int>(col));
+  map.emplace("byte", std::make_unique<json::Int>(byte));
+
+  return std::make_unique<json::Map>(std::move(map));
+}
+
+inline constexpr FileFragment::Direction::Direction(Value value) : value_(value) {}
+
+inline constexpr FileFragment::Direction::operator Value() const { return value_; }
+
+inline constexpr auto FileFragment::Direction::to_string() const -> std::string_view {
+  switch (value_) {
+    case Value::AFTER:
+      return "after";
+    case Value::AROUND:
+      return "around";
+    case Value::BEFORE:
+      return "before";
+    default:
+      panic(format("Unknown file fragment direction: %d", static_cast<int>(value_)));
+      return "unknown";
+  }
+}
+
+inline FileFragment::FileFragment(std::string stream, Position pos, Direction dir)
+    : stream(std::move(stream)), pos(pos), dir(dir) {}
+
+inline auto FileFragment::to_json() const -> std::unique_ptr<json::Map> {
+  std::map<std::string, std::unique_ptr<json::Value>> map;
+
+  map.emplace("pos", pos.to_json());
+  map.emplace("dir", std::make_unique<json::String>(std::string(dir.to_string())));
+
+  return std::make_unique<json::Map>(std::move(map));
+}
+
+inline auto FileFragment::to_plain_text() const -> std::string {
+  auto dir_str = std::string(dir.to_string());
+  dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
+  return format("%s #%zu byte, in stream `%s`", dir_str.c_str(), pos.byte, stream.c_str());
+}
+
+inline auto FileFragment::to_colored_text() const -> std::string {
+  auto dir_str = std::string(dir.to_string());
+  dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
+  return format("%s #\x1b[0;33m%zu\x1b[0m byte, in stream `\x1b[0;33m%s\x1b[0m`", dir_str.c_str(),
+                pos.byte, stream.c_str());
+}
+
+InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {
+  /*
+    We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
+    Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
+  */
+#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+  _setmode(fd_, _O_BINARY);
+#endif
+  setg(buf_.data() + PB_SIZE,   // Beginning of putback area
+       buf_.data() + PB_SIZE,   // Read position
+       buf_.data() + PB_SIZE);  // End position
+}
+
+inline InBuf::InBuf(std::string_view path) : need_close_(true) {
+  int flags = 0;
 #ifdef ON_WINDOWS
-    flags |= _O_WRONLY | _O_CREAT | _O_TRUNC;
+  flags |= _O_RDONLY;
 #ifndef ONLINE_JUDGE
-    flags |= _O_BINARY;
+  flags |= _O_BINARY;
 #endif
 #else
-    flags |= O_WRONLY | O_CREAT | O_TRUNC;
+  flags |= O_RDONLY;
 #endif
-    fd_ = open(path.data(), flags, 0666);
-    if (fd_ < 0) {
-      panic("Failed to open file: " + std::string(path));
-    }
-    need_close_ = true;
+  fd_ = open(path.data(), flags);
+  if (fd_ < 0) {
+    panic("Failed to open file: " + std::string(path));
   }
+  setg(buf_.data() + PB_SIZE,   // Beginning of putback area
+       buf_.data() + PB_SIZE,   // Read position
+       buf_.data() + PB_SIZE);  // End position
+}
 
-  ~FdOutBuf() override {
-    if (need_close_) {
-      close(fd_);
-    }
+inline InBuf::~InBuf() {
+  if (need_close_) {
+    close(fd_);
   }
+}
 
- protected:
-  // Write one character
-  auto overflow(int_type c) -> int_type override {
-    if (c != EOF) {
-      auto z = static_cast<char>(c);
-      if (write(fd_, &z, 1) != 1) {
-        return EOF;
-      }
-    }
-    return c;
-  }
-  // Write multiple characters
-  auto xsputn(const char *s, std::streamsize num) -> std::streamsize override {
-    return write(fd_, s, num);
-  }
-
-  int fd_;  // File descriptor
-  bool need_close_;
-};
-
-// A stream buffer that reads on a file descriptor
-//
-// https://www.josuttis.com/cppcode/fdstream.html
-struct FdInBuf : std::streambuf {
- public:
-  /**
-   * Constructor
-   * - Initialize file descriptor
-   * - Initialize empty data buffer
-   * - No putback area
-   * => Force underflow()
-   */
-  explicit FdInBuf(int fd) : fd_(fd) {
-    /*
-      We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
-      Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
-    */
-#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
-    _setmode(fd_, _O_BINARY);
-#endif
-    setg(buf_.data() + PB_SIZE,   // Beginning of putback area
-         buf_.data() + PB_SIZE,   // Read position
-         buf_.data() + PB_SIZE);  // End position
-  }
-
- protected:
-  // Insert new characters into the buffer
-  auto underflow() -> int_type override {
-    // Is read position before end of buffer?
-    if (gptr() < egptr()) {
-      return traits_type::to_int_type(*gptr());
-    }
-
-    /*
-     * Process size of putback area
-     * - Use number of characters read
-     * - But at most size of putback area
-     */
-    std::ptrdiff_t num_putback = gptr() - eback();
-    if (num_putback > PB_SIZE) {
-      num_putback = PB_SIZE;
-    }
-
-    // Copy up to PB_SIZE characters previously read into the putback area
-    std::memmove(buf_.data() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
-
-    // Read at most bufSize new characters
-    std::ptrdiff_t num = read(fd_, buf_.data() + PB_SIZE, BUF_SIZE);
-    if (num <= 0) {
-      // Error or EOF
-      return EOF;
-    }
-
-    // Reset buffer pointers
-    setg(buf_.data() + (PB_SIZE - num_putback),  // Beginning of putback area
-         buf_.data() + PB_SIZE,                  // Read position
-         buf_.data() + PB_SIZE + num);           // End of buffer
-
-    // Return next character
+inline auto InBuf::underflow() -> int_type {
+  // Is read position before end of buffer?
+  if (gptr() < egptr()) {
     return traits_type::to_int_type(*gptr());
   }
 
-  int fd_;
-  /**
-   * Data buffer:
-   * - At most, pbSize characters in putback area plus
-   * - At most, bufSize characters in ordinary read buffer
+  /*
+   * Process size of putback area
+   * - Use number of characters read
+   * - But at most size of putback area
    */
-  static constexpr int PB_SIZE = 4;           // Size of putback area
-  static constexpr int BUF_SIZE = 65536;      // Size of the data buffer
-  std::array<char, BUF_SIZE + PB_SIZE> buf_;  // Data buffer
-};
-}  // namespace detail
+  std::ptrdiff_t num_putback = gptr() - eback();
+  if (num_putback > PB_SIZE) {
+    num_putback = PB_SIZE;
+  }
+
+  // Copy up to PB_SIZE characters previously read into the putback area
+  std::memmove(buf_.data() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
+
+  // Read at most bufSize new characters
+  std::ptrdiff_t num = read(fd_, buf_.data() + PB_SIZE, BUF_SIZE);
+  if (num <= 0) {
+    // Error or EOF
+    return EOF;
+  }
+
+  // Reset buffer pointers
+  setg(buf_.data() + (PB_SIZE - num_putback),  // Beginning of putback area
+       buf_.data() + PB_SIZE,                  // Read position
+       buf_.data() + PB_SIZE + num);           // End of buffer
+
+  // Return next character
+  return traits_type::to_int_type(*gptr());
+}
 
 inline InStream::InStream(std::unique_ptr<std::streambuf> buf, std::string name, bool strict)
     : buf_(std::move(buf)), name_(std::move(name)), strict_(strict) {}
@@ -1854,11 +1955,11 @@ inline auto InStream::seek() -> int { return buf_->sgetc(); }
 inline auto InStream::read() -> int {
   int c = buf_->sbumpc();
   if (c == EOF) return EOF;
-  ++byte_num_;
+  ++pos_.byte;
   if (c == '\n') {
-    ++line_num_, col_num_ = 0;
+    ++pos_.line, pos_.col = 0;
   } else {
-    ++col_num_;
+    ++pos_.col;
   }
   return c;
 }
@@ -1876,18 +1977,14 @@ inline auto InStream::read_n(std::size_t n) -> std::string {
 inline auto InStream::is_strict() const -> bool { return strict_; }
 
 inline auto InStream::set_strict(bool b) -> void {
-  if (byte_num() > 0) {
+  if (pos().byte > 0) {
     panic(format("Can't set strict mode of input stream `%s` when not at the beginning of the file",
                  name().data()));
   }
   strict_ = b;
 }
 
-inline auto InStream::line_num() const -> std::size_t { return line_num_; }
-
-inline auto InStream::col_num() const -> std::size_t { return col_num_; }
-
-inline auto InStream::byte_num() const -> std::size_t { return byte_num_; }
+inline auto InStream::pos() const -> Position { return pos_; }
 
 inline auto InStream::eof() -> bool { return seek() == EOF; }
 
@@ -1931,6 +2028,74 @@ inline auto InStream::read_line() -> std::optional<std::string> {
   }
   return line;
 }
+
+[[nodiscard]] auto InStream::make_file_fragment(FileFragment::Direction dir) const -> FileFragment {
+  return FileFragment(std::string(name()), pos(), dir);
+}
+
+// https://www.josuttis.com/cppcode/fdstream.html
+inline OutBuf::OutBuf(int fd) : fd_(fd), need_close_(false) {
+  /*
+    We recommend using binary mode on Windows. However, Codeforces Polygon
+    doesn’t think so. Since the only Online Judge that uses Windows seems to
+    be Codeforces, make it happy.
+  */
+#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+  _setmode(fd_, _O_BINARY);
+#endif
+}
+
+inline OutBuf::OutBuf(std::string_view path) : need_close_(true) {
+  int flags = 0;
+#ifdef ON_WINDOWS
+  flags |= _O_WRONLY | _O_CREAT | _O_TRUNC;
+#ifndef ONLINE_JUDGE
+  flags |= _O_BINARY;
+#endif
+#else
+  flags |= O_WRONLY | O_CREAT | O_TRUNC;
+#endif
+  fd_ = open(path.data(), flags, 0666);
+  if (fd_ < 0) {
+    panic("Failed to open file: " + std::string(path));
+  }
+}
+
+inline OutBuf::~OutBuf() {
+  if (need_close_) {
+    close(fd_);
+  }
+}
+
+inline auto OutBuf::overflow(int_type c) -> int_type {
+  if (c != EOF) {
+    auto z = static_cast<char>(c);
+    if (write(fd_, &z, 1) != 1) {
+      return EOF;
+    }
+  }
+  return c;
+}
+
+inline auto OutBuf::xsputn(const char* s, std::streamsize num) -> std::streamsize {
+  return write(fd_, s, num);
+}
+
+namespace detail {
+// Open the givin file and create a `std::::ostream`
+inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf>& buf,
+                                 std::ostream& stream) -> void {
+  buf = std::make_unique<io::OutBuf>(path);
+  stream.rdbuf(buf.get());
+}
+
+// Use file with givin fileno as output stream and create a `std::::ostream`
+inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf>& buf,
+                                   std::ostream& stream) -> void {
+  buf = std::make_unique<io::OutBuf>(fileno);
+  stream.rdbuf(buf.get());
+}
+}  // namespace detail
 }  // namespace cplib::io
   
 
@@ -2000,16 +2165,13 @@ struct Reader {
    */
   struct Trace {
     std::string var_name;
-    std::size_t line_num;
-    std::size_t col_num;
-    std::size_t byte_num;
+    io::Position pos;
 
     /// The length of the variable in the raw stream, units of bytes.
     /// Incomplete variables will have zero length.
     std::size_t byte_length{0};
 
-    explicit Trace(std::string var_name, std::size_t line_num, std::size_t col_num,
-                   std::size_t byte_num);
+    explicit Trace(std::string var_name, io::Position pos);
 
     /// Convert incomplete trace to JSON map.
     [[nodiscard]] auto to_json_incomplete() const -> std::unique_ptr<json::Map>;
@@ -2023,7 +2185,8 @@ struct Reader {
    */
   struct TraceStack {
     std::vector<Trace> stack;
-    std::string stream_name;
+    std::string stream;
+    bool fatal;
 
     /// Convert to JSON map.
     [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
@@ -2126,7 +2289,14 @@ struct Reader {
    *
    * @return Reference to the inner input stream.
    */
-  auto inner() -> io::InStream&;
+  [[nodiscard]] auto inner() -> io::InStream&;
+
+  /**
+   * Get the inner wrapped input stream.
+   *
+   * @return Reference to the inner input stream.
+   */
+  [[nodiscard]] auto inner() const -> const io::InStream&;
 
   /**
    * Call `Instream::fail` of the wrapped input stream.
@@ -2162,12 +2332,12 @@ struct Reader {
   [[nodiscard]] auto get_trace_level() const -> TraceLevel;
 
   /**
-   * Get the trace stack.
+   * Make a trace stack from the current trace.
    *
    * Only available when `TraceLevel::STACK_ONLY` or higher is set.
    * Otherwise, an error will be panicked.
    */
-  [[nodiscard]] auto get_trace_stack() const -> TraceStack;
+  [[nodiscard]] auto make_trace_stack(bool fatal) const -> TraceStack;
 
   /**
    * Get the trace tree.
@@ -2893,7 +3063,6 @@ const auto eoln = Separator("eoln", '\n');
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <fstream>
 #include <functional>
 #include <ios>
 #include <iostream>
@@ -2902,7 +3071,6 @@ const auto eoln = Separator("eoln", '\n');
 #include <memory>
 #include <optional>
 #include <sstream>
-#include <streambuf>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -2919,16 +3087,13 @@ const auto eoln = Separator("eoln", '\n');
 
 namespace cplib::var {
 
-inline Reader::Trace::Trace(std::string var_name, std::size_t line_num, std::size_t col_num,
-                            std::size_t byte_num)
-    : var_name(std::move(var_name)), line_num(line_num), col_num(col_num), byte_num(byte_num) {}
+inline Reader::Trace::Trace(std::string var_name, io::Position pos)
+    : var_name(std::move(var_name)), pos(pos) {}
 
 [[nodiscard]] inline auto Reader::Trace::to_json_incomplete() const -> std::unique_ptr<json::Map> {
   std::map<std::string, std::unique_ptr<json::Value>> map;
   map.emplace("var_name", std::make_unique<json::String>(var_name));
-  map.emplace("line_num", std::make_unique<json::Int>(line_num));
-  map.emplace("col_num", std::make_unique<json::Int>(col_num));
-  map.emplace("byte_num", std::make_unique<json::Int>(byte_num));
+  map.emplace("pos", pos.to_json());
 
   return std::make_unique<json::Map>(std::move(map));
 }
@@ -2936,7 +3101,7 @@ inline Reader::Trace::Trace(std::string var_name, std::size_t line_num, std::siz
 [[nodiscard]] inline auto Reader::Trace::to_json_complete() const -> std::unique_ptr<json::Map> {
   std::map<std::string, std::unique_ptr<json::Value>> map;
   map.emplace("n", std::make_unique<json::String>(var_name));
-  map.emplace("b", std::make_unique<json::Int>(byte_num));
+  map.emplace("b", std::move(pos.to_json()->inner.at("byte")));
   map.emplace("l", std::make_unique<json::Int>(byte_length));
 
   return std::make_unique<json::Map>(std::move(map));
@@ -2952,7 +3117,7 @@ inline Reader::Trace::Trace(std::string var_name, std::size_t line_num, std::siz
   }
 
   map.emplace("stack", std::make_unique<json::List>(std::move(stack_list)));
-  map.emplace("stream_name", std::make_unique<json::String>(stream_name));
+  map.emplace("fatal", std::make_unique<json::Bool>(fatal));
   return std::make_unique<json::Map>(std::move(map));
 }
 
@@ -2961,12 +3126,16 @@ inline Reader::Trace::Trace(std::string var_name, std::size_t line_num, std::siz
   std::vector<std::string> lines;
   lines.reserve(stack.size() + 1);
 
-  lines.emplace_back(std::string("Stream: ") + stream_name);
+  auto stream_line = std::string("Stream: ") + stream;
+  if (fatal) {
+    stream_line += " [fatal]";
+  }
+  lines.emplace_back(stream_line);
 
   std::size_t id = 0;
   for (const auto& trace : stack) {
     auto line = cplib::format("#%zu: %s @ line %zu, col %zu, byte %zu", id, trace.var_name.c_str(),
-                              trace.line_num + 1, trace.col_num + 1, trace.byte_num + 1);
+                              trace.pos.line + 1, trace.pos.col + 1, trace.pos.byte + 1);
     ++id;
     lines.emplace_back(std::move(line));
   }
@@ -2979,14 +3148,16 @@ inline Reader::Trace::Trace(std::string var_name, std::size_t line_num, std::siz
   std::vector<std::string> lines;
   lines.reserve(stack.size() + 1);
 
-  lines.emplace_back(std::string("Stream: \x1b[0;33m") + stream_name + "\x1b[0m");
+  auto stream_line = std::string("Stream: \x1b[0;33m") + stream + "\x1b[0m";
+  stream_line += " \x1b[0;31m[fatal]\x1b[0m";
+  lines.emplace_back(stream_line);
 
   std::size_t id = 0;
   for (const auto& trace : stack) {
     auto line = cplib::format(
         "#%zu: \x1b[0;33m%s\x1b[0m @ line \x1b[0;33m%zu\x1b[0m, col \x1b[0;33m%zu\x1b[0m, byte "
         "\x1b[0;33m%zu\x1b[0m",
-        id, trace.var_name.c_str(), trace.line_num + 1, trace.col_num + 1, trace.byte_num + 1);
+        id, trace.var_name.c_str(), trace.pos.line + 1, trace.pos.col + 1, trace.pos.byte + 1);
     ++id;
     lines.emplace_back(std::move(line));
   }
@@ -3045,10 +3216,12 @@ inline Reader::Reader(std::unique_ptr<io::InStream> inner, Reader::TraceLevel tr
           std::min(static_cast<int>(trace_level), CPLIB_VAR_READER_TRACE_LEVEL_MAX))),
       fail_func_(std::move(fail_func)),
       trace_stack_(),
-      trace_tree_root_(std::make_unique<TraceTreeNode>(Trace("<root>", 0, 0, 0))),
+      trace_tree_root_(std::make_unique<TraceTreeNode>(Trace("<root>", io::Position()))),
       trace_tree_current_(trace_tree_root_.get()) {}
 
 inline auto Reader::inner() -> io::InStream& { return *inner_; }
+
+inline auto Reader::inner() const -> const io::InStream& { return *inner_; }
 
 [[noreturn]] inline auto Reader::fail(std::string_view message) -> void {
   fail_func_(*this, message);
@@ -3060,7 +3233,7 @@ inline auto Reader::read(const Var<T, D>& v) -> T {
   auto trace_level = get_trace_level();
 
   if (trace_level >= TraceLevel::STACK_ONLY) {
-    Trace trace{std::string(v.name()), inner().line_num(), inner().col_num(), inner().byte_num()};
+    Trace trace{std::string(v.name()), inner().pos()};
     trace_stack_.emplace_back(trace);
 
     if (trace_level >= TraceLevel::FULL) {
@@ -3072,12 +3245,12 @@ inline auto Reader::read(const Var<T, D>& v) -> T {
   auto result = v.read_from(*this);
 
   if (trace_level >= TraceLevel::STACK_ONLY) {
-    trace_stack_.back().byte_length = inner().byte_num() - trace_stack_.back().byte_num;
+    trace_stack_.back().byte_length = inner().pos().byte - trace_stack_.back().pos.byte;
     trace_stack_.pop_back();
 
     if (trace_level >= TraceLevel::FULL) {
       trace_tree_current_->trace.byte_length =
-          inner().byte_num() - trace_tree_current_->trace.byte_num;
+          inner().pos().byte - trace_tree_current_->trace.pos.byte;
       trace_tree_current_ = trace_tree_current_->get_parent();
     }
   }
@@ -3091,8 +3264,8 @@ inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::Target.
 
 [[nodiscard]] inline auto Reader::get_trace_level() const -> TraceLevel { return trace_level_; }
 
-[[nodiscard]] inline auto Reader::get_trace_stack() const -> TraceStack {
-  return {trace_stack_, std::string(inner_->name())};
+[[nodiscard]] inline auto Reader::make_trace_stack(bool fatal) const -> TraceStack {
+  return {trace_stack_, std::string(inner_->name()), fatal};
 }
 
 [[nodiscard]] inline auto Reader::get_trace_tree() const -> const TraceTreeNode* {
@@ -3121,10 +3294,7 @@ namespace detail {
 inline auto make_reader_by_path(std::string_view path, std::string name, bool strict,
                                 Reader::TraceLevel trace_level,
                                 Reader::FailFunc fail_func) -> var::Reader {
-  auto buf = std::make_unique<std::filebuf>();
-  if (!buf->open(path.data(), std::ios_base::binary | std::ios_base::in)) {
-    panic(format("Can not open file `%s` as input stream", path.data()));
-  }
+  auto buf = std::make_unique<io::InBuf>(path);
   return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
                      trace_level, std::move(fail_func));
 }
@@ -3133,26 +3303,11 @@ inline auto make_reader_by_path(std::string_view path, std::string name, bool st
 inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
                                   Reader::TraceLevel trace_level,
                                   Reader::FailFunc fail_func) -> var::Reader {
-  auto buf = std::make_unique<io::detail::FdInBuf>(fileno);
+  auto buf = std::make_unique<io::InBuf>(fileno);
   var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
                      trace_level, std::move(fail_func));
   return reader;
 }
-
-// Open the givin file and create a `std::::ostream`
-inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf>& buf,
-                                 std::ostream& stream) -> void {
-  buf = std::make_unique<io::detail::FdOutBuf>(path);
-  stream.rdbuf(buf.get());
-}
-
-// Use file with givin fileno as output stream and create a `std::::ostream`
-inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf>& buf,
-                                   std::ostream& stream) -> void {
-  buf = std::make_unique<io::detail::FdOutBuf>(fileno);
-  stream.rdbuf(buf.get());
-}
-
 }  // namespace detail
 
 namespace detail {
@@ -3997,11 +4152,12 @@ inline auto ParsedArgs::has_flag(std::string_view name) const -> bool {
 #ifndef CPLIB_CHECKER_HPP_
 #define CPLIB_CHECKER_HPP_
 
+#include <map>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
+
 
 
 
@@ -4120,9 +4276,14 @@ struct Reporter {
   [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
   auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
+  auto detach_trace_stack(const std::string& stream) -> void;
+
+  auto attach_file_fragment(const io::FileFragment& file_fragment) -> void;
+  auto detach_file_fragment(const std::string& stream) -> void;
 
  protected:
-  std::optional<var::Reader::TraceStack> trace_stack_{};
+  std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
+  std::map<std::string, io::FileFragment> file_fragments_{};
 };
 
 /**
@@ -4345,7 +4506,9 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       fileno, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -4356,7 +4519,9 @@ inline auto Initializer::set_ouf_fileno(int fileno, var::Reader::TraceLevel trac
       fileno, "ouf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         state_->quit_wa(msg);
       });
@@ -4367,7 +4532,9 @@ inline auto Initializer::set_ans_fileno(int fileno, var::Reader::TraceLevel trac
       fileno, "ans", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -4379,7 +4546,9 @@ inline auto Initializer::set_inf_path(std::string_view path,
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -4391,7 +4560,9 @@ inline auto Initializer::set_ouf_path(std::string_view path,
       path, "ouf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         state_->quit_wa(msg);
       });
@@ -4403,7 +4574,9 @@ inline auto Initializer::set_ans_path(std::string_view path,
       path, "ans", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -4412,7 +4585,19 @@ inline auto Initializer::set_ans_path(std::string_view path,
 inline Reporter::~Reporter() = default;
 
 inline auto Reporter::attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void {
-  trace_stack_ = trace_stack;
+  trace_stacks_.emplace(std::string(trace_stack.stream), trace_stack);
+}
+
+inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
+  trace_stacks_.erase(stream);
+}
+
+inline auto Reporter::attach_file_fragment(const io::FileFragment& file_fragment) -> void {
+  file_fragments_.emplace(std::string(file_fragment.stream), file_fragment);
+}
+
+inline auto Reporter::detach_file_fragment(const std::string& stream) -> void {
+  file_fragments_.erase(stream);
 }
 
 // Impl State {{{
@@ -4592,8 +4777,20 @@ inline auto JsonReporter::report(const Report& report) -> int {
   map.emplace("score", std::make_unique<json::Real>(report.score));
   map.emplace("message", std::make_unique<json::String>(report.message));
 
-  if (trace_stack_.has_value()) {
-    map.emplace("reader_trace_stack", trace_stack_->to_json());
+  if (!trace_stacks_.empty()) {
+    std::map<std::string, std::unique_ptr<json::Value>> trace_stacks_map;
+    for (const auto& [name, stack] : trace_stacks_) {
+      trace_stacks_map.emplace(name, stack.to_json());
+    }
+    map.emplace("trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+  }
+
+  if (!file_fragments_.empty()) {
+    std::map<std::string, std::unique_ptr<json::Value>> file_fragments_map;
+    for (const auto& [name, file] : file_fragments_) {
+      file_fragments_map.emplace(name, file.to_json());
+    }
+    map.emplace("file_fragments", std::make_unique<json::Map>(std::move(file_fragments_map)));
   }
 
   std::ostream stream(std::clog.rdbuf());
@@ -4611,10 +4808,20 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
     stream << report.message << '\n';
   }
 
-  if (trace_stack_.has_value()) {
-    stream << "\nReader trace stack (most recent variable last):\n";
-    for (const auto& line : trace_stack_->to_plain_text_lines()) {
-      stream << "  " << line << '\n';
+  if (!trace_stacks_.empty()) {
+    stream << "\nReader trace stacks (most recent variable last):";
+    for (const auto& [_, stack] : trace_stacks_) {
+      for (const auto& line : stack.to_plain_text_lines()) {
+        stream << '\n' << "  " << line;
+      }
+      stream << '\n';
+    }
+  }
+
+  if (!file_fragments_.empty()) {
+    stream << "\nFile fragments:\n";
+    for (const auto& [_, file] : file_fragments_) {
+      stream << "  - " << file.to_plain_text() << '\n';
     }
   }
 
@@ -4631,10 +4838,20 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
     stream << report.message << '\n';
   }
 
-  if (trace_stack_.has_value()) {
-    stream << "\nReader trace stack (most recent variable last):\n";
-    for (const auto& line : trace_stack_->to_colored_text_lines()) {
-      stream << "  " << line << '\n';
+  if (!trace_stacks_.empty()) {
+    stream << "\nReader trace stacks (most recent variable last):";
+    for (const auto& [_, stack] : trace_stacks_) {
+      for (const auto& line : stack.to_colored_text_lines()) {
+        stream << '\n' << "  " << line;
+      }
+      stream << '\n';
+    }
+  }
+
+  if (!file_fragments_.empty()) {
+    stream << "\nFile fragments:\n";
+    for (const auto& [_, file] : file_fragments_) {
+      stream << "  - " << file.to_colored_text() << '\n';
     }
   }
 
@@ -4664,13 +4881,14 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 #ifndef CPLIB_INTERACTOR_HPP_
 #define CPLIB_INTERACTOR_HPP_
 
+#include <map>
 #include <memory>
-#include <optional>
 #include <ostream>
 #include <streambuf>
 #include <string>
 #include <string_view>
 #include <vector>
+
 
 
 
@@ -4790,9 +5008,14 @@ struct Reporter {
   [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
   auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
+  auto detach_trace_stack(const std::string& stream) -> void;
+
+  auto attach_file_fragment(const io::FileFragment& file_fragment) -> void;
+  auto detach_file_fragment(const std::string& stream) -> void;
 
  protected:
-  std::optional<var::Reader::TraceStack> trace_stack_{};
+  std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
+  std::map<std::string, io::FileFragment> file_fragments_{};
 };
 
 /**
@@ -4945,6 +5168,7 @@ struct ColoredTextReporter : Reporter {
  */
 
 
+
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
   
@@ -5010,7 +5234,9 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       fileno, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -5022,14 +5248,16 @@ inline auto Initializer::set_from_user_fileno(int fileno,
       fileno, "from_user", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         state_->quit_wa(msg);
       });
 }
 
 inline auto Initializer::set_to_user_fileno(int fileno) -> void {
-  var::detail::make_ostream_by_fileno(fileno, state_->to_user_buf, state_->to_user);
+  io::detail::make_ostream_by_fileno(fileno, state_->to_user_buf, state_->to_user);
 }
 
 inline auto Initializer::set_inf_path(std::string_view path,
@@ -5038,7 +5266,9 @@ inline auto Initializer::set_inf_path(std::string_view path,
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         panic(msg);
       });
@@ -5050,20 +5280,34 @@ inline auto Initializer::set_from_user_path(std::string_view path,
       path, "from_user", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         state_->quit_wa(msg);
       });
 }
 
 inline auto Initializer::set_to_user_path(std::string_view path) -> void {
-  var::detail::make_ostream_by_path(path, state_->to_user_buf, state_->to_user);
+  io::detail::make_ostream_by_path(path, state_->to_user_buf, state_->to_user);
 }
 
 inline Reporter::~Reporter() = default;
 
 inline auto Reporter::attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void {
-  trace_stack_ = trace_stack;
+  trace_stacks_.emplace(std::string(trace_stack.stream), trace_stack);
+}
+
+inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
+  trace_stacks_.erase(stream);
+}
+
+inline auto Reporter::attach_file_fragment(const io::FileFragment& file_fragment) -> void {
+  file_fragments_.emplace(std::string(file_fragment.stream), file_fragment);
+}
+
+inline auto Reporter::detach_file_fragment(const std::string& stream) -> void {
+  file_fragments_.erase(stream);
 }
 
 // Impl State {{{
@@ -5249,8 +5493,20 @@ inline auto JsonReporter::report(const Report& report) -> int {
   map.emplace("score", std::make_unique<json::Real>(report.score));
   map.emplace("message", std::make_unique<json::String>(report.message));
 
-  if (trace_stack_.has_value()) {
-    map.emplace("reader_trace_stack", trace_stack_->to_json());
+  if (!trace_stacks_.empty()) {
+    std::map<std::string, std::unique_ptr<json::Value>> trace_stacks_map;
+    for (const auto& [name, stack] : trace_stacks_) {
+      trace_stacks_map.emplace(name, stack.to_json());
+    }
+    map.emplace("trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+  }
+
+  if (!file_fragments_.empty()) {
+    std::map<std::string, std::unique_ptr<json::Value>> file_fragments_map;
+    for (const auto& [name, file] : file_fragments_) {
+      file_fragments_map.emplace(name, file.to_json());
+    }
+    map.emplace("file_fragments", std::make_unique<json::Map>(std::move(file_fragments_map)));
   }
 
   std::ostream stream(std::clog.rdbuf());
@@ -5268,10 +5524,20 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
     stream << report.message << '\n';
   }
 
-  if (trace_stack_.has_value()) {
-    stream << "\nReader trace stack (most recent variable last):\n";
-    for (const auto& line : trace_stack_->to_plain_text_lines()) {
-      stream << "  " << line << '\n';
+  if (!trace_stacks_.empty()) {
+    stream << "\nReader trace stacks (most recent variable last):";
+    for (const auto& [_, stack] : trace_stacks_) {
+      for (const auto& line : stack.to_plain_text_lines()) {
+        stream << '\n' << "  " << line;
+      }
+      stream << '\n';
+    }
+  }
+
+  if (!file_fragments_.empty()) {
+    stream << "\nFile fragments:\n";
+    for (const auto& [_, file] : file_fragments_) {
+      stream << "  - " << file.to_plain_text() << '\n';
     }
   }
 
@@ -5288,10 +5554,20 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
     stream << report.message << '\n';
   }
 
-  if (trace_stack_.has_value()) {
-    stream << "\nReader trace stack (most recent variable last):\n";
-    for (const auto& line : trace_stack_->to_colored_text_lines()) {
-      stream << "  " << line << '\n';
+  if (!trace_stacks_.empty()) {
+    stream << "\nReader trace stacks (most recent variable last):";
+    for (const auto& [_, stack] : trace_stacks_) {
+      for (const auto& line : stack.to_colored_text_lines()) {
+        stream << '\n' << "  " << line;
+      }
+      stream << '\n';
+    }
+  }
+
+  if (!file_fragments_.empty()) {
+    stream << "\nFile fragments:\n";
+    for (const auto& [_, file] : file_fragments_) {
+      stream << "  - " << file.to_colored_text() << '\n';
     }
   }
 
@@ -5325,10 +5601,10 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 #include <functional>
 #include <map>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
+
 
 
 
@@ -5469,14 +5745,19 @@ struct Reporter {
   [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
   auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
+  auto detach_trace_stack(const std::string& stream) -> void;
 
   auto attach_trace_tree(const var::Reader::TraceTreeNode* root) -> void;
+
+  auto attach_file_fragment(const io::FileFragment& file_fragment) -> void;
+  auto detach_file_fragment(const std::string& stream) -> void;
 
   auto attach_trait_status(const std::map<std::string, bool>& trait_status) -> void;
 
  protected:
-  std::optional<var::Reader::TraceStack> trace_stack_{};
+  std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
   const var::Reader::TraceTreeNode* trace_tree_{};
+  std::map<std::string, io::FileFragment> file_fragments_{};
   std::map<std::string, bool> trait_status_{};
 };
 
@@ -5700,7 +5981,9 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       fileno, "inf", true, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         state_->quit_invalid(msg);
       });
@@ -5712,7 +5995,9 @@ inline auto Initializer::set_inf_path(std::string_view path,
       path, "inf", true, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
         if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.get_trace_stack());
+          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+          state_->reporter->attach_file_fragment(
+              reader.inner().make_file_fragment(io::FileFragment::Direction::AROUND));
         }
         state_->quit_invalid(msg);
       });
@@ -5721,7 +6006,19 @@ inline auto Initializer::set_inf_path(std::string_view path,
 inline Reporter::~Reporter() = default;
 
 inline auto Reporter::attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void {
-  trace_stack_ = trace_stack;
+  trace_stacks_.emplace(std::string(trace_stack.stream), trace_stack);
+}
+
+inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
+  trace_stacks_.erase(stream);
+}
+
+inline auto Reporter::attach_file_fragment(const io::FileFragment& file_fragment) -> void {
+  file_fragments_.emplace(std::string(file_fragment.stream), file_fragment);
+}
+
+inline auto Reporter::detach_file_fragment(const std::string& stream) -> void {
+  file_fragments_.erase(stream);
 }
 
 inline auto Reporter::attach_trace_tree(const var::Reader::TraceTreeNode* root) -> void {
@@ -6090,8 +6387,20 @@ inline auto JsonReporter::report(const Report& report) -> int {
   map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
   map.emplace("message", std::make_unique<json::String>(report.message));
 
-  if (trace_stack_.has_value()) {
-    map.emplace("reader_trace_stack", trace_stack_->to_json());
+  if (!trace_stacks_.empty()) {
+    std::map<std::string, std::unique_ptr<json::Value>> trace_stacks_map;
+    for (const auto& [name, stack] : trace_stacks_) {
+      trace_stacks_map.emplace(name, stack.to_json());
+    }
+    map.emplace("trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+  }
+
+  if (!file_fragments_.empty()) {
+    std::map<std::string, std::unique_ptr<json::Value>> file_fragments_map;
+    for (const auto& [name, file] : file_fragments_) {
+      file_fragments_map.emplace(name, file.to_json());
+    }
+    map.emplace("file_fragments", std::make_unique<json::Map>(std::move(file_fragments_map)));
   }
 
   if (!trait_status_.empty()) {
@@ -6101,7 +6410,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
   if (trace_tree_) {
     auto json = trace_tree_->to_json();
     if (json && json->inner.count("children")) {
-      map.emplace("reader_trace_tree", std::move(json->inner.at("children")));
+      map.emplace("trace_tree", std::move(json->inner.at("children")));
     }
   }
 
@@ -6119,10 +6428,20 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
     stream << report.message << '\n';
   }
 
-  if (trace_stack_.has_value()) {
-    stream << "\nReader trace stack (most recent variable last):\n";
-    for (const auto& line : trace_stack_->to_plain_text_lines()) {
-      stream << "  " << line << '\n';
+  if (!trace_stacks_.empty()) {
+    stream << "\nReader trace stacks (most recent variable last):";
+    for (const auto& [_, stack] : trace_stacks_) {
+      for (const auto& line : stack.to_plain_text_lines()) {
+        stream << '\n' << "  " << line;
+      }
+      stream << '\n';
+    }
+  }
+
+  if (!file_fragments_.empty()) {
+    stream << "\nFile fragments:\n";
+    for (const auto& [_, file] : file_fragments_) {
+      stream << "  - " << file.to_plain_text() << '\n';
     }
   }
 
@@ -6164,10 +6483,20 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
     stream << report.message << '\n';
   }
 
-  if (trace_stack_.has_value()) {
-    stream << "\nReader trace stack (most recent variable last):\n";
-    for (const auto& line : trace_stack_->to_colored_text_lines()) {
-      stream << "  " << line << '\n';
+  if (!trace_stacks_.empty()) {
+    stream << "\nReader trace stacks (most recent variable last):";
+    for (const auto& [_, stack] : trace_stacks_) {
+      for (const auto& line : stack.to_colored_text_lines()) {
+        stream << '\n' << "  " << line;
+      }
+      stream << '\n';
+    }
+  }
+
+  if (!file_fragments_.empty()) {
+    stream << "\nFile fragments:\n";
+    for (const auto& [_, file] : file_fragments_) {
+      stream << "  - " << file.to_colored_text() << '\n';
     }
   }
 
