@@ -187,11 +187,12 @@ struct Reader {
       Value value_;
     };
 
-    std::string stream;
-    io::Position pos;
-    Direction dir;
+    std::string stream{};
+    io::Position pos{};
+    Direction dir{};
     std::vector<std::size_t> highlight_lines{};
 
+    explicit Fragment() = default;
     explicit Fragment(std::string stream, io::Position begin, Direction dir);
 
     [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
