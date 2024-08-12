@@ -164,7 +164,14 @@ struct Reader {
   struct Fragment {
     struct Direction {
      public:
-      enum Value { AFTER, AROUND, BEFORE };
+      enum Value {
+        // [pos, pos+x)
+        AFTER,
+        // [pos-x/2, pos+x/2)
+        AROUND,
+        // [pos-x, pos)
+        BEFORE
+      };
 
       Direction() = default;
 
