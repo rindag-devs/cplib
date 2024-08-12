@@ -2181,7 +2181,14 @@ struct Reader {
   struct Fragment {
     struct Direction {
      public:
-      enum Value { AFTER, AROUND, BEFORE };
+      enum Value {
+        // [pos, pos+x)
+        AFTER,
+        // [pos-x/2, pos+x/2)
+        AROUND,
+        // [pos-x, pos)
+        BEFORE
+      };
 
       Direction() = default;
 
@@ -3207,14 +3214,16 @@ inline auto Reader::Fragment::to_json() const -> std::unique_ptr<json::Map> {
 inline auto Reader::Fragment::to_plain_text() const -> std::string {
   auto dir_str = std::string(dir.to_string());
   dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
-  return format("%s #%zu byte, in stream `%s`", dir_str.c_str(), pos.byte, stream.c_str());
+  return format("%s %s:%zu:%zu, byte %zu", dir_str.c_str(), stream.c_str(), pos.line + 1,
+                pos.col + 1, pos.byte + 1);
 }
 
 inline auto Reader::Fragment::to_colored_text() const -> std::string {
   auto dir_str = std::string(dir.to_string());
   dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
-  return format("%s #\x1b[0;33m%zu\x1b[0m byte, in stream `\x1b[0;33m%s\x1b[0m`", dir_str.c_str(),
-                pos.byte, stream.c_str());
+  return format(
+      "%s \x1b[0;33m%s\x1b[0m:\x1b[0;33m%zu\x1b[0m:\x1b[0;33m%zu\x1b[0m, byte \x1b[0;33m%zu\x1b[0m",
+      dir_str.c_str(), stream.c_str(), pos.line + 1, pos.col + 1, pos.byte + 1);
 }
 
 inline Reader::Reader(std::unique_ptr<io::InStream> inner, Reader::TraceLevel trace_level,
