@@ -179,58 +179,6 @@ inline auto Reader::TraceTreeNode::add_child(std::unique_ptr<TraceTreeNode> chil
   return children_.emplace_back(std::move(child));
 }
 
-inline constexpr Reader::Fragment::Direction::Direction(Value value) : value_(value) {}
-
-inline constexpr Reader::Fragment::Direction::operator Value() const { return value_; }
-
-inline constexpr auto Reader::Fragment::Direction::to_string() const -> std::string_view {
-  switch (value_) {
-    case Value::AFTER:
-      return "after";
-    case Value::AROUND:
-      return "around";
-    case Value::BEFORE:
-      return "before";
-    default:
-      panic(format("Unknown file fragment direction: %d", static_cast<int>(value_)));
-      return "unknown";
-  }
-}
-
-inline Reader::Fragment::Fragment(std::string stream, io::Position pos, Direction dir)
-    : stream(std::move(stream)), pos(pos), dir(dir) {}
-
-inline auto Reader::Fragment::to_json() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-
-  map.emplace("pos", pos.to_json());
-  map.emplace("dir", std::make_unique<json::String>(std::string(dir.to_string())));
-
-  std::vector<std::unique_ptr<json::Value>> highlight_lines_json;
-  highlight_lines_json.reserve(highlight_lines.size());
-  for (auto line : highlight_lines) {
-    highlight_lines_json.push_back(std::make_unique<json::Int>(line));
-  }
-  map.emplace("highlight_lines", std::make_unique<json::List>(std::move(highlight_lines_json)));
-
-  return std::make_unique<json::Map>(std::move(map));
-}
-
-inline auto Reader::Fragment::to_plain_text() const -> std::string {
-  auto dir_str = std::string(dir.to_string());
-  dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
-  return format("%s %s:%zu:%zu, byte %zu", dir_str.c_str(), stream.c_str(), pos.line + 1,
-                pos.col + 1, pos.byte + 1);
-}
-
-inline auto Reader::Fragment::to_colored_text() const -> std::string {
-  auto dir_str = std::string(dir.to_string());
-  dir_str[0] = static_cast<char>(std::toupper(dir_str[0]));
-  return format(
-      "%s \x1b[0;33m%s\x1b[0m:\x1b[0;33m%zu\x1b[0m:\x1b[0;33m%zu\x1b[0m, byte \x1b[0;33m%zu\x1b[0m",
-      dir_str.c_str(), stream.c_str(), pos.line + 1, pos.col + 1, pos.byte + 1);
-}
-
 inline Reader::Reader(std::unique_ptr<io::InStream> inner, Reader::TraceLevel trace_level,
                       FailFunc fail_func)
     : inner_(std::move(inner)),
@@ -309,21 +257,6 @@ inline auto Reader::attach_json_tag(std::string_view key, std::unique_ptr<json::
   }
 
   trace_tree_current_->json_tag->inner.emplace(key, std::move(value));
-}
-
-[[nodiscard]] auto Reader::make_fragment(Fragment::Direction dir) const -> Fragment {
-  if (get_trace_level() >= TraceLevel::STACK_ONLY) {
-    auto trace_stack = make_trace_stack(false);
-    if (!trace_stack.stack.empty()) {
-      auto pos = trace_stack.stack.back().pos;
-      auto fragment = Fragment(std::string(inner().name()), pos, dir);
-      fragment.highlight_lines = {pos.line};
-      return fragment;
-    }
-  }
-
-  auto pos = inner().pos();
-  return Fragment(std::string(inner().name()), pos, dir);
 }
 
 namespace detail {

@@ -1,1 +1,1 @@
-{"message":"Expected a separator ` `, got `\\n`","reader_fragments":{"inf":{"dir":"around","highlight_lines":[0],"pos":{"byte":1,"col":1,"line":0}}},"reader_trace_stacks":{"inf":{"fatal":true,"stack":[{"pos":{"byte":1,"col":1,"line":0},"var_name":"space"}]}},"status":"invalid"}
+{"message":"Expected a separator ` `, got `\\n`","reader_trace_stacks":{"inf":{"fatal":true,"stack":[{"pos":{"byte":1,"col":1,"line":0},"var_name":"space"}]}},"status":"invalid"}

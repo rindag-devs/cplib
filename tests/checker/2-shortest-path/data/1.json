@@ -1,1 +1,1 @@
-{"message":"Plan and shortest path length do not match","reader_fragments":{"ouf":{"dir":"around","highlight_lines":[0],"pos":{"byte":0,"col":0,"line":0}}},"reader_trace_stacks":{"ouf":{"fatal":true,"stack":[{"pos":{"byte":0,"col":0,"line":0},"var_name":"output"}]}},"score":0,"status":"wrong_answer"}
+{"message":"Plan and shortest path length do not match","reader_trace_stacks":{"ouf":{"fatal":true,"stack":[{"pos":{"byte":0,"col":0,"line":0},"var_name":"output"}]}},"score":0,"status":"wrong_answer"}

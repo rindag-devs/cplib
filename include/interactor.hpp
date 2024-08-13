@@ -144,12 +144,8 @@ struct Reporter {
   auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
   auto detach_trace_stack(const std::string& stream) -> void;
 
-  auto attach_fragment(const var::Reader::Fragment& fragment) -> void;
-  auto detach_fragment(const std::string& stream) -> void;
-
  protected:
   std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
-  std::map<std::string, var::Reader::Fragment> fragments_{};
 };
 
 /**

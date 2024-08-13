@@ -160,48 +160,6 @@ struct Reader {
     TraceTreeNode* parent_{nullptr};
   };
 
-  /// Represents a fragment of a file.
-  struct Fragment {
-    struct Direction {
-     public:
-      enum Value {
-        // [pos, pos+x)
-        AFTER,
-        // [pos-x/2, pos+x/2)
-        AROUND,
-        // [pos-x, pos)
-        BEFORE
-      };
-
-      Direction() = default;
-
-      constexpr Direction(Value value);  // NOLINT(google-explicit-constructor)
-
-      constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
-
-      explicit operator bool() const = delete;
-
-      [[nodiscard]] constexpr auto to_string() const -> std::string_view;
-
-     private:
-      Value value_;
-    };
-
-    std::string stream{};
-    io::Position pos{};
-    Direction dir{};
-    std::vector<std::size_t> highlight_lines{};
-
-    explicit Fragment() = default;
-    explicit Fragment(std::string stream, io::Position begin, Direction dir);
-
-    [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
-
-    [[nodiscard]] auto to_plain_text() const -> std::string;
-
-    [[nodiscard]] auto to_colored_text() const -> std::string;
-  };
-
   using FailFunc = UniqueFunction<auto(const Reader&, std::string_view)->void>;
 
   /**
@@ -292,14 +250,6 @@ struct Reader {
    * @param tag The JSON tag.
    */
   auto attach_json_tag(std::string_view key, std::unique_ptr<json::Value> value);
-
-  /**
-   * Make a file fragment using the current position.
-   *
-   * @param dir The direction of the fragment.
-   * @return The file fragment.
-   */
-  [[nodiscard]] auto make_fragment(Fragment::Direction dir) const -> Fragment;
 
  private:
   std::unique_ptr<io::InStream> inner_;
