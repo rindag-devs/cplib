@@ -17,14 +17,18 @@
 #define CPLIB_UTILS_HPP_
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
-/* cplib_embed_ignore start */
-#include "macros.hpp"
-/* cplib_embed_ignore end */
+#ifdef CPLIB_USE_FMT_LIB
+#include "fmt/base.h"
+#include "fmt/core.h"
+#else
+#include <format>
+#endif
 
 namespace cplib {
 /**
@@ -38,13 +42,20 @@ namespace cplib {
 [[noreturn]] auto panic(std::string_view message) -> void;
 
 /**
- * Format string using printf-like syntax.
+ * Format string using std::format syntax.
+template <class... Args>
  *
  * @param fmt The format string.
- * @param ... The variadic arguments to be formatted.
+ * @param args The variadic arguments to be formatted.
  * @return The formatted string.
  */
-CPLIB_PRINTF_LIKE(1, 2) auto format(const char *fmt, ...) -> std::string;
+#ifdef CPLIB_USE_FMT_LIB
+template <class... Args>
+[[nodiscard]] auto format(fmt::format_string<Args...> fmt, Args &&...args) -> std::string;
+#else
+template <class... Args>
+[[nodiscard]] auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string;
+#endif
 
 /**
  * Determine whether the two floating-point values are equals within the accuracy range.
@@ -219,7 +230,7 @@ struct UniqueFunction<Ret(Args...)> {
 /**
  * `WorkMode` indicates the current mode of cplib.
  */
-enum struct WorkMode {
+enum struct WorkMode : std::uint8_t {
   NONE,
   CHECKER,
   INTERACTOR,

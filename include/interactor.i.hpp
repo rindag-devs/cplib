@@ -61,7 +61,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(format("Unknown interactor report status: %d", static_cast<int>(value_)));
+      panic(format("Unknown interactor report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -86,8 +86,8 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       });
 }
 
-inline auto Initializer::set_from_user_fileno(int fileno,
-                                              var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_from_user_fileno(int fileno, var::Reader::TraceLevel trace_level)
+    -> void {
   state_->from_user = var::detail::make_reader_by_fileno(
       fileno, "from_user", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -102,8 +102,8 @@ inline auto Initializer::set_to_user_fileno(int fileno) -> void {
   io::detail::make_ostream_by_fileno(fileno, state_->to_user_buf, state_->to_user);
 }
 
-inline auto Initializer::set_inf_path(std::string_view path,
-                                      var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
+    -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -184,14 +184,14 @@ constexpr std::string_view ARGS_USAGE = "<input_file> [--report-format={auto|jso
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
-      format(CPLIB_STARTUP_TEXT
-             "\n"
-             "Usage:\n"
-             "  %s %s\n"
-             "\n"
-             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-             "enable colors",
-             program_name.data(), ARGS_USAGE.data());
+      cplib::format(CPLIB_STARTUP_TEXT
+                    "\n"
+                    "Usage:\n"
+                    "  {} {}\n"
+                    "\n"
+                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                    "enable colors",
+                    program_name, ARGS_USAGE);
   panic(msg);
 }
 
@@ -242,8 +242,8 @@ inline auto disable_stdio() -> void {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0,
-                                     const std::vector<std::string>& args) -> void {
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+    -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
@@ -253,7 +253,7 @@ inline auto DefaultInitializer::init(std::string_view arg0,
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
+        panic(cplib::format("Unknown {} option: {}", key, value));
       }
     } else {
       panic("Unknown command-line argument variable: " + key);
@@ -295,7 +295,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(format("Unknown interactor report status: %d", static_cast<int>(status)));
+      panic(format("Unknown interactor report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -311,7 +311,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(format("Unknown interactor report status: %d", static_cast<int>(status)));
+      panic(format("Unknown interactor report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }

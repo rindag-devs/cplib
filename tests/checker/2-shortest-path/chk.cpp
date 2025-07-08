@@ -9,6 +9,7 @@
  */
 
 #include <map>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -58,7 +59,7 @@ struct Output {
     int result_sum = 0;
     for (int i = 1; i < (int)plan.size(); ++i) {
       if (!input.graph.count({plan[i - 1], plan[i]}))
-        in.fail(format("Edge %d <-> %d does not exist", plan[i - 1], plan[i]));
+        in.fail(format("Edge {} <-> {} does not exist", plan[i - 1], plan[i]));
       result_sum += input.graph.at({plan[i - 1], plan[i]});
     }
     if (result_sum != sum) in.fail("Plan and shortest path length do not match");
@@ -68,10 +69,10 @@ struct Output {
 
   static void check(const Output& expected, const Output& result) {
     if (result.sum > expected.sum)
-      chk.quit_wa(format("Wrong sum, expected %d, got %d", expected.sum, result.sum));
+      chk.quit_wa(format("Wrong sum, expected {}, got {}", expected.sum, result.sum));
 
     if (result.sum < expected.sum)
-      panic(format("Contestant answers are better than standard answers, expected %d, got %d",
+      panic(format("Contestant answers are better than standard answers, expected {}, got {}",
                    expected.sum, result.sum));
   }
 };

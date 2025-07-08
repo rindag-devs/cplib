@@ -43,7 +43,7 @@ void checker_main() {
   int ans_output = chk.ans.read(var_ans);
 
   if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected %d, got %d", ans_output, ouf_output));
+    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
   }
 
   chk.quit_ac();
@@ -100,11 +100,11 @@ void checker_main() {
 
 ```cpp
   if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected %d, got %d", ans_output, ouf_output));
+    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
   }
 ```
 
-在发现选手输出和标准答案不一致时，需要调用 `chk.quit_wa` 函数报告 Wrong Answer 并退出程序．我们推荐你在使用 `chk.quit_wa` 系列函数时给出清晰的信息．此处使用 `cplib::format` 函数对错误信息进行格式化，该函数使用类似 `printf` 的格式，可便捷地格式化字符串．
+在发现选手输出和标准答案不一致时，需要调用 `chk.quit_wa` 函数报告 Wrong Answer 并退出程序．我们推荐你在使用 `chk.quit_wa` 系列函数时给出清晰的信息．此处使用 `cplib::format` 函数对错误信息进行格式化，该函数使用类似 `std::format` 的格式，可便捷地格式化字符串．
 
 ```cpp
   chk.quit_ac();
@@ -233,6 +233,7 @@ Windows 10 [自 v1511 起](https://www.reddit.com/r/Windows10/comments/44czox/wi
 
 ```cpp filename="chk.cpp" copy showLineNumbers
 #include <map>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -282,7 +283,7 @@ struct Output {
     int result_sum = 0;
     for (int i = 1; i < (int)plan.size(); ++i) {
       if (!input.graph.count({plan[i - 1], plan[i]}))
-        in.fail(format("Edge %d <-> %d does not exist", plan[i - 1], plan[i]));
+        in.fail(format("Edge {} <-> {} does not exist", plan[i - 1], plan[i]));
       result_sum += input.graph.at({plan[i - 1], plan[i]});
     }
     if (result_sum != sum) in.fail("Plan and shortest path length do not match");
@@ -292,10 +293,10 @@ struct Output {
 
   static void check(const Output& expected, const Output& result) {
     if (result.sum > expected.sum)
-      chk.quit_wa(format("Wrong sum, expected %d, got %d", expected.sum, result.sum));
+      chk.quit_wa(format("Wrong sum, expected {}, got {}", expected.sum, result.sum));
 
     if (result.sum < expected.sum)
-      panic(format("Contestant answers are better than standard answers, expected %d, got %d",
+      panic(format("Contestant answers are better than standard answers, expected {}, got {}",
                    expected.sum, result.sum));
   }
 };

@@ -17,6 +17,7 @@
 #define CPLIB_VALIDATOR_HPP_
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -39,7 +40,7 @@ struct Report {
    */
   struct Status {
    public:
-    enum Value {
+    enum Value : std::uint8_t {
       /// Indicates an internal error occurred.
       INTERNAL_ERROR,
       /// Indicates the input file is valid.

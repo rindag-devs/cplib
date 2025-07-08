@@ -25,7 +25,6 @@
 #include <streambuf>
 #include <string>
 #include <string_view>
-#include <vector>
 
 /* cplib_embed_ignore start */
 #include "json.hpp"

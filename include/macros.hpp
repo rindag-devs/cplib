@@ -47,10 +47,4 @@
 #include <unistd.h>     // IWYU pragma: export
 #endif
 
-#if defined(__GNUC__)
-#define CPLIB_PRINTF_LIKE(n, m) __attribute__((format(printf, n, m)))
-#else
-#define CPLIB_PRINTF_LIKE(n, m) /* If only */
-#endif                          /* __GNUC__ */
-
 #endif

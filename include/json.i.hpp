@@ -84,7 +84,7 @@ inline auto String::to_string() -> std::string {
         if (('\x00' <= c && c <= '\x1f') || c == '\x7f') {
           buf.sputc('\\');
           buf.sputc('u');
-          buf.sputn(cplib::format("%04hhx", static_cast<unsigned char>(c)).c_str(), 4);
+          buf.sputn(cplib::format("{:04x}", static_cast<unsigned char>(c)).c_str(), 4);
         } else {
           buf.sputc(c);
         }
@@ -108,7 +108,7 @@ inline Real::Real(double inner) : inner(inner) {}
   return std::make_unique<Real>(*this);
 }
 
-inline auto Real::to_string() -> std::string { return cplib::format("%.10g", inner); }
+inline auto Real::to_string() -> std::string { return cplib::format("{:.10g}", inner); }
 
 inline Bool::Bool(bool inner) : inner(inner) {}
 

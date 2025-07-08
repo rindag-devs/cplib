@@ -21,7 +21,7 @@ void checker_main() {
   int ans_output = chk.ans.read(var_ans);
 
   if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected %d, got %d", ans_output, ouf_output));
+    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
   }
 
   chk.quit_ac();

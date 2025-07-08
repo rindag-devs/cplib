@@ -16,6 +16,7 @@
 #ifndef CPLIB_CHECKER_HPP_
 #define CPLIB_CHECKER_HPP_
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -37,7 +38,7 @@ struct Report {
    */
   struct Status {
    public:
-    enum Value {
+    enum Value : std::uint8_t {
       /// Indicates an internal error occurred.
       INTERNAL_ERROR,
       /// Indicates the solution is accepted

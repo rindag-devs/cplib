@@ -51,7 +51,7 @@ struct Reader {
   /**
    * Trace level.
    */
-  enum struct TraceLevel {
+  enum struct TraceLevel : std::uint8_t {
     NONE,        /// Do not trace.
     STACK_ONLY,  /// Enable trace stack only.
     FULL,        /// Trace the whole input stream. Enable trace stack and trace tree.
@@ -327,7 +327,7 @@ struct Var {
    */
   virtual auto read_from(Reader& in) const -> T = 0;
 
- protected:
+ private:
   /**
    * Default constructor.
    */
@@ -340,7 +340,8 @@ struct Var {
    */
   explicit Var(std::string name);
 
- private:
+  friend D;
+
   std::string name_;
 };
 

@@ -61,7 +61,7 @@ inline Pattern::Pattern(std::string src)
 }
 
 inline auto Pattern::match(std::string_view s) const -> bool {
-  int result = regexec(&re_->first, s.data(), 0, nullptr, 0);
+  int result = regexec(&re_->first, std::string(s).c_str(), 0, nullptr, 0);
 
   if (!result) return true;
 

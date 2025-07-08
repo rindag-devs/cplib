@@ -47,7 +47,7 @@ struct Output {
 
   static void check(const Output& expected, const Output& result) {
     if (expected.len != result.len)
-      chk.quit_wa(format("Wrong number of sets, expected %d, got %d", expected.len, result.len));
+      chk.quit_wa(format("Wrong number of sets, expected {}, got {}", expected.len, result.len));
     if (expected.sets != result.sets) chk.quit_wa("Wrong sets");
   }
 };

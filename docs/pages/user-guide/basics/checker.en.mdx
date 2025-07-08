@@ -43,7 +43,7 @@ void checker_main() {
   int ans_output = chk.ans.read(var_ans);
 
   if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected %d, got %d", ans_output, ouf_output));
+    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
   }
 
   chk.quit_ac();
@@ -100,11 +100,11 @@ When the standard answer does not meet the conditions, CPLib's behavior is rough
 
 ```cpp
   if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected %d, got %d", ans_output, ouf_output));
+    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
   }
 ```
 
-When it is found that the participant's output and the standard answer are not consistent, the `chk.quit_wa` function needs to be called to report "Wrong Answer" and exit the program. We recommend providing clear information when using the `chk.quit_wa` series of functions. Here, the `cplib::format` function is used to format the error message. This function uses a format similar to `printf`, making it convenient to format strings.
+When it is found that the participant's output and the standard answer are not consistent, the `chk.quit_wa` function needs to be called to report "Wrong Answer" and exit the program. We recommend providing clear information when using the `chk.quit_wa` series of functions. Here, the `cplib::format` function is used to format the error message. This function uses a format similar to `std::format`, making it convenient to format strings.
 
 ```cpp
   chk.quit_ac();
@@ -233,6 +233,7 @@ When writing a more complex checker, it is **not** recommended to include all th
 
 ```cpp filename="chk.cpp" copy showLineNumbers
 #include <map>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -282,7 +283,7 @@ struct Output {
     int result_sum = 0;
     for (int i = 1; i < (int)plan.size(); ++i) {
       if (!input.graph.count({plan[i - 1], plan[i]}))
-        in.fail(format("Edge %d <-> %d does not exist", plan[i - 1], plan[i]));
+        in.fail(format("Edge {} <-> {} does not exist", plan[i - 1], plan[i]));
       result_sum += input.graph.at({plan[i - 1], plan[i]});
     }
     if (result_sum != sum) in.fail("Plan and shortest path length do not match");
@@ -292,10 +293,10 @@ struct Output {
 
   static void check(const Output& expected, const Output& result) {
     if (result.sum > expected.sum)
-      chk.quit_wa(format("Wrong sum, expected %d, got %d", expected.sum, result.sum));
+      chk.quit_wa(format("Wrong sum, expected {}, got {}", expected.sum, result.sum));
 
     if (result.sum < expected.sum)
-      panic(format("Contestant answers are better than standard answers, expected %d, got %d",
+      panic(format("Contestant answers are better than standard answers, expected {}, got {}",
                    expected.sum, result.sum));
   }
 };

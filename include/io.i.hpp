@@ -14,7 +14,6 @@
  */
 
 /* cplib_embed_ignore start */
-#include <vector>
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
 #include "io.hpp"  // IWYU pragma: associated
@@ -36,6 +35,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <streambuf>
 #include <string>
 #include <string_view>
@@ -87,7 +87,7 @@ inline InBuf::InBuf(std::string_view path) : need_close_(true) {
 #else
   flags |= O_RDONLY;
 #endif
-  fd_ = open(path.data(), flags);
+  fd_ = open(std::string(path).c_str(), flags);
   if (fd_ < 0) {
     panic("Failed to open file: " + std::string(path));
   }
@@ -177,8 +177,9 @@ inline auto InStream::is_strict() const -> bool { return strict_; }
 
 inline auto InStream::set_strict(bool b) -> void {
   if (pos().byte > 0) {
-    panic(format("Can't set strict mode of input stream `%s` when not at the beginning of the file",
-                 name().data()));
+    panic(cplib::format(
+        "Can't set strict mode of input stream `{}` when not at the beginning of the file",
+        name()));
   }
   strict_ = b;
 }
@@ -250,7 +251,7 @@ inline OutBuf::OutBuf(std::string_view path) : need_close_(true) {
 #else
   flags |= O_WRONLY | O_CREAT | O_TRUNC;
 #endif
-  fd_ = open(path.data(), flags, 0666);
+  fd_ = open(std::string(path).c_str(), flags, 0666);
   if (fd_ < 0) {
     panic("Failed to open file: " + std::string(path));
   }

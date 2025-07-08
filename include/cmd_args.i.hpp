@@ -76,11 +76,11 @@ inline ParsedArgs::ParsedArgs(const std::vector<std::string>& args) {
   }
 
   // Sort for binary search
-  std::sort(flags.begin(), flags.end());
+  std::ranges::sort(flags);
 }
 
 inline auto ParsedArgs::has_flag(std::string_view name) const -> bool {
-  return std::binary_search(flags.begin(), flags.end(), name);
+  return std::ranges::binary_search(flags, name);
 }
 
 }  // namespace cplib::cmd_args

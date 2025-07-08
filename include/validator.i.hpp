@@ -63,7 +63,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case INVALID:
       return "invalid";
     default:
-      panic(format("Unknown validator report status: %d", static_cast<int>(value_)));
+      panic(format("Unknown validator report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -96,8 +96,8 @@ inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trac
       });
 }
 
-inline auto Initializer::set_inf_path(std::string_view path,
-                                      var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
+    -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", true, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -161,14 +161,14 @@ inline auto topo_sort(const std::vector<std::vector<size_t>>& edges,
   }
 }
 
+// Returns std::nullopt if failed
 inline auto build_edges(std::vector<Trait>& traits)
     -> std::optional<std::vector<std::vector<size_t>>> {
   // Check duplicate name
-  std::sort(traits.begin(), traits.end(),
-            [](const Trait& x, const Trait& y) { return x.name < y.name; });
-  if (std::unique(traits.begin(), traits.end(), [](const Trait& x, const Trait& y) {
+  std::ranges::sort(traits, [](const Trait& x, const Trait& y) { return x.name < y.name; });
+  if (std::ranges::unique(traits, [](const Trait& x, const Trait& y) {
         return x.name == y.name;
-      }) != traits.end()) {
+      }).end() != traits.end()) {
     // Found duplicate name
     return std::nullopt;
   }
@@ -178,18 +178,19 @@ inline auto build_edges(std::vector<Trait>& traits)
   for (size_t i = 0; i < traits.size(); ++i) {
     auto& trait = traits[i];
     // Check duplicate dependencies
-    std::sort(trait.dependencies.begin(), trait.dependencies.end());
-    if (std::unique(trait.dependencies.begin(), trait.dependencies.end()) !=
-        trait.dependencies.end()) {
+    std::ranges::sort(trait.dependencies);
+    if (std::ranges::unique(trait.dependencies).end() != trait.dependencies.end()) {
       // Found duplicate dependencies
       return std::nullopt;
     }
 
     for (const auto& dep : trait.dependencies) {
-      auto dep_id =
-          std::lower_bound(traits.begin(), traits.end(), dep,
-                           [](const Trait& x, const std::string& y) { return x.name < y; }) -
-          traits.begin();
+      auto it = std::ranges::lower_bound(traits, dep, std::less{}, &Trait::name);
+      // IMPORTANT: Check if the dependency was actually found and is an exact match.
+      if (it == traits.end() || it->name != dep) {
+        return std::nullopt;
+      }
+      auto dep_id = it - traits.begin();
       edges[dep_id].emplace_back(i);
     }
   }
@@ -289,15 +290,15 @@ constexpr std::string_view ARGS_USAGE = "[<input_file>] [--report-format={auto|j
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
-      format(CPLIB_STARTUP_TEXT
-             "Usage:\n"
-             "  %s %s\n"
-             "\n"
-             "If <input_file> does not exist, stdin will be used as input\n"
-             "\n"
-             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-             "enable colors",
-             program_name.data(), ARGS_USAGE.data());
+      cplib::format(CPLIB_STARTUP_TEXT
+                    "Usage:\n"
+                    "  {} {}\n"
+                    "\n"
+                    "If <input_file> does not exist, stdin will be used as input\n"
+                    "\n"
+                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                    "enable colors",
+                    program_name, ARGS_USAGE);
   panic(msg);
 }
 
@@ -332,8 +333,8 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0,
-                                     const std::vector<std::string>& args) -> void {
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+    -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
@@ -343,7 +344,7 @@ inline auto DefaultInitializer::init(std::string_view arg0,
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
+        panic(cplib::format("Unknown {} option: {}", key, value));
       }
     } else {
       panic("Unknown command-line argument variable: " + key);
@@ -382,7 +383,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::INVALID:
       return "Invalid";
     default:
-      panic(format("Unknown validator report status: %d", static_cast<int>(status)));
+      panic(format("Unknown validator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -396,7 +397,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::INVALID:
       return "\x1b[0;31mInvalid\x1b[0m";
     default:
-      panic(format("Unknown validator report status: %d", static_cast<int>(status)));
+      panic(format("Unknown validator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -413,8 +414,8 @@ inline auto trait_status_to_json(const std::map<std::string, bool>& traits)
 }
 
 inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t depth,
-                             std::size_t& n_remaining_node, bool colored_output,
-                             std::ostream& os) -> void {
+                             std::size_t& n_remaining_node, bool colored_output, std::ostream& os)
+    -> void {
   if (!node || depth >= 8 || (node->json_tag && node->json_tag->inner.count("#hidden"))) {
     return;
   }

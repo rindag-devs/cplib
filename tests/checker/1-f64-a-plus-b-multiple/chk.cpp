@@ -34,8 +34,8 @@ struct Output {
     for (int32_t i = 0; i < n; ++i) {
       if (!cplib::float_equals(expected.ans[i], result.ans[i], MAX_ERR)) {
         auto delta = cplib::float_delta(expected.ans[i], result.ans[i]);
-        chk.quit_wa(format("ans[%d] error, expected %f, got %f, delta %f", i, expected.ans[i],
-                           result.ans[i], delta));
+        chk.quit_wa(format("ans[{}] error, expected {:.10g}, got {:.10g}, delta {:.10g}", i,
+                           expected.ans[i], result.ans[i], delta));
       }
     }
   }

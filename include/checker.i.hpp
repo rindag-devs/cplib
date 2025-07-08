@@ -34,6 +34,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 /* cplib_embed_ignore start */
 #include "cmd_args.hpp"
@@ -60,7 +61,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(format("Unknown checker report status: %d", static_cast<int>(value_)));
+      panic(format("Unknown checker report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -107,8 +108,8 @@ inline auto Initializer::set_ans_fileno(int fileno, var::Reader::TraceLevel trac
       });
 }
 
-inline auto Initializer::set_inf_path(std::string_view path,
-                                      var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
+    -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -119,8 +120,8 @@ inline auto Initializer::set_inf_path(std::string_view path,
       });
 }
 
-inline auto Initializer::set_ouf_path(std::string_view path,
-                                      var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_ouf_path(std::string_view path, var::Reader::TraceLevel trace_level)
+    -> void {
   state_->ouf = var::detail::make_reader_by_path(
       path, "ouf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -131,8 +132,8 @@ inline auto Initializer::set_ouf_path(std::string_view path,
       });
 }
 
-inline auto Initializer::set_ans_path(std::string_view path,
-                                      var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_ans_path(std::string_view path, var::Reader::TraceLevel trace_level)
+    -> void {
   state_->ans = var::detail::make_reader_by_path(
       path, "ans", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
@@ -207,14 +208,14 @@ constexpr std::string_view ARGS_USAGE =
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
-      format(CPLIB_STARTUP_TEXT
-             "\n"
-             "Usage:\n"
-             "  %s %s\n"
-             "\n"
-             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-             "enable colors",
-             program_name.data(), ARGS_USAGE.data());
+      cplib::format(CPLIB_STARTUP_TEXT
+                    "\n"
+                    "Usage:\n"
+                    "  {} {}\n"
+                    "\n"
+                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                    "enable colors",
+                    program_name, ARGS_USAGE);
   panic(msg);
 }
 
@@ -249,8 +250,8 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0,
-                                     const std::vector<std::string>& args) -> void {
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+    -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
@@ -260,7 +261,7 @@ inline auto DefaultInitializer::init(std::string_view arg0,
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
+        panic(cplib::format("Unknown {} option: {}", key, value));
       }
     } else {
       panic("Unknown command-line argument variable: " + key);
@@ -302,7 +303,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(format("Unknown checker report status: %d", static_cast<int>(status)));
+      panic(format("Unknown checker report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -318,7 +319,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(format("Unknown checker report status: %d", static_cast<int>(status)));
+      panic(format("Unknown checker report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }

@@ -1,2 +1,4 @@
 -Iinclude
--std=c++17
+-Ithird_party/fmt/include
+-xc++
+-std=c++20

@@ -57,7 +57,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case OK:
       return "ok";
     default:
-      panic(format("Unknown generator report status: %d", static_cast<int>(value_)));
+      panic(format("Unknown generator report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -117,14 +117,14 @@ inline auto parse_arg(std::string_view arg) -> std::pair<std::string, std::optio
 
 inline auto print_help_message(std::string_view program_name, std::string_view args_usage) -> void {
   std::string msg =
-      format(CPLIB_STARTUP_TEXT
-             "\n"
-             "Usage:\n"
-             "  %s %s\n"
-             "\n"
-             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-             "enable colors",
-             program_name.data(), args_usage.data());
+      cplib::format(CPLIB_STARTUP_TEXT
+                    "\n"
+                    "Usage:\n"
+                    "  {} {}\n"
+                    "\n"
+                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                    "enable colors",
+                    program_name, args_usage);
   panic(msg);
 }
 
@@ -158,8 +158,9 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   return true;
 }
 
-inline auto validate_required_arguments(
-    const State& state, const std::map<std::string, std::string>& var_args) -> void {
+inline auto validate_required_arguments(const State& state,
+                                        const std::map<std::string, std::string>& var_args)
+    -> void {
   for (const auto& var : state.required_var_args) {
     if (!var_args.count(var)) panic("Missing variable: " + var);
   }
@@ -186,15 +187,15 @@ inline auto set_binary_mode() {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0,
-                                     const std::vector<std::string>& args) -> void {
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+    -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
 
   // required args are initially unordered, sort them to ensure subsequent binary_search is correct
-  std::sort(state.required_flag_args.begin(), state.required_flag_args.end());
-  std::sort(state.required_var_args.begin(), state.required_var_args.end());
+  std::ranges::sort(state.required_flag_args);
+  std::ranges::sort(state.required_var_args);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
   auto args_usage = detail::get_args_usage(state);
@@ -204,11 +205,10 @@ inline auto DefaultInitializer::init(std::string_view arg0,
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
+        panic(cplib::format("Unknown {} option: {}", key, value));
       }
     } else {
-      if (!std::binary_search(state.required_var_args.begin(), state.required_var_args.end(),
-                              key)) {
+      if (!std::ranges::binary_search(state.required_var_args, key)) {
         panic("Unknown command-line argument variable: " + key);
       }
       if (auto it = var_args.find(key); it != var_args.end()) {
@@ -224,8 +224,7 @@ inline auto DefaultInitializer::init(std::string_view arg0,
     if (flag == "help") {
       detail::print_help_message(arg0, args_usage);
     } else {
-      if (!std::binary_search(state.required_flag_args.begin(), state.required_flag_args.end(),
-                              flag)) {
+      if (!std::ranges::binary_search(state.required_flag_args, flag)) {
         panic("Unknown command-line argument flag: " + flag);
       }
       flag_args.emplace(flag);
@@ -255,7 +254,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::OK:
       return "OK";
     default:
-      panic(format("Unknown generator report status: %d", static_cast<int>(status)));
+      panic(format("Unknown generator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -267,7 +266,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::OK:
       return "\x1b[0;32mOK\x1b[0m";
     default:
-      panic(format("Unknown generator report status: %d", static_cast<int>(status)));
+      panic(format("Unknown generator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }

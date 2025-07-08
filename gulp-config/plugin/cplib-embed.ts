@@ -7,7 +7,7 @@ const includeRegex = /#include "([^"]+)"/g;
 const iwyuPragmaRegex = /\/\/\W*IWYU pragma:.*|\/\*\W*IWYU pragma:.*\*\//gm;
 const embedIgnoreStartRegex = /\/\*\W*cplib_embed_ignore start\W*\*\//g;
 const embedIgnoreEndRegex = /\/\*\W*cplib_embed_ignore end\W*\*\//g;
-const ignoreHeaders = new Set<String>(["regex.h"]);
+const ignoreHeaders = new Set<String>(["regex.h", "fmt/base.h", "fmt/core.h"]);
 
 enum TokenType {
   Include,

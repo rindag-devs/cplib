@@ -39,6 +39,13 @@
 #include <utility>
 #include <vector>
 
+#ifdef CPLIB_USE_FMT_LIB
+#include "fmt/base.h"
+#include "fmt/core.h"
+#else
+#include <format>
+#endif
+
 /* cplib_embed_ignore start */
 #include "macros.hpp"
 /* cplib_embed_ignore end */
@@ -66,7 +73,7 @@ inline auto hex_encode(int c) -> std::string {
   } else if (c == '\t') {
     return "\\t";
   } else if (!isprint(c)) {
-    return format("\\x%02x", static_cast<int>(c));
+    return format("\\x{:02x}", static_cast<int>(c));
   } else {
     return {static_cast<char>(c)};
   }
@@ -94,31 +101,17 @@ inline auto panic(std::string_view message) -> void {
 }
 // /Impl panic }}}
 
-// Impl format {{{
-namespace detail {
-inline auto string_vsprintf(const char* format, std::va_list args) -> std::string {
-  std::va_list tmp_args;    // unfortunately you cannot consume a va_list twice
-  va_copy(tmp_args, args);  // so we have to copy it
-  const int required_len = std::vsnprintf(nullptr, 0, format, tmp_args);
-  va_end(tmp_args);
-
-  std::string buf(required_len, '\0');
-  if (std::vsnprintf(&buf[0], required_len + 1, format, args) < 0) {
-    panic("string_vsprintf encoding error");
-    return "";
-  }
-  return buf;
+#ifdef CPLIB_USE_FMT_LIB
+template <class... Args>
+[[nodiscard]] inline auto format(fmt::format_string<Args...> fmt, Args&&... args) -> std::string {
+  return fmt::vformat(fmt.get(), fmt::make_format_args(args...));
 }
-}  // namespace detail
-
-CPLIB_PRINTF_LIKE(1, 2) inline auto format(const char* fmt, ...) -> std::string {
-  std::va_list args;
-  va_start(args, fmt);
-  std::string str{detail::string_vsprintf(fmt, args)};
-  va_end(args);
-  return str;
+#else
+template <class... Args>
+[[nodiscard]] inline auto format(std::format_string<Args...> fmt, Args&&... args) -> std::string {
+  return std::vformat(fmt.get(), std::make_format_args(args...));
 }
-// /Impl format }}}
+#endif
 
 template <class T>
 inline auto float_equals(T expected, T result, T max_err) -> bool {
