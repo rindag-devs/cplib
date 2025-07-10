@@ -67,12 +67,6 @@
 #include <unistd.h>     
 #endif
 
-#if defined(__GNUC__)
-#define CPLIB_PRINTF_LIKE(n, m) __attribute__((format(printf, n, m)))
-#else
-#define CPLIB_PRINTF_LIKE(n, m) /* If only */
-#endif                          /* __GNUC__ */
-
 #endif
 
 /*
@@ -94,14 +88,19 @@
 #define CPLIB_UTILS_HPP_
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
-
-
-
+#ifdef CPLIB_USE_FMT_LIB
+#include "fmt/base.h"
+#include "fmt/core.h"
+#else
+#include <format>
+#endif
 
 namespace cplib {
 /**
@@ -115,13 +114,30 @@ namespace cplib {
 [[noreturn]] auto panic(std::string_view message) -> void;
 
 /**
- * Format string using printf-like syntax.
+ * Format string using std::format syntax.
+template <class... Args>
  *
  * @param fmt The format string.
- * @param ... The variadic arguments to be formatted.
+ * @param args The variadic arguments to be formatted.
  * @return The formatted string.
  */
-CPLIB_PRINTF_LIKE(1, 2) auto format(const char *fmt, ...) -> std::string;
+#ifdef CPLIB_USE_FMT_LIB
+template <class... Args>
+[[nodiscard]] auto format(fmt::format_string<Args...> fmt, Args &&...args) -> std::string;
+
+template <typename T>
+concept formattable = requires(T &v, fmt::format_context ctx) {
+  fmt::formatter<std::remove_cvref_t<T> >().format(v, ctx);
+};
+#else
+template <class... Args>
+[[nodiscard]] auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string;
+
+template <typename T>
+concept formattable = requires(T &v, std::format_context ctx) {
+  std::formatter<std::remove_cvref_t<T> >().format(v, ctx);
+};
+#endif
 
 /**
  * Determine whether the two floating-point values are equals within the accuracy range.
@@ -296,7 +312,7 @@ struct UniqueFunction<Ret(Args...)> {
 /**
  * `WorkMode` indicates the current mode of cplib.
  */
-enum struct WorkMode {
+enum struct WorkMode : std::uint8_t {
   NONE,
   CHECKER,
   INTERACTOR,
@@ -353,6 +369,13 @@ auto get_work_mode() -> WorkMode;
 #include <utility>
 #include <vector>
 
+#ifdef CPLIB_USE_FMT_LIB
+#include "fmt/base.h"
+#include "fmt/core.h"
+#else
+#include <format>
+#endif
+
 
 
 
@@ -380,7 +403,7 @@ inline auto hex_encode(int c) -> std::string {
   } else if (c == '\t') {
     return "\\t";
   } else if (!isprint(c)) {
-    return format("\\x%02x", static_cast<int>(c));
+    return format("\\x{:02x}", static_cast<int>(c));
   } else {
     return {static_cast<char>(c)};
   }
@@ -408,31 +431,17 @@ inline auto panic(std::string_view message) -> void {
 }
 // /Impl panic }}}
 
-// Impl format {{{
-namespace detail {
-inline auto string_vsprintf(const char* format, std::va_list args) -> std::string {
-  std::va_list tmp_args;    // unfortunately you cannot consume a va_list twice
-  va_copy(tmp_args, args);  // so we have to copy it
-  const int required_len = std::vsnprintf(nullptr, 0, format, tmp_args);
-  va_end(tmp_args);
-
-  std::string buf(required_len, '\0');
-  if (std::vsnprintf(&buf[0], required_len + 1, format, args) < 0) {
-    panic("string_vsprintf encoding error");
-    return "";
-  }
-  return buf;
+#ifdef CPLIB_USE_FMT_LIB
+template <class... Args>
+[[nodiscard]] inline auto format(fmt::format_string<Args...> fmt, Args&&... args) -> std::string {
+  return fmt::vformat(fmt.get(), fmt::make_format_args(args...));
 }
-}  // namespace detail
-
-CPLIB_PRINTF_LIKE(1, 2) inline auto format(const char* fmt, ...) -> std::string {
-  std::va_list args;
-  va_start(args, fmt);
-  std::string str{detail::string_vsprintf(fmt, args)};
-  va_end(args);
-  return str;
+#else
+template <class... Args>
+[[nodiscard]] inline auto format(std::format_string<Args...> fmt, Args&&... args) -> std::string {
+  return std::vformat(fmt.get(), std::make_format_args(args...));
 }
-// /Impl format }}}
+#endif
 
 template <class T>
 inline auto float_equals(T expected, T result, T max_err) -> bool {
@@ -653,78 +662,50 @@ srand(unsigned int) CPLIB_RAND_THROW_STATEMENT -> void {
 
 #include <cstdint>
 #include <map>
-#include <memory>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace cplib::json {
 
+struct Value;
+
+using String = std::string;
+using Int = std::int64_t;
+using Real = double;
+using Bool = bool;
+using List = std::vector<Value>;
+using Map = std::map<std::string, Value>;
+
 struct Value {
-  virtual ~Value() = 0;
+  std::variant<String, Int, Real, Bool, List, Map> inner;
 
-  [[nodiscard]] virtual auto clone() const -> std::unique_ptr<Value> = 0;
+  [[nodiscard]] auto to_string() const -> std::string;
 
-  virtual auto to_string() -> std::string = 0;
-};
+  [[nodiscard]] auto is_string() const -> bool;
+  [[nodiscard]] auto is_int() const -> bool;
+  [[nodiscard]] auto is_real() const -> bool;
+  [[nodiscard]] auto is_bool() const -> bool;
+  [[nodiscard]] auto is_list() const -> bool;
+  [[nodiscard]] auto is_map() const -> bool;
 
-struct String : Value {
-  std::string inner;
+  [[nodiscard]] auto as_string() -> String &;
+  [[nodiscard]] auto as_string() const -> const String &;
 
-  explicit String(std::string inner);
+  [[nodiscard]] auto as_int() -> Int &;
+  [[nodiscard]] auto as_int() const -> const Int &;
 
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
+  [[nodiscard]] auto as_real() -> Real &;
+  [[nodiscard]] auto as_real() const -> const Real &;
 
-  auto to_string() -> std::string override;
-};
+  [[nodiscard]] auto as_bool() -> Bool &;
+  [[nodiscard]] auto as_bool() const -> const Bool &;
 
-struct Int : Value {
-  std::int64_t inner;
+  [[nodiscard]] auto as_list() -> List &;
+  [[nodiscard]] auto as_list() const -> const List &;
 
-  explicit Int(std::int64_t inner);
-
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
-
-  auto to_string() -> std::string override;
-};
-
-struct Real : Value {
-  double inner;
-
-  explicit Real(double inner);
-
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
-
-  auto to_string() -> std::string override;
-};
-
-struct Bool : Value {
-  bool inner;
-
-  explicit Bool(bool inner);
-
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
-
-  auto to_string() -> std::string override;
-};
-
-struct List : Value {
-  std::vector<std::unique_ptr<Value>> inner;
-
-  explicit List(std::vector<std::unique_ptr<Value>> inner);
-
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
-
-  auto to_string() -> std::string override;
-};
-
-struct Map : Value {
-  std::map<std::string, std::unique_ptr<Value>> inner;
-
-  explicit Map(std::map<std::string, std::unique_ptr<Value>> inner);
-
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
-
-  auto to_string() -> std::string override;
+  [[nodiscard]] auto as_map() -> Map &;
+  [[nodiscard]] auto as_map() const -> const Map &;
 };
 
 }  // namespace cplib::json
@@ -745,6 +726,9 @@ struct Map : Value {
  */
 
 
+#include <string_view>
+#include <type_traits>
+#include <variant>
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
   
@@ -755,14 +739,10 @@ struct Map : Value {
 #endif
 
 
-#include <cstdint>
 #include <ios>
-#include <map>
-#include <memory>
 #include <sstream>
 #include <string>
 #include <utility>
-#include <vector>
 
 
 
@@ -770,15 +750,8 @@ struct Map : Value {
 
 namespace cplib::json {
 
-inline Value::~Value() = default;
-
-inline String::String(std::string inner) : inner(std::move(inner)) {}
-
-[[nodiscard]] inline auto String::clone() const -> std::unique_ptr<Value> {
-  return std::make_unique<String>(*this);
-}
-
-inline auto String::to_string() -> std::string {
+namespace detail {
+inline auto encode_string(std::string_view inner) -> std::string {
   std::stringbuf buf(std::ios_base::out);
   buf.sputc('\"');
   for (char c : inner) {
@@ -815,7 +788,10 @@ inline auto String::to_string() -> std::string {
         if (('\x00' <= c && c <= '\x1f') || c == '\x7f') {
           buf.sputc('\\');
           buf.sputc('u');
-          buf.sputn(cplib::format("%04hhx", static_cast<unsigned char>(c)).c_str(), 4);
+          for (int i = 3; i >= 0; --i) {
+            unsigned int digit = (static_cast<unsigned int>(c) >> (i * 4)) & 0x0F;
+            buf.sputc(static_cast<char>(digit < 10 ? '0' + digit : 'a' + (digit - 10)));
+          }
         } else {
           buf.sputc(c);
         }
@@ -825,60 +801,17 @@ inline auto String::to_string() -> std::string {
   return buf.str();
 }
 
-inline Int::Int(std::int64_t inner) : inner(inner) {}
-
-[[nodiscard]] inline auto Int::clone() const -> std::unique_ptr<Value> {
-  return std::make_unique<Int>(*this);
-}
-
-inline auto Int::to_string() -> std::string { return std::to_string(inner); }
-
-inline Real::Real(double inner) : inner(inner) {}
-
-[[nodiscard]] inline auto Real::clone() const -> std::unique_ptr<Value> {
-  return std::make_unique<Real>(*this);
-}
-
-inline auto Real::to_string() -> std::string { return cplib::format("%.10g", inner); }
-
-inline Bool::Bool(bool inner) : inner(inner) {}
-
-[[nodiscard]] inline auto Bool::clone() const -> std::unique_ptr<Value> {
-  return std::make_unique<Bool>(*this);
-}
-
-inline auto Bool::to_string() -> std::string {
-  if (inner) {
-    return "true";
-  } else {
-    return "false";
-  }
-}
-
-inline List::List(std::vector<std::unique_ptr<Value>> inner) : inner(std::move(inner)) {}
-
-[[nodiscard]] inline auto List::clone() const -> std::unique_ptr<Value> {
-  std::vector<std::unique_ptr<Value>> list;
-  list.reserve(inner.size());
-
-  for (const auto& value : inner) {
-    list.push_back(value->clone());
-  }
-
-  return std::make_unique<List>(std::move(list));
-}
-
-inline auto List::to_string() -> std::string {
+inline auto encode_list(const List &inner) -> std::string {
   std::stringbuf buf(std::ios_base::out);
   buf.sputc('[');
   if (!inner.empty()) {
     auto it = inner.begin();
-    auto tmp = (*it)->to_string();
+    auto tmp = it->to_string();
     buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
     ++it;
     for (; it != inner.end(); ++it) {
       buf.sputc(',');
-      tmp = (*it)->to_string();
+      tmp = it->to_string();
       buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
     }
   }
@@ -886,19 +819,7 @@ inline auto List::to_string() -> std::string {
   return buf.str();
 }
 
-inline Map::Map(std::map<std::string, std::unique_ptr<Value>> inner) : inner(std::move(inner)) {}
-
-[[nodiscard]] inline auto Map::clone() const -> std::unique_ptr<Value> {
-  std::map<std::string, std::unique_ptr<Value>> map;
-
-  for (const auto& [key, value] : inner) {
-    map.emplace(key, value->clone());
-  }
-
-  return std::make_unique<Map>(std::move(map));
-}
-
-inline auto Map::to_string() -> std::string {
+inline auto encode_map(const Map &inner) -> std::string {
   std::stringbuf buf(std::ios_base::out);
   buf.sputc('{');
   if (!inner.empty()) {
@@ -908,7 +829,7 @@ inline auto Map::to_string() -> std::string {
     buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
     buf.sputc('\"');
     buf.sputc(':');
-    tmp = it->second->to_string();
+    tmp = it->second.to_string();
     buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
     ++it;
     for (; it != inner.end(); ++it) {
@@ -918,13 +839,65 @@ inline auto Map::to_string() -> std::string {
       buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
       buf.sputc('\"');
       buf.sputc(':');
-      tmp = it->second->to_string();
+      tmp = it->second.to_string();
       buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
     }
   }
   buf.sputc('}');
   return buf.str();
 }
+}  // namespace detail
+
+[[nodiscard]] inline auto Value::to_string() const -> std::string {
+  return std::visit(
+      [](const auto &arg) -> std::string {
+        using T = std::decay_t<decltype(arg)>;
+
+        if constexpr (std::is_same_v<T, String>) {
+          return detail::encode_string(arg);
+        } else if constexpr (std::is_same_v<T, Int>) {
+          return std::to_string(arg);
+        } else if constexpr (std::is_same_v<T, Real>) {
+          return cplib::format("{:.10g}", arg);
+        } else if constexpr (std::is_same_v<T, Bool>) {
+          return arg ? "true" : "false";
+        } else if constexpr (std::is_same_v<T, List>) {
+          return detail::encode_list(arg);
+        } else if constexpr (std::is_same_v<T, Map>) {
+          return detail::encode_map(arg);
+        } else {
+          panic("JSON value to string failed: unknown type");
+        }
+      },
+      inner);
+}
+
+[[nodiscard]] auto Value::is_string() const -> bool {
+  return std::holds_alternative<String>(inner);
+}
+[[nodiscard]] auto Value::is_int() const -> bool { return std::holds_alternative<Int>(inner); }
+[[nodiscard]] auto Value::is_real() const -> bool { return std::holds_alternative<Real>(inner); }
+[[nodiscard]] auto Value::is_bool() const -> bool { return std::holds_alternative<Bool>(inner); }
+[[nodiscard]] auto Value::is_list() const -> bool { return std::holds_alternative<List>(inner); }
+[[nodiscard]] auto Value::is_map() const -> bool { return std::holds_alternative<Map>(inner); }
+
+[[nodiscard]] auto Value::as_string() -> String & { return std::get<String>(inner); }
+[[nodiscard]] auto Value::as_string() const -> const String & { return std::get<String>(inner); }
+
+[[nodiscard]] auto Value::as_int() -> Int & { return std::get<Int>(inner); }
+[[nodiscard]] auto Value::as_int() const -> const Int & { return std::get<Int>(inner); }
+
+[[nodiscard]] auto Value::as_real() -> Real & { return std::get<Real>(inner); }
+[[nodiscard]] auto Value::as_real() const -> const Real & { return std::get<Real>(inner); }
+
+[[nodiscard]] auto Value::as_bool() -> Bool & { return std::get<Bool>(inner); }
+[[nodiscard]] auto Value::as_bool() const -> const Bool & { return std::get<Bool>(inner); }
+
+[[nodiscard]] auto Value::as_list() -> List & { return std::get<List>(inner); }
+[[nodiscard]] auto Value::as_list() const -> const List & { return std::get<List>(inner); }
+
+[[nodiscard]] auto Value::as_map() -> Map & { return std::get<Map>(inner); }
+[[nodiscard]] auto Value::as_map() const -> const Map & { return std::get<Map>(inner); }
 
 }  // namespace cplib::json
   
@@ -1052,20 +1025,20 @@ inline Pattern::Pattern(std::string src)
   // regular expression contains `^` or `$`.
   if (int err = regcomp(&re_->first, ("^" + src_ + "$").c_str(), REG_EXTENDED | REG_NOSUB); err) {
     auto err_msg = detail::get_regex_err_msg(err, &re_->first);
-    panic("pattern constructor failed: " + err_msg);
+    panic("Pattern constructor failed: " + err_msg);
   }
   re_->second = true;
 }
 
 inline auto Pattern::match(std::string_view s) const -> bool {
-  int result = regexec(&re_->first, s.data(), 0, nullptr, 0);
+  int result = regexec(&re_->first, std::string(s).c_str(), 0, nullptr, 0);
 
   if (!result) return true;
 
   if (result == REG_NOMATCH) return false;
 
   auto err_msg = detail::get_regex_err_msg(result, &re_->first);
-  panic("pattern match failed: " + err_msg);
+  panic("Pattern match failed: " + err_msg);
   return false;
 }
 
@@ -1348,7 +1321,7 @@ template <class T>
 inline auto rand_int_between(Random::Engine& rnd, T l, T r) -> T {
   using UnsignedT = std::make_unsigned_t<T>;
 
-  if (l > r) panic("rand_int_between failed: l must be <= r");
+  if (l > r) panic("Rand_int_between failed: l must be <= r");
 
   UnsignedT size = r - l;
   if (size == std::numeric_limits<UnsignedT>::max()) {
@@ -1368,7 +1341,7 @@ inline auto rand_float(Random::Engine& rnd) -> T {
 /// Get random float in [l,r).
 template <class T>
 inline auto rand_float_between(Random::Engine& rnd, T l, T r) -> T {
-  if (l > r) panic("rand_float_between failed: l must be <= r");
+  if (l > r) panic("Rand_float_between failed: l must be <= r");
 
   T size = r - l;
   if (float_delta(l, r) <= 1E-9) return l;
@@ -1513,7 +1486,6 @@ inline auto Random::shuffle(Container& container) -> void {
 #include <streambuf>
 #include <string>
 #include <string_view>
-#include <vector>
 
 
 
@@ -1535,7 +1507,7 @@ struct Position {
   explicit Position();
   explicit Position(std::size_t line, std::size_t col, std::size_t byte);
 
-  [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
+  [[nodiscard]] auto to_json() const -> json::Map;
 };
 
 /// Buffer for input stream.
@@ -1733,7 +1705,6 @@ struct OutBuf : std::streambuf {
  */
 
 
-#include <vector>
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
   
@@ -1752,9 +1723,9 @@ struct OutBuf : std::streambuf {
 #include <cstdlib>
 #include <cstring>
 #include <ios>
-#include <map>
 #include <memory>
 #include <optional>
+#include <ostream>
 #include <streambuf>
 #include <string>
 #include <string_view>
@@ -1773,14 +1744,12 @@ inline Position::Position() : line(0), col(0), byte(0) {}
 inline Position::Position(std::size_t line, std::size_t col, std::size_t byte)
     : line(line), col(col), byte(byte) {}
 
-inline auto Position::to_json() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-
-  map.emplace("line", std::make_unique<json::Int>(line));
-  map.emplace("col", std::make_unique<json::Int>(col));
-  map.emplace("byte", std::make_unique<json::Int>(byte));
-
-  return std::make_unique<json::Map>(std::move(map));
+inline auto Position::to_json() const -> json::Map {
+  return {
+      {"line", json::Value(static_cast<json::Int>(line))},
+      {"col", json::Value(static_cast<json::Int>(col))},
+      {"byte", json::Value(static_cast<json::Int>(byte))},
+  };
 }
 
 InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {
@@ -1806,7 +1775,7 @@ inline InBuf::InBuf(std::string_view path) : need_close_(true) {
 #else
   flags |= O_RDONLY;
 #endif
-  fd_ = open(path.data(), flags);
+  fd_ = open(std::string(path).c_str(), flags);
   if (fd_ < 0) {
     panic("Failed to open file: " + std::string(path));
   }
@@ -1896,8 +1865,9 @@ inline auto InStream::is_strict() const -> bool { return strict_; }
 
 inline auto InStream::set_strict(bool b) -> void {
   if (pos().byte > 0) {
-    panic(format("Can't set strict mode of input stream `%s` when not at the beginning of the file",
-                 name().data()));
+    panic(cplib::format(
+        "Can't set strict mode of input stream `{}` when not at the beginning of the file",
+        name()));
   }
   strict_ = b;
 }
@@ -1969,7 +1939,7 @@ inline OutBuf::OutBuf(std::string_view path) : need_close_(true) {
 #else
   flags |= O_WRONLY | O_CREAT | O_TRUNC;
 #endif
-  fd_ = open(path.data(), flags, 0666);
+  fd_ = open(std::string(path).c_str(), flags, 0666);
   if (fd_ < 0) {
     panic("Failed to open file: " + std::string(path));
   }
@@ -2030,9 +2000,1139 @@ inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf>& 
  * not, see <https://www.gnu.org/licenses/>.
  */
 
+#ifndef CPLIB_TRACE_HPP_
+#define CPLIB_TRACE_HPP_
+
+#include <concepts>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
+
+
+
+
+namespace cplib::trace {
+
+/**
+ * Trace level.
+ */
+enum struct Level : std::uint8_t {
+  NONE,        /// Do not trace.
+  STACK_ONLY,  /// Enable trace stack only.
+  FULL,        /// Trace the whole input stream. Enable trace stack and trace tree.
+};
+
+template <typename T>
+concept Trace = requires(const T& t) {
+  { t.node_name() } -> std::same_as<std::string>;
+  { t.to_plain_text() } -> std::same_as<std::string>;
+  { t.to_colored_text() } -> std::same_as<std::string>;
+  { t.to_stack_json() } -> std::same_as<json::Value>;
+  { t.to_tree_json() } -> std::same_as<json::Value>;
+} && std::copyable<T>;
+
+/**
+ * `TraceStack` represents a stack of trace.
+ */
+template <Trace T>
+struct TraceStack {
+  std::vector<T> stack;
+  bool fatal;
+
+  /// Convert to JSON map.
+  [[nodiscard]] auto to_json() const -> json::Value;
+
+  /// Convert to human-friendly plain text.
+  /// Each line does not contain the trailing `\n` character.
+  [[nodiscard]] auto to_plain_text_lines() const -> std::vector<std::string>;
+
+  /// Convert to human-friendly colored text (ANSI escape color).
+  /// Each line does not contain the trailing `\n` character.
+  [[nodiscard]] auto to_colored_text_lines() const -> std::vector<std::string>;
+
+  /// Convert to human-friendly plain text, using compact (one line) style.
+  [[nodiscard]] auto to_plain_text_compact() const -> std::string;
+
+  /// Convert to human-friendly colored text (ANSI escape color), using compact (one line) style.
+  [[nodiscard]] auto to_colored_text_compact() const -> std::string;
+};
+
+/**
+ * `TraceTreeNode` represents a node of trace tree.
+ */
+template <Trace T>
+struct TraceTreeNode {
+ public:
+  T trace;
+  json::Map tags{};
+
+  /**
+   * Create a TraceTreeNode with trace.
+   *
+   * @param trace The trace of the node.
+   */
+  explicit TraceTreeNode(T trace);
+
+  /// Copy constructor (deleted to prevent copying).
+  TraceTreeNode(const TraceTreeNode&) = delete;
+
+  /// Copy assignment operator (deleted to prevent copying).
+  auto operator=(const TraceTreeNode&) -> TraceTreeNode& = delete;
+
+  /// Move constructor.
+  TraceTreeNode(TraceTreeNode&&) noexcept = default;
+
+  /// Move assignment operator.
+  auto operator=(TraceTreeNode&&) noexcept -> TraceTreeNode& = default;
+
+  /**
+   * Get the children of the node.
+   *
+   * @return The children of the node.
+   */
+  [[nodiscard]] auto get_children() const -> const std::vector<std::unique_ptr<TraceTreeNode>>&;
+
+  /**
+   * Get the parent of the node.
+   *
+   * @return The parent of the node.
+   */
+  [[nodiscard]] auto get_parent() -> TraceTreeNode*;
+
+  /**
+   * Convert to JSON value.
+   *
+   * If node has tag `#hidden`, return `nullptr`.
+   *
+   * @return The JSON value or nullptr.
+   */
+  [[nodiscard]] auto to_json() const -> json::Map;
+
+  /**
+   * Convert a node to its child and return it again (as reference).
+   *
+   * @param child The child node.
+   * @return The child node.
+   */
+  auto add_child(std::unique_ptr<TraceTreeNode> child) -> std::unique_ptr<TraceTreeNode>&;
+
+ private:
+  std::vector<std::unique_ptr<TraceTreeNode>> children_{};
+  TraceTreeNode* parent_{nullptr};
+};
+
+/**
+ * `Traced` represents a base class for objects that manage trace information.
+ */
+template <Trace T>
+struct Traced {
+ public:
+  explicit Traced(Level trace_level, T root);
+  virtual ~Traced() = 0;
+  Traced(const Traced&) = delete;
+  auto operator=(const Traced&) -> Traced& = delete;
+  Traced(Traced&&) noexcept = default;
+  auto operator=(Traced&&) noexcept -> Traced& = default;
+
+  /**
+   * Get the trace level.
+   */
+  [[nodiscard]] auto get_trace_level() const -> Level;
+
+  /**
+   * Make a trace stack from the current trace.
+   *
+   * Only available when `TraceLevel::STACK_ONLY` or higher is set.
+   * Otherwise, an error will be panicked.
+   */
+  [[nodiscard]] auto make_trace_stack(bool fatal) const -> TraceStack<T>;
+
+  /**
+   * Get the trace tree.
+   *
+   * Only available when `TraceLevel::FULL` is set.
+   * Otherwise, an error will be panicked.
+   */
+  [[nodiscard]] auto get_trace_tree() const -> const TraceTreeNode<T>*;
+
+  /**
+   * Attach a tag to the current trace.
+   *
+   * @param key The tag key.
+   * @param value The tag value.
+   */
+  auto attach_tag(std::string_view key, json::Value value) -> void;
+
+  /**
+   * Get current trace.
+   *
+   * Only available when `TraceLevel::STACK_ONLY` or higher is set.
+   * Otherwise, an error will be panicked.
+   */
+  auto get_current_trace() const -> const T&;
+
+ protected:
+  /**
+   * Set current trace.
+   *
+   * Only available when `TraceLevel::STACK_ONLY` or higher is set.
+   * Otherwise, an error will be panicked.
+   */
+  auto set_current_trace(T trace) -> void;
+
+  /**
+   * Push a new trace onto the stack/tree.
+   *
+   * @param t The trace to push.
+   */
+  auto push_trace(T trace) -> void;
+
+  /**
+   * Pop the current trace from the stack/tree.
+   * This should be called when the scope of the trace ends.
+   */
+  auto pop_trace() -> void;
+
+ private:
+  trace::Level trace_level_;
+  std::vector<T> active_traces_;
+  std::unique_ptr<TraceTreeNode<T>> trace_tree_root_;
+  TraceTreeNode<T>* trace_tree_current_;
+};
+
+}  // namespace cplib::trace
+
+/*
+ * This file is part of CPLib.
+ *
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
+ */
+
+
+#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
+#pragma once
+  
+#else
+#ifndef CPLIB_TRACE_HPP_
+#error "Must be included from trace.hpp"
+#endif
+#endif
+
+
+#include <cctype>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <ios>
+#include <map>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+
+
+
+
+
+namespace cplib::trace {
+
+template <Trace T>
+[[nodiscard]] inline auto TraceStack<T>::to_json() const -> json::Value {
+  json::Map map;
+  json::List stack_list;
+
+  stack_list.reserve(stack.size());
+  for (const auto& trace : stack) {
+    stack_list.emplace_back(trace.to_stack_json());
+  }
+
+  map.emplace("stack", std::move(stack_list));
+  map.emplace("fatal", fatal);
+  return json::Value(map);
+}
+
+template <Trace T>
+[[nodiscard]] inline auto TraceStack<T>::to_plain_text_lines() const -> std::vector<std::string> {
+  std::vector<std::string> lines;
+  lines.reserve(stack.size());
+
+  if (fatal) {
+    lines.emplace_back("[fatal]");
+  }
+
+  std::size_t id = 0;
+  for (const auto& trace : stack) {
+    auto line = cplib::format("#{}: {}", id, trace.to_plain_text());
+    ++id;
+    lines.emplace_back(std::move(line));
+  }
+
+  return lines;
+}
+
+template <Trace T>
+[[nodiscard]] inline auto TraceStack<T>::to_colored_text_lines() const -> std::vector<std::string> {
+  std::vector<std::string> lines;
+  lines.reserve(stack.size());
+
+  if (fatal) {
+    lines.emplace_back("\x1b[0;31m[fatal]\x1b[0m");
+  }
+
+  std::size_t id = 0;
+  for (const auto& trace : stack) {
+    auto line = cplib::format("#{}: {}", id, trace.to_colored_text());
+    ++id;
+    lines.emplace_back(std::move(line));
+  }
+
+  return lines;
+}
+
+template <Trace T>
+[[nodiscard]] inline auto TraceStack<T>::to_plain_text_compact() const -> std::string {
+  std::stringbuf buf(std::ios_base::out);
+
+  if (fatal) {
+    constexpr std::string_view FATAL_TEXT = "[fatal] ";
+    buf.sputn(FATAL_TEXT.data(), FATAL_TEXT.size());
+  }
+
+  for (auto it = stack.begin(); it != stack.end(); ++it) {
+    if (std::next(it) == stack.end()) {
+      auto node_text = it->to_plain_text();
+      buf.sputn(node_text.c_str(), node_text.size());
+      continue;
+    }
+    auto node_text = it->node_name();
+    buf.sputn(node_text.c_str(), node_text.size());
+    buf.sputc('/');
+  }
+
+  return buf.str();
+}
+
+template <Trace T>
+[[nodiscard]] inline auto TraceStack<T>::to_colored_text_compact() const -> std::string {
+  std::stringbuf buf(std::ios_base::out);
+
+  if (fatal) {
+    constexpr std::string_view FATAL_TEXT = "\x1b[0;31m[fatal]\x1b[0m ";
+    buf.sputn(FATAL_TEXT.data(), FATAL_TEXT.size());
+  }
+
+  for (auto it = stack.begin(); it != stack.end(); ++it) {
+    if (std::next(it) == stack.end()) {
+      auto node_text = it->to_colored_text();
+      buf.sputn(node_text.c_str(), node_text.size());
+      continue;
+    }
+    auto node_text = it->node_name();
+    buf.sputn(node_text.c_str(), node_text.size());
+    constexpr std::string_view SLASH = "\x1b[0;90m/\x1b[0m";
+    buf.sputn(SLASH.data(), SLASH.size());
+  }
+
+  return buf.str();
+}
+
+template <Trace T>
+inline TraceTreeNode<T>::TraceTreeNode(T trace) : trace(std::move(trace)) {}
+
+template <Trace T>
+[[nodiscard]] inline auto TraceTreeNode<T>::get_children() const
+    -> const std::vector<std::unique_ptr<TraceTreeNode>>& {
+  return children_;
+}
+
+template <Trace T>
+[[nodiscard]] inline auto TraceTreeNode<T>::get_parent() -> TraceTreeNode* {
+  return parent_;
+}
+
+template <Trace T>
+[[nodiscard]] inline auto TraceTreeNode<T>::to_json() const -> json::Map {
+  json::Map map;
+
+  if (tags.count("#hidden")) {
+    return {};
+  }
+
+  map.emplace("trace", trace.to_tree_json());
+  if (!tags.empty()) {
+    map.emplace("tags", tags);
+  }
+
+  const auto& children = get_children();
+  json::List children_list;
+  children_list.reserve(children.size());
+  for (const auto& child : children) {
+    auto child_value = child->to_json();
+    if (!child_value.empty()) {
+      children_list.emplace_back(std::move(child_value));
+    }
+  }
+  if (!children_list.empty()) {
+    map.emplace("children", std::move(children_list));
+  }
+
+  return map;
+}
+
+template <Trace T>
+inline auto TraceTreeNode<T>::add_child(std::unique_ptr<TraceTreeNode> child)
+    -> std::unique_ptr<TraceTreeNode>& {
+  child->parent_ = this;
+  return children_.emplace_back(std::move(child));
+}
+
+template <Trace T>
+inline Traced<T>::Traced(Level trace_level, T root)
+    : trace_level_(trace_level),
+      active_traces_({root}),
+      trace_tree_root_(std::make_unique<TraceTreeNode<T>>(std::move(root))),
+      trace_tree_current_(trace_tree_root_.get()) {}
+
+template <Trace T>
+inline Traced<T>::~Traced() = default;
+
+template <Trace T>
+[[nodiscard]] inline auto Traced<T>::get_trace_level() const -> Level {
+  return trace_level_;
+}
+
+template <Trace T>
+[[nodiscard]] inline auto Traced<T>::make_trace_stack(bool fatal) const -> TraceStack<T> {
+  return {.stack = active_traces_, .fatal = fatal};
+}
+
+template <Trace T>
+[[nodiscard]] inline auto Traced<T>::get_trace_tree() const -> const TraceTreeNode<T>* {
+  if (get_trace_level() < Level::FULL) {
+    panic("Traced::get_trace_tree requires `Level::FULL`");
+  }
+
+  return trace_tree_root_.get();
+}
+
+template <Trace T>
+inline auto Traced<T>::attach_tag(std::string_view key, json::Value value) -> void {
+  if (get_trace_level() < Level::FULL) {
+    panic("Traced::attach_tag requires `Level::FULL`");
+  }
+
+  trace_tree_current_->tags.emplace(key, std::move(value));
+}
+
+template <Trace T>
+inline auto Traced<T>::get_current_trace() const -> const T& {
+  if (get_trace_level() < Level::STACK_ONLY) {
+    panic("Traced::get_current_trace requires `Level::STACK_ONLY`");
+  }
+
+  return active_traces_.back();
+}
+
+template <Trace T>
+inline auto Traced<T>::set_current_trace(T trace) -> void {
+  if (get_trace_level() < Level::STACK_ONLY) {
+    panic("Traced::set_current_trace requires `Level::STACK_ONLY`");
+  }
+
+  active_traces_.back() = trace;
+
+  if (get_trace_level() < Level::FULL) {
+    return;
+  }
+  trace_tree_current_->trace = std::move(trace);
+}
+
+template <Trace T>
+inline auto Traced<T>::push_trace(T trace) -> void {
+  if (trace_level_ < Level::STACK_ONLY) {
+    return;
+  }
+
+  active_traces_.emplace_back(trace);
+
+  if (trace_level_ < Level::FULL) {
+    return;
+  }
+
+  auto& child =
+      trace_tree_current_->add_child(std::make_unique<trace::TraceTreeNode<T>>(std::move(trace)));
+  trace_tree_current_ = child.get();
+}
+
+template <Trace T>
+inline auto Traced<T>::pop_trace() -> void {
+  if (trace_level_ < Level::STACK_ONLY) {
+    return;
+  }
+
+  if (active_traces_.size() <= 1) {
+    panic("Pop trace failed: cannot pop the root element");
+  }
+  active_traces_.pop_back();
+
+  if (trace_level_ < Level::FULL) {
+    return;
+  }
+
+  trace_tree_current_ = trace_tree_current_->get_parent();
+}
+
+}  // namespace cplib::trace
+
+
+#endif
+
+/*
+ * This file is part of CPLib.
+ *
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
+ */
+
+#ifndef CPLIB_EVALUATE_HPP_
+#define CPLIB_EVALUATE_HPP_
+
+#include <compare>
+#include <concepts>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <string_view>
+
+
+
+
+
+
+
+namespace cplib::evaluate {
+/// Represents the outcome of a test case or a set of test cases.
+struct Result {
+  /// Defines the status of a solution.
+  struct Status {
+   public:
+    /// Enum values for different solution statuses.
+    /// The order of these values is important for comparison:
+    /// WRONG_ANSWER < PARTIALLY_CORRECT < ACCEPTED.
+    enum Value : std::uint8_t {
+      /// Indicates the solution is incorrect.
+      WRONG_ANSWER,
+      /// Indicates the solution is partially correct.
+      PARTIALLY_CORRECT,
+      /// Indicates the solution is accepted.
+      ACCEPTED,
+    };
+
+    /**
+     * Default constructor for Status.
+     */
+    Status() = default;
+
+    /**
+     * Constructor for Status with a given value.
+     *
+     * @param value The value of the status.
+     */
+    constexpr Status(Value value);  // NOLINT(google-explicit-constructor)
+
+    /**
+     * Implicit conversion operator to Value.
+     *
+     * @return The value of the status.
+     */
+    constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
+
+    /**
+     * Deleted conversion operator to bool.
+     *
+     * @return Deleted conversion operator to bool.
+     */
+    explicit operator bool() const = delete;
+
+    /**
+     * Get the string representation of the status.
+     *
+     * @return The string representation of the status.
+     */
+    [[nodiscard]] constexpr auto to_string() const -> std::string_view;
+
+   private:
+    Value value_;
+  };
+
+  Status status;
+  double score;
+  std::string message;
+
+  /// Creates a Result representing zero score and ACCEPTED status, for additive accumulation.
+  /// @return A Result object with ACCEPTED status and 0.0 score.
+  static auto zero() -> Result;
+
+  /// Creates an ACCEPTED Result with a full score (1.0).
+  /// @return A Result object with ACCEPTED status and 1.0 score.
+  static auto ac() -> Result;
+
+  /// Creates an ACCEPTED Result with a full score (1.0) and a message.
+  /// @param message An optional message for the result.
+  /// @return A Result object with ACCEPTED status, 1.0 score, and the given message.
+  static auto ac(std::string message) -> Result;
+
+  /// Creates a WRONG_ANSWER Result with zero score (0.0) and a message.
+  /// @param message A message explaining the wrong answer.
+  /// @return A Result object with WRONG_ANSWER status, 0.0 score, and the given message.
+  static auto wa(std::string message) -> Result;
+
+  /// Creates a PARTIALLY_CORRECT Result with a specified score and message.
+  /// @param score The partial score (will be clamped between 0.0 and 1.0).
+  /// @param message A message explaining the partial correctness.
+  /// @return A Result object with PARTIALLY_CORRECT status, clamped score, and the given message.
+  static auto pc(double score, std::string message) -> Result;
+
+  /// C++ 20 three-way comparison operator.
+  /// Compares Results primarily by status (lower enum value is "worse"),
+  /// then by score (lower score is "worse"). Message is not part of comparison logic.
+  /// @param other The Result to compare with.
+  /// @return A std::strong_ordering indicating the relationship.
+  constexpr auto operator<=>(const Result& other) const -> std::strong_ordering;
+
+  /// Equality operator (synthesized from <=>).
+  constexpr auto operator==(const Result& other) const -> bool = default;
+
+  /// Scales the score of the Result by a given factor.
+  /// @param scale The scaling factor.
+  /// @return A new Result object with the scaled score. Status and messages remain unchanged.
+  [[nodiscard]] auto operator*(double scale) const -> Result;
+
+  /// Scales the score of this Result by a given factor in-place. The message remains unchanged.
+  /// @param scale The scaling factor.
+  /// @return A reference to this Result object.
+  auto operator*=(double scale) -> Result&;
+
+  /// Combines two Results by adding their scores. The message remains unchanged.
+  /// The resulting status is the "worst" (minimum enum value) of the two statuses.
+  /// @param other The Result to add.
+  /// @return A new Result object representing the sum.
+  [[nodiscard]] auto operator+(const Result& other) const -> Result;
+
+  /// Combines this Result with another by adding scores in-place. The message remains unchanged.
+  /// The resulting status is the "worst" (minimum enum value) of the two statuses.
+  /// @param other The Result to add.
+  /// @return A reference to this Result object.
+  auto operator+=(const Result& other) -> Result&;
+
+  /// Combines two Results by taking the minimum of their scores. The message remains unchanged.
+  /// The resulting status is the "worst" (minimum enum value) of the two statuses.
+  /// This is typically used for "all or nothing" scenarios or combining results where
+  /// the lowest score dictates the overall outcome.
+  /// @param other The Result to combine with (min operation).
+  /// @return A new Result object representing the minimum.
+  [[nodiscard]] auto operator&(const Result& other) const -> Result;
+
+  /// Combines this Result with another by taking the minimum of their scores in-place. The message
+  /// remains unchanged. The resulting status is the "worst" (minimum enum value) of the two
+  /// statuses.
+  /// @param other The Result to combine with (min operation).
+  /// @return A reference to this Result object.
+  auto operator&=(const Result& other) -> Result&;
+
+  /**
+   * Convert to json value.
+   */
+  [[nodiscard]] auto to_json() const -> json::Map;
+
+ private:
+  Result() = default;
+  Result(Status status, double score, std::string message);
+};
+
+#ifndef CPLIB_EVALUATOR_TRACE_LEVEL_MAX
+#define CPLIB_EVALUATOR_TRACE_LEVEL_MAX static_cast<int>(::cplib::trace::Level::FULL)
+#endif
+
+struct Evaluator;
+
+/**
+ * Concept for types that can be evaluated for problem solutions.
+ *
+ * A type `T` satisfies `Evaluatable` if it provides a static member function named `evaluate` that
+ * takes two arguments of type `const T&` (representing the participant's answer and the jury's
+ * answer/correct output) and additional arguments and returns a `cplib::Result`.
+ */
+template <typename T, typename... Args>
+concept Evaluatable = requires(Evaluator& ev, const T& pans, const T& jans, Args&&... args) {
+  { T::evaluate(ev, pans, jans, std::forward<Args>(args)...) } -> std::same_as<Result>;
+};
+
+struct EvaluatorTrace {
+  std::string var_name;
+  std::optional<Result> result;
+
+  explicit EvaluatorTrace(std::string var_name);
+
+  /// Get name of node.
+  [[nodiscard]] auto node_name() const -> std::string;
+
+  /// Convert trace to plain text.
+  [[nodiscard]] auto to_plain_text() const -> std::string;
+
+  /// Convert trace to colored text.
+  [[nodiscard]] auto to_colored_text() const -> std::string;
+
+  /// Convert incomplete trace to JSON map.
+  [[nodiscard]] auto to_stack_json() const -> json::Value;
+
+  /// Convert complete trace to JSON map.
+  [[nodiscard]] auto to_tree_json() const -> json::Value;
+};
+
+struct Evaluator : trace::Traced<EvaluatorTrace> {
+  using FailFunc = UniqueFunction<auto(const Evaluator&, std::string_view)->void>;
+  using EvaluationHook = UniqueFunction<auto(const Evaluator&, const Result&)->void>;
+
+  /**
+   * Create an evaluator.
+   */
+  explicit Evaluator(trace::Level trace_level, FailFunc fail_func, EvaluationHook evaluation_hook);
+
+  /// Copy constructor (deleted to prevent copying).
+  Evaluator(const Evaluator&) = delete;
+
+  /// Copy assignment operator (deleted to prevent copying).
+  auto operator=(const Evaluator&) -> Evaluator& = delete;
+
+  /// Move constructor.
+  Evaluator(Evaluator&&) noexcept = default;
+
+  /// Move assignment operator.
+  auto operator=(Evaluator&&) noexcept -> Evaluator& = default;
+
+  /**
+   * Call fail func with a message.
+   *
+   * @param message The error message.
+   */
+  [[noreturn]] auto fail(std::string_view message) -> void;
+
+  /**
+   * Evaluate answers from participant and jury with additional arguments.
+   *
+   * @param var_name Variable name.
+   * @param pans Participant's answer.
+   * @param jans Jury's answer.
+   * @param args Additional arguments.
+   * @return Result of the evaluation.
+   */
+  template <typename T, class... Args>
+  auto operator()(std::string_view var_name, const T& pans, const T& jans, Args... args) -> Result
+    requires Evaluatable<T, Args...>;
+
+  template <std::equality_comparable T>
+  auto eq(std::string_view var_name, const T& pans, const T& jans) -> Result;
+
+  template <std::floating_point T>
+  auto approx(std::string_view var_name, const T& pans, const T& jans, const T& max_err) -> Result;
+
+  template <class T>
+  auto approx_abs(std::string_view var_name, const T& pans, const T& jans, const T& abs_err)
+      -> Result
+    requires std::is_arithmetic_v<T>;
+
+ private:
+  FailFunc fail_func_;
+  EvaluationHook evaluation_hook_;
+
+  auto pre_evaluate(std::string_view var_name) -> void;
+  auto post_evaluate(const Result& result) -> void;
+};
+
+}  // namespace cplib::evaluate
+
+/*
+ * This file is part of CPLib.
+ *
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
+ */
+
+
+#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
+#pragma once
+  
+#else
+#ifndef CPLIB_EVALUATE_HPP_
+#error "Must be included from evaluate.hpp"
+#endif
+#endif
+
+
+#include <algorithm>
+#include <cmath>
+#include <compare>
+#include <concepts>
+#include <cstdio>
+#include <cstdlib>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+
+
+
+
+
+
+
+namespace cplib::evaluate {
+
+inline constexpr Result::Status::Status(Value value) : value_(value) {}
+
+inline constexpr Result::Status::operator Value() const { return value_; }
+
+inline constexpr auto Result::Status::to_string() const -> std::string_view {
+  switch (value_) {
+    case ACCEPTED:
+      return "accepted";
+    case WRONG_ANSWER:
+      return "wrong_answer";
+    case PARTIALLY_CORRECT:
+      return "partially_correct";
+    default:
+      panic(format("Unknown result status: {}", static_cast<int>(value_)));
+      return "unknown";
+  }
+}
+
+inline Result::Result(Status status, double score, std::string message)
+    : status(status), message({std::move(message)}) {
+  if (!std::isfinite(score)) {
+    panic("Score must be an finite number");
+  }
+  this->score = score;
+}
+
+inline auto Result::zero() -> Result { return {Status::ACCEPTED, 0.0, ""}; };
+
+inline auto Result::ac() -> Result { return {Status::ACCEPTED, 1.0, ""}; }
+
+inline auto Result::ac(std::string message) -> Result {
+  return {Status::ACCEPTED, 1.0, std::move(message)};
+}
+
+inline auto Result::wa(std::string message) -> Result {
+  return {Status::WRONG_ANSWER, 0.0, std::move(message)};
+}
+inline auto Result::pc(double score, std::string message) -> Result {
+  return {Status::PARTIALLY_CORRECT, score, std::move(message)};
+}
+
+namespace detail {
+inline auto convert_to_strong_ordering(std::partial_ordering po) -> std::strong_ordering {
+  if (po == std::partial_ordering::equivalent) {
+    return std::strong_ordering::equal;
+  } else if (po == std::partial_ordering::less) {
+    return std::strong_ordering::less;
+  } else if (po == std::partial_ordering::greater) {
+    return std::strong_ordering::greater;
+  } else {
+    panic("Cannot convert partial_ordering to strong_ordering: comparison is not total");
+  }
+}
+}  // namespace detail
+
+inline constexpr auto Result::operator<=>(const Result& other) const -> std::strong_ordering {
+  if (status != other.status) {
+    return status <=> other.status;
+  }
+  if (score != other.score) {
+    return detail::convert_to_strong_ordering(score <=> other.score);
+  }
+  return std::strong_ordering::equal;
+}
+
+inline auto Result::operator*(double scale) const -> Result {
+  Result res = *this;
+  res.score *= scale;
+  return res;
+}
+
+inline auto Result::operator*=(double scale) -> Result& {
+  score *= scale;
+  return *this;
+}
+
+inline auto Result::operator+(const Result& other) const -> Result {
+  Result res;
+  res.status = static_cast<Status::Value>(
+      std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
+  res.score = score + other.score;
+  res.message = message;
+  return res;
+}
+
+inline auto Result::operator+=(const Result& other) -> Result& {
+  status = static_cast<Status::Value>(
+      std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
+  score += other.score;
+  return *this;
+}
+
+inline auto Result::operator&(const Result& other) const -> Result {
+  Result res;
+  res.status = static_cast<Status::Value>(
+      std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
+  res.score = std::min(score, other.score);
+  res.message = message;
+  return res;
+}
+
+inline auto Result::operator&=(const Result& other) -> Result& {
+  status = static_cast<Status::Value>(
+      std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
+  score = std::min(score, other.score);
+  return *this;
+}
+
+[[nodiscard]] inline auto Result::to_json() const -> json::Map {
+  return {
+      {"status", json::Value(json::String(status.to_string()))},
+      {"score", json::Value(score)},
+      {"message", json::Value(message)},
+  };
+}
+
+namespace detail {
+inline auto status_to_title_string(Result::Status status) -> std::string {
+  switch (status) {
+    case Result::Status::ACCEPTED:
+      return "Accepted";
+    case Result::Status::WRONG_ANSWER:
+      return "Wrong Answer";
+    case Result::Status::PARTIALLY_CORRECT:
+      return "Partially Correct";
+    default:
+      panic(format("Unknown result status: {}", static_cast<int>(status)));
+      return "Unknown";
+  }
+}
+
+inline auto status_to_colored_title_string(Result::Status status) -> std::string {
+  switch (status) {
+    case Result::Status::ACCEPTED:
+      return "\x1b[0;32mAccepted\x1b[0m";
+    case Result::Status::WRONG_ANSWER:
+      return "\x1b[0;31mWrong Answer\x1b[0m";
+    case Result::Status::PARTIALLY_CORRECT:
+      return "\x1b[0;36mPartially Correct\x1b[0m";
+    default:
+      panic(format("Unknown result status: {}", static_cast<int>(status)));
+      return "Unknown";
+  }
+}
+}  // namespace detail
+
+inline EvaluatorTrace::EvaluatorTrace(std::string var_name)
+    : var_name(std::move(var_name)), result(std::nullopt) {}
+
+[[nodiscard]] inline auto EvaluatorTrace::node_name() const -> std::string { return var_name; }
+
+[[nodiscard]] inline auto EvaluatorTrace::to_plain_text() const -> std::string {
+  if (result.has_value()) {
+    return cplib::format("{}: {} {:.2f}%, {}", var_name, result->status.to_string(),
+                         result->score * 100.0, result->message);
+  } else {
+    return cplib::format("{}: Unfinished", var_name);
+  }
+}
+
+[[nodiscard]] inline auto EvaluatorTrace::to_colored_text() const -> std::string {
+  if (result.has_value()) {
+    return cplib::format("\x1b[0;33m{}\x1b[0m: {} \x1b[0;33m{:.2f}%\x1b[0m, {}", var_name,
+                         detail::status_to_colored_title_string(result->status),
+                         result->score * 100.0, result->message);
+  } else {
+    return cplib::format("\x1b[0;33m{}\x1b[0m: \x1b[0;33mUnfinished\x1b[0m", var_name);
+  }
+}
+
+[[nodiscard]] inline auto EvaluatorTrace::to_stack_json() const -> json::Value {
+  json::Map map{
+      {"var_name", json::Value(var_name)},
+  };
+  if (result.has_value()) {
+    map.emplace("result", json::Value(result->to_json()));
+  }
+  return {map};
+}
+
+[[nodiscard]] inline auto EvaluatorTrace::to_tree_json() const -> json::Value {
+  return to_stack_json();
+}
+
+inline Evaluator::Evaluator(trace::Level trace_level, FailFunc fail_func,
+                            EvaluationHook evaluation_hook)
+    : trace::Traced<EvaluatorTrace>(
+          static_cast<trace::Level>(
+              std::min(static_cast<int>(trace_level), CPLIB_EVALUATOR_TRACE_LEVEL_MAX)),
+          EvaluatorTrace("<eval>")),
+      fail_func_(std::move(fail_func)),
+      evaluation_hook_(std::move(evaluation_hook)) {}
+
+[[noreturn]] inline auto Evaluator::fail(std::string_view message) -> void {
+  fail_func_(*this, message);
+  std::exit(EXIT_FAILURE);
+}
+
+inline auto Evaluator::pre_evaluate(std::string_view var_name) -> void {
+  auto trace_level = get_trace_level();
+  if (trace_level >= trace::Level::STACK_ONLY) {
+    EvaluatorTrace trace{std::string(var_name)};
+    push_trace(trace);
+  }
+}
+
+inline auto Evaluator::post_evaluate(const Result& result) -> void {
+  auto trace_level = get_trace_level();
+  if (trace_level >= trace::Level::STACK_ONLY) {
+    auto trace = get_current_trace();
+    trace.result = result;
+    set_current_trace(trace);
+  }
+
+  if (result.status != Result::Status::ACCEPTED) {
+    evaluation_hook_(*this, result);
+  }
+
+  if (trace_level >= trace::Level::STACK_ONLY) {
+    pop_trace();
+  }
+}
+
+template <typename T, class... Args>
+inline auto Evaluator::operator()(std::string_view var_name, const T& pans, const T& jans,
+                                  Args... args) -> Result
+  requires Evaluatable<T, Args...>
+{
+  pre_evaluate(var_name);
+  Result result = T::evaluate(*this, pans, jans, std::forward<Args>(args)...);
+  post_evaluate(result);
+  return result;
+}
+
+template <std::equality_comparable T>
+inline auto Evaluator::eq(std::string_view var_name, const T& pans, const T& jans) -> Result {
+  pre_evaluate(var_name);
+  Result result = Result::ac();
+  if (pans != jans) {
+    if constexpr (std::convertible_to<T, std::string_view>) {
+      result = Result::wa(cplib::format("`{}` is not equal: expected `{}`, got `{}`", var_name,
+                                        cplib::detail::hex_encode(jans),
+                                        cplib::detail::hex_encode(pans)));
+    } else if constexpr (cplib::formattable<T>) {
+      result =
+          Result::wa(cplib::format("`{}` is not equal: expected {}, got {}", var_name, jans, pans));
+    } else {
+      result = Result::wa(cplib::format("`{}` is not equal", var_name));
+    }
+  }
+  post_evaluate(result);
+  return result;
+}
+
+template <std::floating_point T>
+inline auto Evaluator::approx(std::string_view var_name, const T& pans, const T& jans,
+                              const T& max_err) -> Result {
+  pre_evaluate(var_name);
+  Result result = Result::ac();
+  if (!float_equals(jans, pans, max_err)) {
+    T delta = float_delta(jans, pans);
+    result = Result::wa(cplib::format(
+        "`{}` is not approximately equal: expected {:.10g}, got {:.10g}, delta {:.10g}", var_name,
+        jans, pans, delta));
+  }
+  post_evaluate(result);
+  return result;
+}
+
+template <class T>
+inline auto Evaluator::approx_abs(std::string_view var_name, const T& pans, const T& jans,
+                                  const T& abs_err) -> Result
+  requires std::is_arithmetic_v<T>
+{
+  pre_evaluate(var_name);
+  Result result = Result::ac();
+  if (pans < jans - abs_err || pans > jans + abs_err) {
+    T delta = pans - jans;
+    if (delta < 0) {
+      delta = -delta;
+    }
+    result = Result::wa(cplib::format(
+        "`{}` is not approximately equal in absolute error: expected {}, got {}, delta {}",
+        var_name, jans, pans, delta));
+  }
+  post_evaluate(result);
+  return result;
+}
+
+}  // namespace cplib::evaluate
+  
+
+#endif
+
+/*
+ * This file is part of CPLib.
+ *
+ * CPLib is free software: you can redistribute it and/or modify it under the terms of the GNU
+ * Lesser General Public License as published by the Free Software Foundation, either version 3 of
+ * the License, or (at your option) any later version.
+ *
+ * CPLib is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
+ * not, see <https://www.gnu.org/licenses/>.
+ */
+
 #ifndef CPLIB_VAR_HPP_
 #define CPLIB_VAR_HPP_
 
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -2052,8 +3152,9 @@ inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf>& 
 
 
 
-#ifndef CPLIB_VAR_READER_TRACE_LEVEL_MAX
-#define CPLIB_VAR_READER_TRACE_LEVEL_MAX static_cast<int>(::cplib::var::Reader::TraceLevel::FULL)
+
+#ifndef CPLIB_READER_TRACE_LEVEL_MAX
+#define CPLIB_READER_TRACE_LEVEL_MAX static_cast<int>(::cplib::trace::Level::FULL)
 #endif
 
 namespace cplib::var {
@@ -2061,130 +3162,44 @@ template <class T, class D>
 struct Var;
 
 /**
+ * `ReaderTrace` represents trace information for a variable.
+ */
+struct ReaderTrace {
+  std::string var_name;
+  io::Position pos;
+
+  /// The length of the variable in the raw stream, units of bytes.
+  /// Incomplete variables will have zero length.
+  std::size_t byte_length{0};
+
+  explicit ReaderTrace(std::string var_name, io::Position pos);
+
+  /// Get name of node;
+  [[nodiscard]] auto node_name() const -> std::string;
+
+  /// Convert trace to plain text.
+  [[nodiscard]] auto to_plain_text() const -> std::string;
+
+  /// Convert trace to colored text.
+  [[nodiscard]] auto to_colored_text() const -> std::string;
+
+  /// Convert incomplete trace to JSON map.
+  [[nodiscard]] auto to_stack_json() const -> json::Value;
+
+  /// Convert complete trace to JSON map.
+  [[nodiscard]] auto to_tree_json() const -> json::Value;
+};
+
+/**
  * `Reader` represents a traced input stream with line and column information.
  */
-struct Reader {
+struct Reader : trace::Traced<ReaderTrace> {
  public:
-  /**
-   * Trace level.
-   */
-  enum struct TraceLevel {
-    NONE,        /// Do not trace.
-    STACK_ONLY,  /// Enable trace stack only.
-    FULL,        /// Trace the whole input stream. Enable trace stack and trace tree.
-  };
-
-  /**
-   * `Trace` represents trace information for a variable.
-   */
-  struct Trace {
-    std::string var_name;
-    io::Position pos;
-
-    /// The length of the variable in the raw stream, units of bytes.
-    /// Incomplete variables will have zero length.
-    std::size_t byte_length{0};
-
-    explicit Trace(std::string var_name, io::Position pos);
-
-    /// Convert incomplete trace to JSON map.
-    [[nodiscard]] auto to_json_incomplete() const -> std::unique_ptr<json::Map>;
-
-    /// Convert complete trace to JSON map.
-    [[nodiscard]] auto to_json_complete() const -> std::unique_ptr<json::Map>;
-  };
-
-  /**
-   * `TraceStack` represents a stack of trace.
-   */
-  struct TraceStack {
-    std::vector<Trace> stack;
-    std::string stream;
-    bool fatal;
-
-    /// Convert to JSON map.
-    [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
-
-    /// Convert to human-friendly plain text.
-    /// Each line does not contain the trailing `\n` character.
-    [[nodiscard]] auto to_plain_text_lines() const -> std::vector<std::string>;
-
-    /// Convert to human-friendly colored text (ANSI escape color).
-    /// Each line does not contain the trailing `\n` character.
-    [[nodiscard]] auto to_colored_text_lines() const -> std::vector<std::string>;
-  };
-
-  /**
-   * `TraceTreeNode` represents a node of trace tree.
-   */
-  struct TraceTreeNode {
-   public:
-    Trace trace;
-    std::unique_ptr<json::Map> json_tag{nullptr};
-
-    /**
-     * Create a TraceTreeNode with trace.
-     *
-     * @param trace The trace of the node.
-     */
-    explicit TraceTreeNode(Trace trace);
-
-    /// Copy constructor (deleted to prevent copying).
-    TraceTreeNode(const TraceTreeNode&) = delete;
-
-    /// Copy assignment operator (deleted to prevent copying).
-    auto operator=(const TraceTreeNode&) -> TraceTreeNode& = delete;
-
-    /// Move constructor.
-    TraceTreeNode(TraceTreeNode&&) = default;
-
-    /// Move assignment operator.
-    auto operator=(TraceTreeNode&&) -> TraceTreeNode& = default;
-
-    /**
-     * Get the children of the node.
-     *
-     * @return The children of the node.
-     */
-    [[nodiscard]] auto get_children() const -> const std::vector<std::unique_ptr<TraceTreeNode>>&;
-
-    /**
-     * Get the parent of the node.
-     *
-     * @return The parent of the node.
-     */
-    [[nodiscard]] auto get_parent() -> TraceTreeNode*;
-
-    /**
-     * Convert to JSON value.
-     *
-     * If node has tag `#hidden`, return `nullptr`.
-     *
-     * @return The JSON value or nullptr.
-     */
-    [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
-
-    /**
-     * Convert a node to its child and return it again (as reference).
-     *
-     * @param child The child node.
-     * @return The child node.
-     */
-    auto add_child(std::unique_ptr<TraceTreeNode> child) -> std::unique_ptr<TraceTreeNode>&;
-
-   private:
-    std::vector<std::unique_ptr<TraceTreeNode>> children_{};
-    TraceTreeNode* parent_{nullptr};
-  };
-
   using FailFunc = UniqueFunction<auto(const Reader&, std::string_view)->void>;
 
-  /**
-   * Create a reader of input stream.
-   *
-   * @param inner The inner input stream to wrap.
-   */
-  explicit Reader(std::unique_ptr<io::InStream> inner, TraceLevel trace_level, FailFunc fail_func);
+  /// Create a reader of input stream.
+  explicit Reader(std::unique_ptr<io::InStream> inner, trace::Level trace_level,
+                  FailFunc fail_func);
 
   /// Copy constructor (deleted to prevent copying).
   Reader(const Reader&) = delete;
@@ -2193,10 +3208,10 @@ struct Reader {
   auto operator=(const Reader&) -> Reader& = delete;
 
   /// Move constructor.
-  Reader(Reader&&) = default;
+  Reader(Reader&&) noexcept = default;
 
   /// Move assignment operator.
-  auto operator=(Reader&&) -> Reader& = default;
+  auto operator=(Reader&&) noexcept -> Reader& = default;
 
   /**
    * Get the inner wrapped input stream.
@@ -2213,7 +3228,7 @@ struct Reader {
   [[nodiscard]] auto inner() const -> const io::InStream&;
 
   /**
-   * Call `Instream::fail` of the wrapped input stream.
+   * Call fail func with a message.
    *
    * @param message The error message.
    */
@@ -2240,41 +3255,9 @@ struct Reader {
   template <class... T>
   auto operator()(T... vars) -> std::tuple<typename T::Var::Target...>;
 
-  /**
-   * Get the trace level.
-   */
-  [[nodiscard]] auto get_trace_level() const -> TraceLevel;
-
-  /**
-   * Make a trace stack from the current trace.
-   *
-   * Only available when `TraceLevel::STACK_ONLY` or higher is set.
-   * Otherwise, an error will be panicked.
-   */
-  [[nodiscard]] auto make_trace_stack(bool fatal) const -> TraceStack;
-
-  /**
-   * Get the trace tree.
-   *
-   * Only available when `TraceLevel::FULL` is set.
-   * Otherwise, an error will be panicked.
-   */
-  [[nodiscard]] auto get_trace_tree() const -> const TraceTreeNode*;
-
-  /**
-   * Attach a JSON tag to the current trace.
-   *
-   * @param tag The JSON tag.
-   */
-  auto attach_json_tag(std::string_view key, std::unique_ptr<json::Value> value);
-
  private:
   std::unique_ptr<io::InStream> inner_;
-  TraceLevel trace_level_;
   FailFunc fail_func_;
-  std::vector<Trace> trace_stack_;
-  std::unique_ptr<TraceTreeNode> trace_tree_root_;
-  TraceTreeNode* trace_tree_current_;
 };
 
 template <class T>
@@ -2344,7 +3327,7 @@ struct Var {
    */
   virtual auto read_from(Reader& in) const -> T = 0;
 
- protected:
+ private:
   /**
    * Default constructor.
    */
@@ -2357,7 +3340,8 @@ struct Var {
    */
   explicit Var(std::string name);
 
- private:
+  friend D;
+
   std::string name_;
 };
 
@@ -2367,7 +3351,7 @@ struct Var {
  *
  * @tparam T The target type of the variable reading template.
  */
-template <class T>
+template <std::integral T>
 struct Int : Var<T, Int<T>> {
  public:
   std::optional<T> min, max;
@@ -2414,7 +3398,7 @@ struct Int : Var<T, Int<T>> {
  * `Float` is a variable reading template, indicating to read a floating-point number in a given
  * range in fixed form or scientific form.
  */
-template <class T>
+template <std::floating_point T>
 struct Float : Var<T, Float<T>> {
  public:
   std::optional<T> min, max;
@@ -2461,7 +3445,7 @@ struct Float : Var<T, Float<T>> {
  * `StrictFloat` is a variable reading template, indicating to read a floating-point number in a
  * given range in fixed for with digit count restrictions.
  */
-template <class T>
+template <std::floating_point T>
 struct StrictFloat : Var<T, StrictFloat<T>> {
  public:
   T min, max;
@@ -2864,9 +3848,6 @@ struct Tuple : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
 template <class F>
 struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
  public:
-  /// The inner function.
-  std::function<typename std::function<F>::result_type(Reader& in)> inner;
-
   /**
    * Constructor.
    *
@@ -2888,6 +3869,20 @@ struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
    * @return The result of the function.
    */
   auto read_from(Reader& in) const -> typename std::function<F>::result_type override;
+
+ private:
+  /// The inner function.
+  std::function<typename std::function<F>::result_type(Reader& in)> inner_function_;
+};
+
+// Defines the requirements for a type T to be "readable"
+// with a static 'read' method that takes a Reader and additional arguments.
+template <typename T, typename... Args>
+concept Readable = requires(Reader& reader, Args&&... args) {
+  // T must have a static member function named 'read'.
+  // It must be callable with a Reader& and the given Args.
+  // Its return type must be convertible to T (or exactly T).
+  { T::read(reader, std::forward<Args>(args)...) } -> std::same_as<T>;
 };
 
 /**
@@ -2900,9 +3895,6 @@ struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
 template <class T>
 struct ExtVar : Var<T, ExtVar<T>> {
  public:
-  /// The inner function.
-  std::function<auto(Reader& in)->T> inner;
-
   /**
    * Constructor.
    *
@@ -2910,7 +3902,8 @@ struct ExtVar : Var<T, ExtVar<T>> {
    * @param args The second to last arguments to the function `T::read`.
    */
   template <class... Args>
-  explicit ExtVar(std::string name, Args... args);
+  explicit ExtVar(std::string name, Args... args)
+    requires Readable<T, Args...>;
 
   /**
    * Read from reader.
@@ -2922,6 +3915,10 @@ struct ExtVar : Var<T, ExtVar<T>> {
    * @return The result of `T::read`.
    */
   auto read_from(Reader& in) const -> T override;
+
+ private:
+  /// The inner function that encapsulates the call to T::read.
+  std::function<T(Reader&)> inner_function_;
 };
 
 using i8 = Int<std::int8_t>;
@@ -2974,14 +3971,12 @@ const auto eoln = Separator("eoln", '\n');
 #include <cctype>
 #include <charconv>
 #include <cmath>
-#include <cstdint>
+#include <concepts>
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
 #include <ios>
 #include <iostream>
-#include <limits>
-#include <map>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -2999,141 +3994,49 @@ const auto eoln = Separator("eoln", '\n');
 
 
 
+
 namespace cplib::var {
 
-inline Reader::Trace::Trace(std::string var_name, io::Position pos)
+inline ReaderTrace::ReaderTrace(std::string var_name, io::Position pos)
     : var_name(std::move(var_name)), pos(pos) {}
 
-[[nodiscard]] inline auto Reader::Trace::to_json_incomplete() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  map.emplace("var_name", std::make_unique<json::String>(var_name));
-  map.emplace("pos", pos.to_json());
+[[nodiscard]] inline auto ReaderTrace::node_name() const -> std::string { return var_name; }
 
-  return std::make_unique<json::Map>(std::move(map));
+[[nodiscard]] inline auto ReaderTrace::to_plain_text() const -> std::string {
+  return cplib::format("{} @ line {}, col {}, byte {}", var_name, pos.line + 1, pos.col + 1,
+                       pos.byte + 1);
 }
 
-[[nodiscard]] inline auto Reader::Trace::to_json_complete() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  map.emplace("n", std::make_unique<json::String>(var_name));
-  map.emplace("b", std::move(pos.to_json()->inner.at("byte")));
-  map.emplace("l", std::make_unique<json::Int>(byte_length));
-
-  return std::make_unique<json::Map>(std::move(map));
+[[nodiscard]] inline auto ReaderTrace::to_colored_text() const -> std::string {
+  return cplib::format(
+      "\x1b[0;33m{}\x1b[0m @ line \x1b[0;33m{}\x1b[0m, col \x1b[0;33m{}\x1b[0m, byte "
+      "\x1b[0;33m{}\x1b[0m",
+      var_name, pos.line + 1, pos.col + 1, pos.byte + 1);
 }
 
-[[nodiscard]] inline auto Reader::TraceStack::to_json() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  std::vector<std::unique_ptr<json::Value>> stack_list;
-
-  stack_list.reserve(stack.size());
-  for (const auto& trace : stack) {
-    stack_list.emplace_back(trace.to_json_incomplete());
-  }
-
-  map.emplace("stack", std::make_unique<json::List>(std::move(stack_list)));
-  map.emplace("fatal", std::make_unique<json::Bool>(fatal));
-  return std::make_unique<json::Map>(std::move(map));
+[[nodiscard]] inline auto ReaderTrace::to_stack_json() const -> json::Value {
+  return {json::Map{
+      {"var_name", json::Value(var_name)},
+      {"pos", json::Value(pos.to_json())},
+  }};
 }
 
-[[nodiscard]] inline auto Reader::TraceStack::to_plain_text_lines() const
-    -> std::vector<std::string> {
-  std::vector<std::string> lines;
-  lines.reserve(stack.size() + 1);
-
-  auto stream_line = std::string("Stream: ") + stream;
-  if (fatal) {
-    stream_line += " [fatal]";
-  }
-  lines.emplace_back(stream_line);
-
-  std::size_t id = 0;
-  for (const auto& trace : stack) {
-    auto line = cplib::format("#%zu: %s @ line %zu, col %zu, byte %zu", id, trace.var_name.c_str(),
-                              trace.pos.line + 1, trace.pos.col + 1, trace.pos.byte + 1);
-    ++id;
-    lines.emplace_back(std::move(line));
-  }
-
-  return lines;
+[[nodiscard]] inline auto ReaderTrace::to_tree_json() const -> json::Value {
+  return {json::Map{
+      {"n", json::Value(var_name)},
+      {"b", json::Value(static_cast<json::Int>(pos.byte))},
+      {"l", json::Value(static_cast<json::Int>(byte_length))},
+  }};
 }
 
-[[nodiscard]] inline auto Reader::TraceStack::to_colored_text_lines() const
-    -> std::vector<std::string> {
-  std::vector<std::string> lines;
-  lines.reserve(stack.size() + 1);
-
-  auto stream_line = std::string("Stream: \x1b[0;33m") + stream + "\x1b[0m";
-  if (fatal) {
-    stream_line += " \x1b[0;31m[fatal]\x1b[0m";
-  }
-  lines.emplace_back(stream_line);
-
-  std::size_t id = 0;
-  for (const auto& trace : stack) {
-    auto line = cplib::format(
-        "#%zu: \x1b[0;33m%s\x1b[0m @ line \x1b[0;33m%zu\x1b[0m, col \x1b[0;33m%zu\x1b[0m, byte "
-        "\x1b[0;33m%zu\x1b[0m",
-        id, trace.var_name.c_str(), trace.pos.line + 1, trace.pos.col + 1, trace.pos.byte + 1);
-    ++id;
-    lines.emplace_back(std::move(line));
-  }
-
-  return lines;
-}
-
-inline Reader::TraceTreeNode::TraceTreeNode(Trace trace) : trace(std::move(trace)) {}
-
-[[nodiscard]] inline auto Reader::TraceTreeNode::get_children() const
-    -> const std::vector<std::unique_ptr<TraceTreeNode>>& {
-  return children_;
-}
-
-[[nodiscard]] inline auto Reader::TraceTreeNode::get_parent() -> TraceTreeNode* { return parent_; }
-
-[[nodiscard]] inline auto Reader::TraceTreeNode::to_json() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-
-  if (json_tag && json_tag->inner.count("#hidden")) {
-    return nullptr;
-  }
-
-  map.emplace("trace", trace.to_json_complete());
-
-  if (json_tag) {
-    map.emplace("tag", json_tag->clone());
-  }
-
-  const auto& children = get_children();
-  std::vector<std::unique_ptr<json::Value>> children_list;
-  children_list.reserve(children.size());
-  for (const auto& child : children) {
-    auto child_value = child->to_json();
-    if (child_value) {
-      children_list.emplace_back(std::move(child_value));
-    }
-  }
-  if (!children_list.empty()) {
-    map.emplace("children", std::make_unique<json::List>(std::move(children_list)));
-  }
-
-  return std::make_unique<json::Map>(std::move(map));
-}
-
-inline auto Reader::TraceTreeNode::add_child(std::unique_ptr<TraceTreeNode> child)
-    -> std::unique_ptr<TraceTreeNode>& {
-  child->parent_ = this;
-  return children_.emplace_back(std::move(child));
-}
-
-inline Reader::Reader(std::unique_ptr<io::InStream> inner, Reader::TraceLevel trace_level,
+inline Reader::Reader(std::unique_ptr<io::InStream> inner, trace::Level trace_level,
                       FailFunc fail_func)
-    : inner_(std::move(inner)),
-      trace_level_(static_cast<Reader::TraceLevel>(
-          std::min(static_cast<int>(trace_level), CPLIB_VAR_READER_TRACE_LEVEL_MAX))),
-      fail_func_(std::move(fail_func)),
-      trace_stack_(),
-      trace_tree_root_(std::make_unique<TraceTreeNode>(Trace("<root>", io::Position()))),
-      trace_tree_current_(trace_tree_root_.get()) {}
+    : trace::Traced<ReaderTrace>(
+          static_cast<trace::Level>(
+              std::min(static_cast<int>(trace_level), CPLIB_READER_TRACE_LEVEL_MAX)),
+          ReaderTrace(cplib::format("<{}>", inner ? inner->name() : "dummy"), io::Position())),
+      inner_(std::move(inner)),
+      fail_func_(std::move(fail_func)) {}
 
 inline auto Reader::inner() -> io::InStream& { return *inner_; }
 
@@ -3148,27 +4051,18 @@ template <class T, class D>
 inline auto Reader::read(const Var<T, D>& v) -> T {
   auto trace_level = get_trace_level();
 
-  if (trace_level >= TraceLevel::STACK_ONLY) {
-    Trace trace{std::string(v.name()), inner().pos()};
-    trace_stack_.emplace_back(trace);
-
-    if (trace_level >= TraceLevel::FULL) {
-      auto& child = trace_tree_current_->add_child(std::make_unique<TraceTreeNode>(trace));
-      trace_tree_current_ = child.get();
-    }
+  if (trace_level >= trace::Level::STACK_ONLY) {
+    ReaderTrace trace{std::string(v.name()), inner().pos()};
+    push_trace(trace);
   }
 
   auto result = v.read_from(*this);
 
-  if (trace_level >= TraceLevel::STACK_ONLY) {
-    trace_stack_.back().byte_length = inner().pos().byte - trace_stack_.back().pos.byte;
-    trace_stack_.pop_back();
-
-    if (trace_level >= TraceLevel::FULL) {
-      trace_tree_current_->trace.byte_length =
-          inner().pos().byte - trace_tree_current_->trace.pos.byte;
-      trace_tree_current_ = trace_tree_current_->get_parent();
-    }
+  if (trace_level >= trace::Level::STACK_ONLY) {
+    auto trace = get_current_trace();
+    trace.byte_length = inner().pos().byte - trace.pos.byte;
+    set_current_trace(std::move(trace));
+    pop_trace();
   }
   return result;
 }
@@ -3178,38 +4072,11 @@ inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::Target.
   return {read(vars)...};
 }
 
-[[nodiscard]] inline auto Reader::get_trace_level() const -> TraceLevel { return trace_level_; }
-
-[[nodiscard]] inline auto Reader::make_trace_stack(bool fatal) const -> TraceStack {
-  return {trace_stack_, std::string(inner_->name()), fatal};
-}
-
-[[nodiscard]] inline auto Reader::get_trace_tree() const -> const TraceTreeNode* {
-  if (get_trace_level() < TraceLevel::FULL) {
-    panic("Reader::get_trace_tree requires `TraceLevel::FULL`");
-  }
-
-  return trace_tree_root_.get();
-}
-
-inline auto Reader::attach_json_tag(std::string_view key, std::unique_ptr<json::Value> value) {
-  if (get_trace_level() < TraceLevel::FULL) {
-    panic("Reader::get_trace_tree requires `TraceLevel::FULL`");
-  }
-
-  if (!trace_tree_current_->json_tag) {
-    trace_tree_current_->json_tag =
-        std::make_unique<json::Map>(std::map<std::string, std::unique_ptr<json::Value>>{});
-  }
-
-  trace_tree_current_->json_tag->inner.emplace(key, std::move(value));
-}
-
 namespace detail {
 // Open the given file and create a `var::Reader`
 inline auto make_reader_by_path(std::string_view path, std::string name, bool strict,
-                                Reader::TraceLevel trace_level,
-                                Reader::FailFunc fail_func) -> var::Reader {
+                                trace::Level trace_level, Reader::FailFunc fail_func)
+    -> var::Reader {
   auto buf = std::make_unique<io::InBuf>(path);
   return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
                      trace_level, std::move(fail_func));
@@ -3217,8 +4084,8 @@ inline auto make_reader_by_path(std::string_view path, std::string name, bool st
 
 // Use file with givin fileno as input stream and create a `var::Reader`
 inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
-                                  Reader::TraceLevel trace_level,
-                                  Reader::FailFunc fail_func) -> var::Reader {
+                                  trace::Level trace_level, Reader::FailFunc fail_func)
+    -> var::Reader {
   auto buf = std::make_unique<io::InBuf>(fileno);
   var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
                      trace_level, std::move(fail_func));
@@ -3255,7 +4122,7 @@ template <class T, class D>
 inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
   auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
-                       Reader::TraceLevel::NONE, [](const Reader&, std::string_view msg) {
+                       trace::Level::NONE, [](const Reader&, std::string_view msg) {
                          panic(std::string("Var::parse failed: ") + msg.data());
                        });
   T result = reader.read(*this);
@@ -3276,21 +4143,21 @@ inline Var<T, D>::Var() : name_(std::string(detail::VAR_DEFAULT_NAME)) {}
 template <class T, class D>
 inline Var<T, D>::Var(std::string name) : name_(std::move(name)) {}
 
-template <class T>
+template <std::integral T>
 inline Int<T>::Int() : Int<T>(std::string(detail::VAR_DEFAULT_NAME), std::nullopt, std::nullopt) {}
 
-template <class T>
+template <std::integral T>
 inline Int<T>::Int(std::string name) : Int<T>(std::move(name), std::nullopt, std::nullopt) {}
 
-template <class T>
+template <std::integral T>
 inline Int<T>::Int(std::optional<T> min, std::optional<T> max)
     : Int<T>(std::string(detail::VAR_DEFAULT_NAME), std::move(min), std::move(max)) {}
 
-template <class T>
+template <std::integral T>
 inline Int<T>::Int(std::string name, std::optional<T> min, std::optional<T> max)
     : Var<T, Int<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
-template <class T>
+template <std::integral T>
 inline auto Int<T>::read_from(Reader& in) const -> T {
   auto token = in.inner().read_token();
 
@@ -3298,8 +4165,8 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
     if (in.inner().eof()) {
       in.fail("Expected an integer, got EOF");
     } else {
-      in.fail(format("Expected an integer, got whitespace `%s`",
-                     cplib::detail::hex_encode(in.inner().seek()).c_str()));
+      in.fail(cplib::format("Expected an integer, got whitespace `{}`",
+                            cplib::detail::hex_encode(in.inner().seek())));
     }
   }
 
@@ -3307,232 +4174,43 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
   auto [ptr, ec] = std::from_chars(token.c_str(), token.c_str() + token.size(), result);
 
   if (ec != std::errc() || ptr != token.c_str() + token.size()) {
-    in.fail(format("Expected an integer, got `%s`", compress(token).c_str()));
+    in.fail(cplib::format("Expected an integer, got `{}`", compress(token)));
   }
 
   if (min.has_value() && result < *min) {
-    in.fail(format("Expected an integer >= %s, got `%s`", std::to_string(*min).c_str(),
-                   compress(token).c_str()));
+    in.fail(cplib::format("Expected an integer >= {}, got `{}`", std::to_string(*min),
+                          compress(token)));
   }
 
   if (max.has_value() && result > *max) {
-    in.fail(format("Expected an integer <= %s, got `%s`", std::to_string(*max).c_str(),
-                   compress(token).c_str()));
+    in.fail(cplib::format("Expected an integer <= {}, got `{}`", std::to_string(*max),
+                          compress(token)));
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::Int>(static_cast<std::uint64_t>(result)));
-    in.attach_json_tag("#t", std::make_unique<json::String>("i"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(static_cast<json::Int>(result)));
+    in.attach_tag("#t", json::Value("i"));
   }
 
   return result;
 }
 
-namespace detail {
-inline constexpr std::size_t MAX_N_SIGNIFICANT = 19;
-inline constexpr std::int64_t MAX_EXPONENT = 32767;
-
-inline constexpr auto char_to_lower(const int c) -> int {
-  return (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c;
-}
-
-inline constexpr auto equals_ignore_case(std::string_view s1, std::string_view s2) -> bool {
-  if (s1.size() != s2.size()) return false;
-  for (auto it1 = s1.begin(), it2 = s2.begin(); it1 != s1.end(); ++it1, ++it2) {
-    if (char_to_lower(*it1) != char_to_lower(*it2)) return false;
-  }
-  return true;
-}
-
-template <class T>
-inline constexpr auto powi(T x, std::int64_t y) -> T {
-  T res{1};
-  while (y) {
-    if (y & 1) res *= x;
-    x *= x;
-    y >>= 1;
-  }
-  return res;
-}
-
-template <class T>
-inline constexpr auto create_float(std::int64_t sign, std::int64_t before_point,
-                                   std::int64_t after_point, std::int64_t exponent_sign,
-                                   std::int64_t exponent, std::size_t n_after_point,
-                                   std::size_t n_tailing_zero) -> T {
-  T result = static_cast<T>(before_point);
-  if (n_tailing_zero != 0) {
-    result *= powi<T>(10.0, n_tailing_zero);
-  }
-  if (after_point != 0) {
-    result += after_point * powi<T>(0.1, n_after_point);
-  }
-  if (exponent != 0) {
-    if (exponent_sign > 0) {
-      result *= powi<T>(10.0, exponent);
-    } else {
-      result *= powi<T>(0.1, exponent);
-    }
-  }
-  return sign * result;
-}
-
-template <class T>
-inline constexpr auto parse_strict_float(std::string_view s, std::size_t* n_after_point_out) -> T {
-  enum struct State { SIGN, BEFORE_POINT, AFTER_POINT } state = State::SIGN;
-  std::size_t n_significant = 0, n_after_point = 0, n_tailing_zero = 0;
-  std::int64_t sign = 1, before_point = 0, after_point = 0;
-
-  for (auto c : s) {
-    if (state == State::SIGN) {
-      state = State::BEFORE_POINT;
-      if (c == '-') {
-        sign = -1;
-        continue;
-      }
-    }
-    if (state <= State::BEFORE_POINT && c == '.') {
-      if (n_significant == 0) {
-        // .abc
-        return std::numeric_limits<T>::quiet_NaN();
-      }
-      state = State::AFTER_POINT;
-      continue;
-    }
-    if (!isdigit(c)) {
-      return std::numeric_limits<T>::quiet_NaN();
-    }
-    if (state <= State::BEFORE_POINT && before_point == 0 && n_significant > 0) {
-      // 0a.bcd
-      return std::numeric_limits<T>::quiet_NaN();
-    }
-    if (n_significant >= MAX_N_SIGNIFICANT) {
-      if (state <= State::BEFORE_POINT) {
-        ++n_tailing_zero;
-      } else {
-        ++n_after_point;
-      }
-      continue;
-    }
-    ++n_significant;
-    if (state <= State::BEFORE_POINT) {
-      before_point *= 10;
-      before_point += c ^ '0';
-    } else {
-      ++n_after_point;
-      after_point *= 10;
-      after_point += c ^ '0';
-    }
-  }
-
-  if (n_after_point_out) {
-    *n_after_point_out = n_after_point;
-  }
-
-  return create_float<T>(sign, before_point, after_point, 1, 0, n_after_point, n_tailing_zero);
-}
-
-template <class T>
-inline constexpr auto parse_float(std::string_view s) -> T {
-  if (equals_ignore_case(s, "inf") || equals_ignore_case(s, "infinity")) {
-    return std::numeric_limits<T>::infinity();
-  }
-  if (equals_ignore_case(s, "-inf") || equals_ignore_case(s, "-infinity")) {
-    return -std::numeric_limits<T>::infinity();
-  }
-
-  enum struct State {
-    SIGN,
-    BEFORE_POINT,
-    AFTER_POINT,
-    EXPONENT_SIGN,
-    EXPONENT
-  } state = State::SIGN;
-
-  std::size_t n_significant = 0, n_after_point = 0, n_tailing_zero = 0;
-  std::int64_t sign = 1, before_point = 0, after_point = 0, exponent_sign = 1, exponent = 0;
-
-  for (auto c : s) {
-    if (state == State::SIGN) {
-      state = State::BEFORE_POINT;
-      if (c == '-') {
-        sign = -1;
-        continue;
-      } else if (c == '+') {
-        continue;
-      }
-    }
-    if (state == State::EXPONENT_SIGN) {
-      state = State::EXPONENT;
-      if (c == '-') {
-        exponent_sign = -1;
-        continue;
-      } else if (c == '+') {
-        continue;
-      }
-    }
-    if (state <= State::BEFORE_POINT && c == '.') {
-      state = State::AFTER_POINT;
-      continue;
-    }
-    if (state < State::EXPONENT && (c == 'e' || c == 'E')) {
-      state = State::EXPONENT_SIGN;
-      continue;
-    }
-    if (!isdigit(c)) {
-      return std::numeric_limits<T>::quiet_NaN();
-    }
-    if (state >= State::EXPONENT_SIGN) {
-      exponent *= 10;
-      exponent += c ^ '0';
-      if (exponent > MAX_EXPONENT) {
-        if (exponent_sign < 0) {
-          return sign * T(0);
-        }
-        return sign * std::numeric_limits<T>::infinity();
-      }
-      continue;
-    }
-    if (n_significant >= MAX_N_SIGNIFICANT) {
-      if (state <= State::BEFORE_POINT) {
-        ++n_tailing_zero;
-      } else {
-        ++n_after_point;
-      }
-      continue;
-    }
-    ++n_significant;
-    if (state <= State::BEFORE_POINT) {
-      before_point *= 10;
-      before_point += c ^ '0';
-    } else {
-      ++n_after_point;
-      after_point *= 10;
-      after_point += c ^ '0';
-    }
-  }
-
-  return create_float<T>(sign, before_point, after_point, exponent_sign, exponent, n_after_point,
-                         n_tailing_zero);
-}
-}  // namespace detail
-
-template <class T>
+template <std::floating_point T>
 inline Float<T>::Float()
     : Float<T>(std::string(detail::VAR_DEFAULT_NAME), std::nullopt, std::nullopt) {}
 
-template <class T>
+template <std::floating_point T>
 inline Float<T>::Float(std::string name) : Float<T>(std::move(name), std::nullopt, std::nullopt) {}
 
-template <class T>
+template <std::floating_point T>
 inline Float<T>::Float(std::optional<T> min, std::optional<T> max)
     : Float<T>(std::string(detail::VAR_DEFAULT_NAME), std::move(min), std::move(max)) {}
 
-template <class T>
+template <std::floating_point T>
 inline Float<T>::Float(std::string name, std::optional<T> min, std::optional<T> max)
     : Var<T, Float<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
-template <class T>
+template <std::floating_point T>
 inline auto Float<T>::read_from(Reader& in) const -> T {
   auto token = in.inner().read_token();
 
@@ -3540,42 +4218,71 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
     if (in.inner().eof()) {
       in.fail("Expected a float, got EOF");
     } else {
-      in.fail(format("Expected a float, got whitespace `%s`",
-                     cplib::detail::hex_encode(in.inner().seek()).c_str()));
+      in.fail(cplib::format("Expected a float, got whitespace `{}`",
+                            cplib::detail::hex_encode(in.inner().seek())));
     }
   }
 
+  T result{};
+  const char* first = token.data();
+  const char* last = token.data() + token.length();
+
   // `Float<T>` usually uses with non-strict streams, so it should support both fixed format and
   // scientific.
-  auto result = detail::parse_float<T>(token);
+  auto [ptr, ec] = std::from_chars(first, last, result, std::chars_format::general);
 
-  if (std::isnan(result)) {
-    in.fail(format("Expected a float, got `%s`", compress(token).c_str()));
+  if (ec == std::errc::invalid_argument || ptr != last) {
+    // * ec == std::errc::invalid_argument: String is not a valid floating point format (e.g. "abc",
+    //   "NaN", "Inf")
+    // * ptr != last: The string is not fully parsed (for example "123abc")
+    in.fail(cplib::format("Expected a float, got `{}`", compress(token)));
+  } else if (ec == std::errc::result_out_of_range) {
+    // The parsing is successful, but the value exceeds the range of T
+    in.fail(cplib::format("Float value `{}` is out of range for type `{}`", compress(token),
+                          typeid(T).name()));
   }
 
   if (min.has_value() && result < *min) {
-    in.fail(format("Expected a float >= %s, got `%s`", std::to_string(*min).c_str(),
-                   compress(token).c_str()));
+    in.fail(
+        cplib::format("Expected a float >= {}, got `{}`", std::to_string(*min), compress(token)));
   }
 
   if (max.has_value() && result > *max) {
-    in.fail(format("Expected a float <= %s, got `%s`", std::to_string(*max).c_str(),
-                   compress(token).c_str()));
+    in.fail(
+        cplib::format("Expected a float <= {}, got `{}`", std::to_string(*max), compress(token)));
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::Real>(static_cast<double>(result)));
-    in.attach_json_tag("#t", std::make_unique<json::String>("f"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
+    in.attach_tag("#t", json::Value("f"));
   }
 
   return result;
 }
 
-template <class T>
+namespace detail {
+inline auto get_decimal_places(std::string_view token_sv) -> std::size_t {
+  std::size_t dot_pos = token_sv.find('.');
+  if (dot_pos == std::string_view::npos) {
+    // No decimal point found, so 0 digits after point
+    return 0;
+  } else {
+    // Calculate digits after the decimal point
+    // token_sv.length() - (dot_pos + 1)
+    // Example: "123.45"
+    // dot_pos = 3
+    // length = 6
+    // 6 - (3 + 1) = 6 - 4 = 2
+    return token_sv.length() - (dot_pos + 1);
+  }
+}
+}  // namespace detail
+
+template <std::floating_point T>
 inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_n_digit)
     : StrictFloat<T>(std::string(detail::VAR_DEFAULT_NAME), min, max, min_n_digit, max_n_digit) {}
 
-template <class T>
+template <std::floating_point T>
 inline StrictFloat<T>::StrictFloat(std::string name, T min, T max, size_t min_n_digit,
                                    size_t max_n_digit)
     : Var<T, StrictFloat<T>>(std::move(name)),
@@ -3589,7 +4296,7 @@ inline StrictFloat<T>::StrictFloat(std::string name, T min, T max, size_t min_n_
   }
 }
 
-template <class T>
+template <std::floating_point T>
 inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
   auto token = in.inner().read_token();
 
@@ -3597,45 +4304,54 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
     if (in.inner().eof()) {
       in.fail("Expected a strict float, got EOF");
     } else {
-      in.fail(format("Expected a strict float, got whitespace `%s`",
-                     cplib::detail::hex_encode(in.inner().seek()).c_str()));
+      in.fail(cplib::format("Expected a strict float, got whitespace `{}`",
+                            cplib::detail::hex_encode(in.inner().seek())));
     }
   }
 
-  std::size_t n_after_point;
-  auto result = detail::parse_strict_float<T>(token, &n_after_point);
+  T result;
+  const char* first = token.data();
+  const char* last = token.data() + token.length();
 
-  if (std::isnan(result)) {
-    in.fail(format("Expected a strict float, got `%s`", compress(token).c_str()));
+  // Use std::chars_format::fixed for strict float parsing (no scientific notation)
+  auto [ptr, ec] = std::from_chars(first, last, result, std::chars_format::fixed);
+
+  if (ec == std::errc::invalid_argument || ptr != last) {
+    in.fail(cplib::format("Expected a strict float, got `{}`", compress(token)));
+  } else if (ec == std::errc::result_out_of_range) {
+    in.fail(cplib::format("Strict float value `{}` is out of range for type `{}`", compress(token),
+                          typeid(T).name()));
   }
 
+  std::size_t n_after_point = detail::get_decimal_places(token);
+
   if (n_after_point < min_n_digit) {
-    in.fail(
-        format("Expected a strict float with >= %zu digits after point, got `%s` with %zu digits "
-               "after point",
-               min_n_digit, compress(token).c_str(), n_after_point));
+    in.fail(cplib::format(
+        "Expected a strict float with >= {} digits after point, got `{}` with {} digits "
+        "after point",
+        min_n_digit, compress(token), n_after_point));
   }
 
   if (n_after_point > max_n_digit) {
-    in.fail(
-        format("Expected a strict float with <= %zu digits after point, got `%s` with %zu digits "
-               "after point",
-               max_n_digit, compress(token).c_str(), n_after_point));
+    in.fail(cplib::format(
+        "Expected a strict float with <= {} digits after point, got `{}` with {} digits "
+        "after point",
+        max_n_digit, compress(token), n_after_point));
   }
 
   if (result < min) {
-    in.fail(format("Expected a strict float >= %s, got `%s`", std::to_string(min).c_str(),
-                   compress(token).c_str()));
+    in.fail(cplib::format("Expected a strict float >= {}, got `{}`", std::to_string(min),
+                          compress(token)));
   }
 
   if (result > max) {
-    in.fail(format("Expected a strict float <= %s, got `%s`", std::to_string(max).c_str(),
-                   compress(token).c_str()));
+    in.fail(cplib::format("Expected a strict float <= {}, got `{}`", std::to_string(max),
+                          compress(token)));
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::Real>(static_cast<double>(result)));
-    in.attach_json_tag("#t", std::make_unique<json::String>("sf"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
+    in.attach_tag("#t", json::Value("sf"));
   }
 
   return result;
@@ -3648,7 +4364,7 @@ inline YesNo::YesNo(std::string name) : Var<bool, YesNo>(std::move(name)) {}
 inline auto YesNo::read_from(Reader& in) const -> bool {
   auto token = in.inner().read_token();
   auto lower_token = in.inner().read_token();
-  std::transform(lower_token.begin(), lower_token.end(), lower_token.begin(), ::tolower);
+  std::ranges::transform(lower_token, lower_token.begin(), ::tolower);
 
   bool result;
   if (lower_token == "yes") {
@@ -3659,9 +4375,9 @@ inline auto YesNo::read_from(Reader& in) const -> bool {
     panic("Expected `Yes` or `No`, got " + token);
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::Bool>(result));
-    in.attach_json_tag("#t", std::make_unique<json::String>("yn"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(result));
+    in.attach_tag("#t", json::Value("yn"));
   }
 
   return result;
@@ -3685,19 +4401,19 @@ inline auto String::read_from(Reader& in) const -> std::string {
     if (in.inner().eof()) {
       in.fail("Expected a string, got EOF");
     } else {
-      in.fail(format("Expected a string, got whitespace `%s`",
-                     cplib::detail::hex_encode(in.inner().seek()).c_str()));
+      in.fail(cplib::format("Expected a string, got whitespace `{}`",
+                            cplib::detail::hex_encode(in.inner().seek())));
     }
   }
 
   if (pat.has_value() && !pat->match(token)) {
-    in.fail(format("Expected a string matching `%s`, got `%s`", compress(pat->src()).data(),
-                   compress(token).c_str()));
+    in.fail(cplib::format("Expected a string matching `{}`, got `{}`", compress(pat->src()),
+                          compress(token)));
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::String>(token));
-    in.attach_json_tag("#t", std::make_unique<json::String>("s"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(token));
+    in.attach_tag("#t", json::Value("s"));
   }
 
   return token;
@@ -3711,32 +4427,32 @@ inline Separator::Separator(std::string name, char sep)
 
 inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
   if (in.inner().eof()) {
-    in.fail(format("Expected a separator `%s`, got EOF", cplib::detail::hex_encode(sep).c_str()));
+    in.fail(cplib::format("Expected a separator `{}`, got EOF", cplib::detail::hex_encode(sep)));
   }
 
   if (in.inner().is_strict()) {
     auto got = in.inner().read();
     if (got != sep) {
-      in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
-                     cplib::detail::hex_encode(got).c_str()));
+      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(sep),
+                            cplib::detail::hex_encode(got)));
     }
   } else if (std::isspace(sep)) {
     auto got = in.inner().read();
     if (!std::isspace(got)) {
-      in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
-                     cplib::detail::hex_encode(got).c_str()));
+      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(sep),
+                            cplib::detail::hex_encode(got)));
     }
   } else {
     in.inner().skip_blanks();
     auto got = in.inner().read();
     if (got != sep) {
-      in.fail(format("Expected a separator `%s`, got `%s`", cplib::detail::hex_encode(sep).c_str(),
-                     cplib::detail::hex_encode(got).c_str()));
+      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(sep),
+                            cplib::detail::hex_encode(got)));
     }
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#hidden", std::make_unique<json::Bool>(true));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#hidden", json::Value(true));
   }
 
   return std::nullopt;
@@ -3760,13 +4476,13 @@ inline auto Line::read_from(Reader& in) const -> std::string {
   }
 
   if (pat.has_value() && pat->match(*line)) {
-    in.fail(format("Expected a line matching `%s`, got `%s`", compress(pat->src()).data(),
-                   compress(*line).c_str()));
+    in.fail(cplib::format("Expected a line matching `{}`, got `{}`", compress(pat->src()),
+                          compress(*line)));
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::String>(*line));
-    in.attach_json_tag("#t", std::make_unique<json::String>("l"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(*line));
+    in.attach_tag("#t", json::Value("l"));
   }
 
   return *line;
@@ -3789,8 +4505,8 @@ inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::
     if (i > 0) in.read(sep);
     result[i] = in.read(element.renamed(std::to_string(i)));
   }
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("v"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("v"));
   }
   return result;
 }
@@ -3821,8 +4537,8 @@ inline auto Mat<T>::read_from(Reader& in) const
       result[i][j] = in.read(element.renamed(name_prefix + std::to_string(j)));
     }
   }
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("m"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("m"));
   }
   return result;
 }
@@ -3848,8 +4564,8 @@ inline auto Pair<F, S>::read_from(Reader& in) const
   auto result_first = in.read(first.renamed("first"));
   in.read(sep);
   auto result_second = in.read(second.renamed("second"));
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("p"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("p"));
   }
   return {result_first, result_second};
 }
@@ -3870,8 +4586,8 @@ inline Tuple<T...>::Tuple(std::string name, std::tuple<T...> elements, Separator
 
 template <class... T>
 inline auto Tuple<T...>::read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> {
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("t"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("t"));
   }
   return std::apply(
       [&in](const auto&... args) {
@@ -3886,28 +4602,45 @@ template <class F>
 template <class... Args>
 inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args... args)
     : Var<typename std::function<F>::result_type, FnVar<F>>(std::move(name)),
-      inner([f, args...](Reader& in) { return f(in, args...); }) {}
+      inner_function_(
+          [captured_args = std::make_tuple(std::forward<Args>(args)...), f](Reader& in) {
+            return std::apply(
+                [&in, f](auto&&... unpacked_args) {
+                  return f(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
+                },
+                captured_args);
+          }) {}
 
 template <class F>
 inline auto FnVar<F>::read_from(Reader& in) const -> typename std::function<F>::result_type {
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("F"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("F"));
   }
-  return inner(in);
+  return inner_function_(in);
 }
 
 template <class T>
 template <class... Args>
 inline ExtVar<T>::ExtVar(std::string name, Args... args)
+  requires Readable<T, Args...>
     : Var<T, ExtVar<T>>(std::move(name)),
-      inner([args...](Reader& in) { return T::read(in, args...); }) {}
+      // Capture arguments into a tuple, then use std::apply to call T::read.
+      // This is a robust way to handle variadic arguments within std::function.
+      inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...)](Reader& in) {
+        return std::apply(
+            [&in](auto&&... unpacked_args) {
+              // Call T::read with the Reader and the unpacked arguments
+              return T::read(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
+            },
+            captured_args);
+      }) {}
 
 template <class T>
-inline auto ExtVar<T>::read_from(Reader& in) const -> T {
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("E"));
+auto ExtVar<T>::read_from(Reader& in) const -> T {
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("E"));
   }
-  return inner(in);
+  return inner_function_(in);
 }
 }  // namespace cplib::var
   
@@ -4038,11 +4771,11 @@ inline ParsedArgs::ParsedArgs(const std::vector<std::string>& args) {
   }
 
   // Sort for binary search
-  std::sort(flags.begin(), flags.end());
+  std::ranges::sort(flags);
 }
 
 inline auto ParsedArgs::has_flag(std::string_view name) const -> bool {
-  return std::binary_search(flags.begin(), flags.end(), name);
+  return std::ranges::binary_search(flags, name);
 }
 
 }  // namespace cplib::cmd_args
@@ -4068,11 +4801,13 @@ inline auto ParsedArgs::has_flag(std::string_view name) const -> bool {
 #ifndef CPLIB_CHECKER_HPP_
 #define CPLIB_CHECKER_HPP_
 
-#include <map>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
+
+
 
 
 
@@ -4089,7 +4824,7 @@ struct Report {
    */
   struct Status {
    public:
-    enum Value {
+    enum Value : std::uint8_t {
       /// Indicates an internal error occurred.
       INTERNAL_ERROR,
       /// Indicates the solution is accepted
@@ -4111,6 +4846,13 @@ struct Report {
      * @param value The value of the status.
      */
     constexpr Status(Value value);  // NOLINT(google-explicit-constructor)
+
+    /**
+     * Constructor for Status from cplib::evaluate::Result::Status.
+     *
+     * @param status The evaluate result status.
+     */
+    constexpr explicit Status(evaluate::Result::Status status);
 
     /**
      * Implicit conversion operator to Value.
@@ -4170,12 +4912,13 @@ struct Initializer {
 
  protected:
   auto state() -> State&;
-  auto set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
-  auto set_ouf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
-  auto set_ans_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
-  auto set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
-  auto set_ouf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
-  auto set_ans_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
+  auto set_inf_fileno(int fileno, trace::Level trace_level) -> void;
+  auto set_ouf_fileno(int fileno, trace::Level trace_level) -> void;
+  auto set_ans_fileno(int fileno, trace::Level trace_level) -> void;
+  auto set_inf_path(std::string_view path, trace::Level trace_level) -> void;
+  auto set_ouf_path(std::string_view path, trace::Level trace_level) -> void;
+  auto set_ans_path(std::string_view path, trace::Level trace_level) -> void;
+  auto set_evaluator(trace::Level trace_level) -> void;
 
  private:
   State* state_{};
@@ -4190,11 +4933,13 @@ struct Reporter {
 
   [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
-  auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
-  auto detach_trace_stack(const std::string& stream) -> void;
+  auto attach_reader_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
+  auto attach_evaluator_trace_stack(trace::TraceStack<evaluate::EvaluatorTrace> trace_stack)
+      -> void;
 
  protected:
-  std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
+  std::vector<trace::TraceStack<var::ReaderTrace>> reader_trace_stacks_{};
+  std::vector<trace::TraceStack<evaluate::EvaluatorTrace>> evaluator_trace_stacks_{};
 };
 
 /**
@@ -4213,6 +4958,9 @@ struct State {
 
   /// Answer file reader.
   var::Reader ans;
+
+  /// Evaluator
+  evaluate::Evaluator evaluator;
 
   /// Initializer parses command-line arguments and initializes `checker::State`
   std::unique_ptr<Initializer> initializer;
@@ -4313,17 +5061,28 @@ struct ColoredTextReporter : Reporter {
  * @param var_ The variable name of state object to be initialized.
  * @param initializer_ The initializer function.
  */
-#define CPLIB_REGISTER_CHECKER_OPT(var_, initializer_)                                            \
-  auto var_ = ::cplib::checker::State(std::unique_ptr<decltype(initializer_)>(new initializer_)); \
-  auto main(int argc, char** argv) -> int {                                                       \
-    std::vector<std::string> args;                                                                \
-    for (int i = 1; i < argc; ++i) {                                                              \
-      args.emplace_back(argv[i]);                                                                 \
-    }                                                                                             \
-    var_.initializer->init(argv[0], args);                                                        \
-    auto checker_main(void) -> void;                                                              \
-    checker_main();                                                                               \
-    return 0;                                                                                     \
+#define CPLIB_REGISTER_CHECKER_OPT(var_, input_struct_, output_struct_, initializer_)              \
+  static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
+  static_assert(::cplib::var::Readable<output_struct_, const input_struct_&>,                      \
+                "`" #output_struct_ "` should be Readable");                                       \
+  static_assert(::cplib::evaluate::Evaluatable<output_struct_, const input_struct_&>,              \
+                "`" #output_struct_ "` should be Evaluatable");                                    \
+  auto var_ =                                                                                      \
+      ::cplib::checker::State(::std::unique_ptr<decltype(initializer_)>(new initializer_));        \
+  auto main(int argc, char** argv) -> int {                                                        \
+    ::std::vector<::std::string> args;                                                             \
+    for (int i = 1; i < argc; ++i) {                                                               \
+      args.emplace_back(argv[i]);                                                                  \
+    }                                                                                              \
+    var_.initializer->init(argv[0], args);                                                         \
+    input_struct_ input{var_.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};              \
+    output_struct_ output{var_.ouf.read(::cplib::var::ExtVar<output_struct_>("output", input))};   \
+    output_struct_ answer{var_.ans.read(::cplib::var::ExtVar<output_struct_>("answer", input))};   \
+    ::cplib::evaluate::Result result = var_.evaluator("output", output, answer, input);            \
+    ::cplib::checker::Report report{::cplib::checker::Report::Status(result.status), result.score, \
+                                    ""};                                                           \
+    var_.quit(report);                                                                             \
+    return 0;                                                                                      \
   }
 
 /**
@@ -4331,8 +5090,9 @@ struct ColoredTextReporter : Reporter {
  *
  * @param var The variable name of state object to be initialized.
  */
-#define CPLIB_REGISTER_CHECKER(var) \
-  CPLIB_REGISTER_CHECKER_OPT(var, ::cplib::checker::DefaultInitializer())
+#define CPLIB_REGISTER_CHECKER(var_, input_struct_, output_struct_) \
+  CPLIB_REGISTER_CHECKER_OPT(var_, input_struct_, output_struct_,   \
+                             ::cplib::checker::DefaultInitializer())
 }  // namespace cplib::checker
 
 /*
@@ -4351,6 +5111,7 @@ struct ColoredTextReporter : Reporter {
  */
 
 
+
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
   
@@ -4361,16 +5122,20 @@ struct ColoredTextReporter : Reporter {
 #endif
 
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
-#include <map>
+#include <iterator>
 #include <memory>
 #include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
+
+
 
 
 
@@ -4383,6 +5148,23 @@ struct ColoredTextReporter : Reporter {
 
 namespace cplib::checker {
 inline constexpr Report::Status::Status(Value value) : value_(value) {}
+
+inline constexpr Report::Status::Status(evaluate::Result::Status status) {
+  switch (status) {
+    case evaluate::Result::Status::WRONG_ANSWER:
+      value_ = WRONG_ANSWER;
+      break;
+    case evaluate::Result::Status::PARTIALLY_CORRECT:
+      value_ = PARTIALLY_CORRECT;
+      break;
+    case evaluate::Result::Status::ACCEPTED:
+      value_ = ACCEPTED;
+      break;
+    default:
+      panic(cplib::format("Construct checker report status failed: unknown evaluate status {}",
+                          static_cast<int>(status)));
+  }
+}
 
 inline constexpr Report::Status::operator Value() const { return value_; }
 
@@ -4397,7 +5179,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(format("Unknown checker report status: %d", static_cast<int>(value_)));
+      panic(format("Unknown checker report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -4411,92 +5193,108 @@ inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
 
 inline auto Initializer::state() -> State& { return *state_; };
 
-inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+        if (trace_level >= trace::Level::STACK_ONLY) {
+          state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
         panic(msg);
       });
 }
 
-inline auto Initializer::set_ouf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_ouf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->ouf = var::detail::make_reader_by_fileno(
       fileno, "ouf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+        if (trace_level >= trace::Level::STACK_ONLY) {
+          state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
         state_->quit_wa(msg);
       });
 }
 
-inline auto Initializer::set_ans_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_ans_fileno(int fileno, trace::Level trace_level) -> void {
   state_->ans = var::detail::make_reader_by_fileno(
       fileno, "ans", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+        if (trace_level >= trace::Level::STACK_ONLY) {
+          state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
         panic(msg);
       });
 }
 
-inline auto Initializer::set_inf_path(std::string_view path,
-                                      var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+        if (trace_level >= trace::Level::STACK_ONLY) {
+          state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
         panic(msg);
       });
 }
 
-inline auto Initializer::set_ouf_path(std::string_view path,
-                                      var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_ouf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->ouf = var::detail::make_reader_by_path(
       path, "ouf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+        if (trace_level >= trace::Level::STACK_ONLY) {
+          state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
         state_->quit_wa(msg);
       });
 }
 
-inline auto Initializer::set_ans_path(std::string_view path,
-                                      var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_ans_path(std::string_view path, trace::Level trace_level) -> void {
   state_->ans = var::detail::make_reader_by_path(
       path, "ans", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
-          state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
+        if (trace_level >= trace::Level::STACK_ONLY) {
+          state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
         panic(msg);
+      });
+}
+
+inline auto Initializer::set_evaluator(trace::Level trace_level) -> void {
+  state_->evaluator = evaluate::Evaluator(
+      trace_level,
+      [this, trace_level](const evaluate::Evaluator& evaluator, std::string_view msg) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
+          state_->reporter->attach_evaluator_trace_stack(evaluator.make_trace_stack(true));
+        }
+        panic(msg);
+      },
+      [this, trace_level](const evaluate::Evaluator& evaluator, const evaluate::Result& result) {
+        if (trace_level >= trace::Level::STACK_ONLY && !result.message.empty()) {
+          state_->reporter->attach_evaluator_trace_stack(evaluator.make_trace_stack(false));
+        }
       });
 }
 
 inline Reporter::~Reporter() = default;
 
-inline auto Reporter::attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void {
-  trace_stacks_.emplace(std::string(trace_stack.stream), trace_stack);
+inline auto Reporter::attach_reader_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack)
+    -> void {
+  reader_trace_stacks_.emplace_back(std::move(trace_stack));
 }
 
-inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
-  trace_stacks_.erase(stream);
+inline auto Reporter::attach_evaluator_trace_stack(
+    trace::TraceStack<evaluate::EvaluatorTrace> trace_stack) -> void {
+  evaluator_trace_stacks_.emplace_back(std::move(trace_stack));
 }
 
 // Impl State {{{
 
 inline State::State(std::unique_ptr<Initializer> initializer)
     : rnd(),
-      inf(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
-      ouf(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
-      ans(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
+      inf(var::Reader(nullptr, trace::Level::NONE, {})),
+      ouf(var::Reader(nullptr, trace::Level::NONE, {})),
+      ans(var::Reader(nullptr, trace::Level::NONE, {})),
+      evaluator(evaluate::Evaluator(trace::Level::NONE, {}, {})),
       initializer(std::move(initializer)),
       reporter(std::make_unique<JsonReporter>()) {
   this->initializer->set_state(*this);
@@ -4544,14 +5342,14 @@ constexpr std::string_view ARGS_USAGE =
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
-      format(CPLIB_STARTUP_TEXT
-             "\n"
-             "Usage:\n"
-             "  %s %s\n"
-             "\n"
-             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-             "enable colors",
-             program_name.data(), ARGS_USAGE.data());
+      cplib::format(CPLIB_STARTUP_TEXT
+                    "\n"
+                    "Usage:\n"
+                    "  {} {}\n"
+                    "\n"
+                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                    "enable colors",
+                    program_name, ARGS_USAGE);
   panic(msg);
 }
 
@@ -4586,8 +5384,8 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0,
-                                     const std::vector<std::string>& args) -> void {
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+    -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
@@ -4597,7 +5395,7 @@ inline auto DefaultInitializer::init(std::string_view arg0,
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
+        panic(cplib::format("Unknown {} option: {}", key, value));
       }
     } else {
       panic("Unknown command-line argument variable: " + key);
@@ -4619,10 +5417,10 @@ inline auto DefaultInitializer::init(std::string_view arg0,
   auto inf_path = parsed_args.ordered[0];
   auto ouf_path = parsed_args.ordered[1];
   auto ans_path = parsed_args.ordered[2];
-
-  set_inf_path(inf_path, var::Reader::TraceLevel::STACK_ONLY);
-  set_ouf_path(ouf_path, var::Reader::TraceLevel::STACK_ONLY);
-  set_ans_path(ans_path, var::Reader::TraceLevel::STACK_ONLY);
+  set_inf_path(inf_path, trace::Level::STACK_ONLY);
+  set_ouf_path(ouf_path, trace::Level::STACK_ONLY);
+  set_ans_path(ans_path, trace::Level::STACK_ONLY);
+  set_evaluator(trace::Level::STACK_ONLY);
 }
 // /Impl DefaultInitializer }}}
 
@@ -4639,7 +5437,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(format("Unknown checker report status: %d", static_cast<int>(status)));
+      panic(format("Unknown checker report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -4655,28 +5453,37 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(format("Unknown checker report status: %d", static_cast<int>(status)));
+      panic(format("Unknown checker report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
 }  // namespace detail
 
 inline auto JsonReporter::report(const Report& report) -> int {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
-  map.emplace("score", std::make_unique<json::Real>(report.score));
-  map.emplace("message", std::make_unique<json::String>(report.message));
+  json::Map map{
+      {"status", json::Value(json::String(report.status.to_string()))},
+      {"score", json::Value(report.score)},
+      {"message", json::Value(report.message)},
+  };
 
-  if (!trace_stacks_.empty()) {
-    std::map<std::string, std::unique_ptr<json::Value>> trace_stacks_map;
-    for (const auto& [name, stack] : trace_stacks_) {
-      trace_stacks_map.emplace(name, stack.to_json());
-    }
-    map.emplace("reader_trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+  if (!reader_trace_stacks_.empty()) {
+    json::List trace_stacks;
+    trace_stacks.reserve(reader_trace_stacks_.size());
+    std::ranges::transform(reader_trace_stacks_, std::back_inserter(trace_stacks),
+                           [](const auto& s) { return json::Value(s.to_json()); });
+    map.emplace("reader_trace_stacks", trace_stacks);
+  }
+
+  if (!evaluator_trace_stacks_.empty()) {
+    json::List trace_stacks;
+    trace_stacks.reserve(evaluator_trace_stacks_.size());
+    std::ranges::transform(evaluator_trace_stacks_, std::back_inserter(trace_stacks),
+                           [](const auto& s) { return json::Value(s.to_json()); });
+    map.emplace("evaluator_trace_stacks", trace_stacks);
   }
 
   std::ostream stream(std::clog.rdbuf());
-  stream << json::Map(std::move(map)).to_string() << '\n';
+  stream << json::Value(std::move(map)).to_string() << '\n';
   return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
@@ -4686,17 +5493,24 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
   stream << std::fixed << std::setprecision(2) << detail::status_to_title_string(report.status)
          << ", scores " << report.score * 100.0 << " of 100.\n";
 
-  if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
+  if (!report.message.empty()) {
     stream << report.message << '\n';
   }
 
-  if (!trace_stacks_.empty()) {
+  if (!reader_trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& [_, stack] : trace_stacks_) {
+    for (const auto& stack : reader_trace_stacks_) {
       for (const auto& line : stack.to_plain_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';
+    }
+  }
+
+  if (!evaluator_trace_stacks_.empty()) {
+    stream << "\nEvaluator trace stacks:\n";
+    for (const auto& stack : evaluator_trace_stacks_) {
+      stream << "  " << stack.to_plain_text_compact() << '\n';
     }
   }
 
@@ -4709,17 +5523,24 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
   stream << std::fixed << std::setprecision(2)
          << detail::status_to_colored_title_string(report.status) << ", scores \x1b[0;33m"
          << report.score * 100.0 << "\x1b[0m of 100.\n";
-  if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
+  if (!report.message.empty()) {
     stream << report.message << '\n';
   }
 
-  if (!trace_stacks_.empty()) {
+  if (!reader_trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& [_, stack] : trace_stacks_) {
+    for (const auto& stack : reader_trace_stacks_) {
       for (const auto& line : stack.to_colored_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';
+    }
+  }
+
+  if (!evaluator_trace_stacks_.empty()) {
+    stream << "\nEvaluator trace stacks:\n";
+    for (const auto& stack : evaluator_trace_stacks_) {
+      stream << "  " << stack.to_colored_text_compact() << '\n';
     }
   }
 
@@ -4749,13 +5570,14 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 #ifndef CPLIB_INTERACTOR_HPP_
 #define CPLIB_INTERACTOR_HPP_
 
-#include <map>
+#include <cstdint>
 #include <memory>
 #include <ostream>
 #include <streambuf>
 #include <string>
 #include <string_view>
 #include <vector>
+
 
 
 
@@ -4772,7 +5594,7 @@ struct Report {
    */
   struct Status {
    public:
-    enum Value {
+    enum Value : std::uint8_t {
       /// Indicates an internal error occurred.
       INTERNAL_ERROR,
       /// Indicates the solution is accepted
@@ -4854,11 +5676,11 @@ struct Initializer {
  protected:
   auto state() -> State&;
 
-  auto set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
-  auto set_from_user_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
+  auto set_inf_fileno(int fileno, trace::Level trace_level) -> void;
+  auto set_from_user_fileno(int fileno, trace::Level trace_level) -> void;
   auto set_to_user_fileno(int fileno) -> void;
-  auto set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
-  auto set_from_user_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
+  auto set_inf_path(std::string_view path, trace::Level trace_level) -> void;
+  auto set_from_user_path(std::string_view path, trace::Level trace_level) -> void;
   auto set_to_user_path(std::string_view path) -> void;
 
  private:
@@ -4874,11 +5696,10 @@ struct Reporter {
 
   [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
-  auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
-  auto detach_trace_stack(const std::string& stream) -> void;
+  auto attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
 
  protected:
-  std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
+  std::vector<trace::TraceStack<var::ReaderTrace>> trace_stacks_{};
 };
 
 /**
@@ -5031,7 +5852,6 @@ struct ColoredTextReporter : Reporter {
  */
 
 
-
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
   
@@ -5042,17 +5862,20 @@ struct ColoredTextReporter : Reporter {
 #endif
 
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
-#include <map>
+#include <iterator>
 #include <memory>
 #include <ostream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
+
+
 
 
 
@@ -5078,7 +5901,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(format("Unknown interactor report status: %d", static_cast<int>(value_)));
+      panic(format("Unknown interactor report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -5092,23 +5915,22 @@ inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
 
 inline auto Initializer::state() -> State& { return *state_; };
 
-inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         panic(msg);
       });
 }
 
-inline auto Initializer::set_from_user_fileno(int fileno,
-                                              var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_from_user_fileno(int fileno, trace::Level trace_level) -> void {
   state_->from_user = var::detail::make_reader_by_fileno(
       fileno, "from_user", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         state_->quit_wa(msg);
@@ -5119,24 +5941,23 @@ inline auto Initializer::set_to_user_fileno(int fileno) -> void {
   io::detail::make_ostream_by_fileno(fileno, state_->to_user_buf, state_->to_user);
 }
 
-inline auto Initializer::set_inf_path(std::string_view path,
-                                      var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         panic(msg);
       });
 }
 
-inline auto Initializer::set_from_user_path(std::string_view path,
-                                            var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_from_user_path(std::string_view path, trace::Level trace_level)
+    -> void {
   state_->from_user = var::detail::make_reader_by_path(
       path, "from_user", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         state_->quit_wa(msg);
@@ -5149,19 +5970,15 @@ inline auto Initializer::set_to_user_path(std::string_view path) -> void {
 
 inline Reporter::~Reporter() = default;
 
-inline auto Reporter::attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void {
-  trace_stacks_.emplace(std::string(trace_stack.stream), trace_stack);
-}
-
-inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
-  trace_stacks_.erase(stream);
+inline auto Reporter::attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void {
+  trace_stacks_.emplace_back(std::move(trace_stack));
 }
 
 // Impl State {{{
 inline State::State(std::unique_ptr<Initializer> initializer)
     : rnd(),
-      inf(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
-      from_user(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
+      inf(var::Reader(nullptr, trace::Level::NONE, {})),
+      from_user(var::Reader(nullptr, trace::Level::NONE, {})),
       to_user(std::ostream(nullptr)),
       to_user_buf(nullptr),
       initializer(std::move(initializer)),
@@ -5201,14 +6018,14 @@ constexpr std::string_view ARGS_USAGE = "<input_file> [--report-format={auto|jso
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
-      format(CPLIB_STARTUP_TEXT
-             "\n"
-             "Usage:\n"
-             "  %s %s\n"
-             "\n"
-             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-             "enable colors",
-             program_name.data(), ARGS_USAGE.data());
+      cplib::format(CPLIB_STARTUP_TEXT
+                    "\n"
+                    "Usage:\n"
+                    "  {} {}\n"
+                    "\n"
+                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                    "enable colors",
+                    program_name, ARGS_USAGE);
   panic(msg);
 }
 
@@ -5259,8 +6076,8 @@ inline auto disable_stdio() -> void {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0,
-                                     const std::vector<std::string>& args) -> void {
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+    -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
@@ -5270,7 +6087,7 @@ inline auto DefaultInitializer::init(std::string_view arg0,
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
+        panic(cplib::format("Unknown {} option: {}", key, value));
       }
     } else {
       panic("Unknown command-line argument variable: " + key);
@@ -5291,8 +6108,8 @@ inline auto DefaultInitializer::init(std::string_view arg0,
   }
   auto inf_path = parsed_args.ordered[0];
 
-  set_inf_path(inf_path, var::Reader::TraceLevel::STACK_ONLY);
-  set_from_user_fileno(fileno(stdin), var::Reader::TraceLevel::STACK_ONLY);
+  set_inf_path(inf_path, trace::Level::STACK_ONLY);
+  set_from_user_fileno(fileno(stdin), trace::Level::STACK_ONLY);
   set_to_user_fileno(fileno(stdout));
 
   detail::disable_stdio();
@@ -5312,7 +6129,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(format("Unknown interactor report status: %d", static_cast<int>(status)));
+      panic(format("Unknown interactor report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -5328,28 +6145,29 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(format("Unknown interactor report status: %d", static_cast<int>(status)));
+      panic(format("Unknown interactor report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
 }  // namespace detail
 
 inline auto JsonReporter::report(const Report& report) -> int {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
-  map.emplace("score", std::make_unique<json::Real>(report.score));
-  map.emplace("message", std::make_unique<json::String>(report.message));
+  json::Map map{
+      {"status", json::Value(json::String(report.status.to_string()))},
+      {"score", json::Value(report.score)},
+      {"message", json::Value(report.message)},
+  };
 
   if (!trace_stacks_.empty()) {
-    std::map<std::string, std::unique_ptr<json::Value>> trace_stacks_map;
-    for (const auto& [name, stack] : trace_stacks_) {
-      trace_stacks_map.emplace(name, stack.to_json());
-    }
-    map.emplace("reader_trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+    json::List trace_stacks;
+    trace_stacks.reserve(trace_stacks_.size());
+    std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
+                           [](auto& s) { return json::Value(s.to_json()); });
+    map.emplace("reader_trace_stacks", trace_stacks);
   }
 
   std::ostream stream(std::clog.rdbuf());
-  stream << json::Map(std::move(map)).to_string() << '\n';
+  stream << json::Value(std::move(map)).to_string() << '\n';
   return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
@@ -5359,13 +6177,13 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
   stream << std::fixed << std::setprecision(2) << detail::status_to_title_string(report.status)
          << ", scores " << report.score * 100.0 << " of 100.\n";
 
-  if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
+  if (!report.message.empty()) {
     stream << report.message << '\n';
   }
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& [_, stack] : trace_stacks_) {
+    for (const auto& stack : trace_stacks_) {
       for (const auto& line : stack.to_plain_text_lines()) {
         stream << '\n' << "  " << line;
       }
@@ -5382,13 +6200,13 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
   stream << std::fixed << std::setprecision(2)
          << detail::status_to_colored_title_string(report.status) << ", scores \x1b[0;33m"
          << report.score * 100.0 << "\x1b[0m of 100.\n";
-  if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
+  if (!report.message.empty()) {
     stream << report.message << '\n';
   }
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& [_, stack] : trace_stacks_) {
+    for (const auto& stack : trace_stacks_) {
       for (const auto& line : stack.to_colored_text_lines()) {
         stream << '\n' << "  " << line;
       }
@@ -5423,12 +6241,14 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 #define CPLIB_VALIDATOR_HPP_
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
+
 
 
 
@@ -5445,7 +6265,7 @@ struct Report {
    */
   struct Status {
    public:
-    enum Value {
+    enum Value : std::uint8_t {
       /// Indicates an internal error occurred.
       INTERNAL_ERROR,
       /// Indicates the input file is valid.
@@ -5552,8 +6372,8 @@ struct Initializer {
  protected:
   auto state() -> State&;
 
-  auto set_inf_fileno(int fileno, var::Reader::TraceLevel level) -> void;
-  auto set_inf_path(std::string_view path, var::Reader::TraceLevel level) -> void;
+  auto set_inf_fileno(int fileno, trace::Level level) -> void;
+  auto set_inf_path(std::string_view path, trace::Level level) -> void;
 
  private:
   State* state_{};
@@ -5568,16 +6388,15 @@ struct Reporter {
 
   [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
-  auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
-  auto detach_trace_stack(const std::string& stream) -> void;
+  auto attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
 
-  auto attach_trace_tree(const var::Reader::TraceTreeNode* root) -> void;
+  auto attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* root) -> void;
 
   auto attach_trait_status(const std::map<std::string, bool>& trait_status) -> void;
 
  protected:
-  std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
-  const var::Reader::TraceTreeNode* trace_tree_{};
+  std::vector<trace::TraceStack<var::ReaderTrace>> trace_stacks_{};
+  const trace::TraceTreeNode<var::ReaderTrace>* trace_tree_{};
   std::map<std::string, bool> trait_status_{};
 };
 
@@ -5741,6 +6560,7 @@ struct ColoredTextReporter : Reporter {
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
@@ -5750,6 +6570,7 @@ struct ColoredTextReporter : Reporter {
 #include <string_view>
 #include <utility>
 #include <vector>
+
 
 
 
@@ -5774,7 +6595,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case INVALID:
       return "invalid";
     default:
-      panic(format("Unknown validator report status: %d", static_cast<int>(value_)));
+      panic(format("Unknown validator report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -5796,23 +6617,22 @@ inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
 
 inline auto Initializer::state() -> State& { return *state_; };
 
-inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", true, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         state_->quit_invalid(msg);
       });
 }
 
-inline auto Initializer::set_inf_path(std::string_view path,
-                                      var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", true, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         state_->quit_invalid(msg);
@@ -5821,15 +6641,12 @@ inline auto Initializer::set_inf_path(std::string_view path,
 
 inline Reporter::~Reporter() = default;
 
-inline auto Reporter::attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void {
-  trace_stacks_.emplace(std::string(trace_stack.stream), trace_stack);
+inline auto Reporter::attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void {
+  trace_stacks_.emplace_back(std::move(trace_stack));
 }
 
-inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
-  trace_stacks_.erase(stream);
-}
-
-inline auto Reporter::attach_trace_tree(const var::Reader::TraceTreeNode* root) -> void {
+inline auto Reporter::attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* root)
+    -> void {
   if (!root) {
     panic("Reporter::attach_trace_tree failed: Trace tree root pointer is nullptr");
   }
@@ -5872,14 +6689,14 @@ inline auto topo_sort(const std::vector<std::vector<size_t>>& edges,
   }
 }
 
+// Returns std::nullopt if failed
 inline auto build_edges(std::vector<Trait>& traits)
     -> std::optional<std::vector<std::vector<size_t>>> {
   // Check duplicate name
-  std::sort(traits.begin(), traits.end(),
-            [](const Trait& x, const Trait& y) { return x.name < y.name; });
-  if (std::unique(traits.begin(), traits.end(), [](const Trait& x, const Trait& y) {
+  std::ranges::sort(traits, [](const Trait& x, const Trait& y) { return x.name < y.name; });
+  if (std::ranges::unique(traits, [](const Trait& x, const Trait& y) {
         return x.name == y.name;
-      }) != traits.end()) {
+      }).end() != traits.end()) {
     // Found duplicate name
     return std::nullopt;
   }
@@ -5889,18 +6706,19 @@ inline auto build_edges(std::vector<Trait>& traits)
   for (size_t i = 0; i < traits.size(); ++i) {
     auto& trait = traits[i];
     // Check duplicate dependencies
-    std::sort(trait.dependencies.begin(), trait.dependencies.end());
-    if (std::unique(trait.dependencies.begin(), trait.dependencies.end()) !=
-        trait.dependencies.end()) {
+    std::ranges::sort(trait.dependencies);
+    if (std::ranges::unique(trait.dependencies).end() != trait.dependencies.end()) {
       // Found duplicate dependencies
       return std::nullopt;
     }
 
     for (const auto& dep : trait.dependencies) {
-      auto dep_id =
-          std::lower_bound(traits.begin(), traits.end(), dep,
-                           [](const Trait& x, const std::string& y) { return x.name < y; }) -
-          traits.begin();
+      auto it = std::ranges::lower_bound(traits, dep, std::less{}, &Trait::name);
+      // IMPORTANT: Check if the dependency was actually found and is an exact match.
+      if (it == traits.end() || it->name != dep) {
+        return std::nullopt;
+      }
+      auto dep_id = it - traits.begin();
       edges[dep_id].emplace_back(i);
     }
   }
@@ -5941,7 +6759,7 @@ inline auto validate_traits(const std::vector<Trait>& traits,
 
 inline State::State(std::unique_ptr<Initializer> initializer)
     : rnd(),
-      inf(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
+      inf(var::Reader(nullptr, trace::Level::NONE, {})),
       initializer(std::move(initializer)),
       reporter(std::make_unique<JsonReporter>()),
       traits_(),
@@ -5978,7 +6796,7 @@ inline auto State::quit(Report report) -> void {
   if (report.status == Report::Status::VALID) {
     reporter->attach_trait_status(detail::validate_traits(traits_, trait_edges_));
 
-    if (inf.get_trace_level() >= var::Reader::TraceLevel::FULL) {
+    if (inf.get_trace_level() >= trace::Level::FULL) {
       reporter->attach_trace_tree(inf.get_trace_tree());
     }
   }
@@ -6000,15 +6818,15 @@ constexpr std::string_view ARGS_USAGE = "[<input_file>] [--report-format={auto|j
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
-      format(CPLIB_STARTUP_TEXT
-             "Usage:\n"
-             "  %s %s\n"
-             "\n"
-             "If <input_file> does not exist, stdin will be used as input\n"
-             "\n"
-             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-             "enable colors",
-             program_name.data(), ARGS_USAGE.data());
+      cplib::format(CPLIB_STARTUP_TEXT
+                    "Usage:\n"
+                    "  {} {}\n"
+                    "\n"
+                    "If <input_file> does not exist, stdin will be used as input\n"
+                    "\n"
+                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                    "enable colors",
+                    program_name, ARGS_USAGE);
   panic(msg);
 }
 
@@ -6043,8 +6861,8 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0,
-                                     const std::vector<std::string>& args) -> void {
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+    -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
@@ -6054,7 +6872,7 @@ inline auto DefaultInitializer::init(std::string_view arg0,
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
+        panic(cplib::format("Unknown {} option: {}", key, value));
       }
     } else {
       panic("Unknown command-line argument variable: " + key);
@@ -6075,9 +6893,9 @@ inline auto DefaultInitializer::init(std::string_view arg0,
   }
 
   if (parsed_args.ordered.empty()) {
-    set_inf_fileno(fileno(stdin), var::Reader::TraceLevel::FULL);
+    set_inf_fileno(fileno(stdin), trace::Level::FULL);
   } else {
-    set_inf_path(parsed_args.ordered[0], var::Reader::TraceLevel::FULL);
+    set_inf_path(parsed_args.ordered[0], trace::Level::FULL);
   }
 }
 // /Impl DefaultInitializer }}}
@@ -6093,7 +6911,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::INVALID:
       return "Invalid";
     default:
-      panic(format("Unknown validator report status: %d", static_cast<int>(status)));
+      panic(format("Unknown validator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -6107,26 +6925,23 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::INVALID:
       return "\x1b[0;31mInvalid\x1b[0m";
     default:
-      panic(format("Unknown validator report status: %d", static_cast<int>(status)));
+      panic(format("Unknown validator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
 
-inline auto trait_status_to_json(const std::map<std::string, bool>& traits)
-    -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-
+inline auto trait_status_to_json(const std::map<std::string, bool>& traits) -> json::Value {
+  json::Map map;
   for (const auto& [k, v] : traits) {
-    map.emplace(k, std::make_unique<json::Bool>(v));
+    map.emplace(k, json::Value(v));
   }
-
-  return std::make_unique<json::Map>(std::move(map));
+  return json::Value(map);
 }
 
-inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t depth,
-                             std::size_t& n_remaining_node, bool colored_output,
-                             std::ostream& os) -> void {
-  if (!node || depth >= 8 || (node->json_tag && node->json_tag->inner.count("#hidden"))) {
+inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node, std::size_t depth,
+                             std::size_t& n_remaining_node, bool colored_output, std::ostream& os)
+    -> void {
+  if (!node || depth >= 8 || (node->tags.count("#hidden"))) {
     return;
   }
 
@@ -6149,32 +6964,32 @@ inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t
     }
 
     // type
-    if (node->json_tag && node->json_tag->inner.count("#t")) {
+    if (node->tags.count("#t")) {
       if (colored_output) {
         os << "\x1b[0;90m";
       }
-      os << ": " << node->json_tag->inner.at("#t")->to_string();
+      os << ": " << node->tags.at("#t").to_string();
       if (colored_output) {
         os << "\x1b[0m";
       }
     }
 
     // value
-    if (node->json_tag && node->json_tag->inner.count("#v")) {
-      os << " = " << node->json_tag->inner.at("#v")->to_string();
+    if (node->tags.count("#v")) {
+      os << " = " << node->tags.at("#v").to_string();
     }
     os << '\n';
   }
 
   std::size_t n_visible_children = 0;
   for (const auto& child : node->get_children()) {
-    if (!child->json_tag || !child->json_tag->inner.count("#hidden")) {
+    if (!!child->tags.count("#hidden")) {
       ++n_visible_children;
     }
   }
 
   for (const auto& child : node->get_children()) {
-    if (child->json_tag && child->json_tag->inner.count("#hidden")) {
+    if (child->tags.count("#hidden")) {
       continue;
     }
     if (!n_remaining_node) {
@@ -6191,16 +7006,17 @@ inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t
 }  // namespace detail
 
 inline auto JsonReporter::report(const Report& report) -> int {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
-  map.emplace("message", std::make_unique<json::String>(report.message));
+  json::Map map{
+      {"status", json::Value(json::String(report.status.to_string()))},
+      {"message", json::Value(report.message)},
+  };
 
   if (!trace_stacks_.empty()) {
-    std::map<std::string, std::unique_ptr<json::Value>> trace_stacks_map;
-    for (const auto& [name, stack] : trace_stacks_) {
-      trace_stacks_map.emplace(name, stack.to_json());
-    }
-    map.emplace("reader_trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+    json::List trace_stacks;
+    trace_stacks.reserve(trace_stacks_.size());
+    std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
+                           [](auto& s) { return json::Value(s.to_json()); });
+    map.emplace("reader_trace_stacks", trace_stacks);
   }
 
   if (!trait_status_.empty()) {
@@ -6209,13 +7025,13 @@ inline auto JsonReporter::report(const Report& report) -> int {
 
   if (trace_tree_) {
     auto json = trace_tree_->to_json();
-    if (json && json->inner.count("children")) {
-      map.emplace("reader_trace_tree", std::move(json->inner.at("children")));
+    if (json.count("children")) {
+      map.emplace("reader_trace_tree", std::move(json.at("children")));
     }
   }
 
   std::ostream stream(std::clog.rdbuf());
-  stream << json::Map(std::move(map)).to_string() << '\n';
+  stream << json::Value(std::move(map)).to_string() << '\n';
   return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
@@ -6224,13 +7040,13 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
 
   stream << detail::status_to_title_string(report.status) << ".\n";
 
-  if (report.status != Report::Status::VALID || !report.message.empty()) {
+  if (!report.message.empty()) {
     stream << report.message << '\n';
   }
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& [_, stack] : trace_stacks_) {
+    for (const auto& stack : trace_stacks_) {
       for (const auto& line : stack.to_plain_text_lines()) {
         stream << '\n' << "  " << line;
       }
@@ -6272,13 +7088,13 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 
   stream << detail::status_to_colored_title_string(report.status) << ".\n";
 
-  if (report.status != Report::Status::VALID || !report.message.empty()) {
+  if (!report.message.empty()) {
     stream << report.message << '\n';
   }
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& [_, stack] : trace_stacks_) {
+    for (const auto& stack : trace_stacks_) {
       for (const auto& line : stack.to_colored_text_lines()) {
         stream << '\n' << "  " << line;
       }
@@ -6339,6 +7155,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 #define CPLIB_GENERATOR_HPP_
 
 #include <any>  
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
@@ -6361,7 +7178,7 @@ struct Report {
    */
   struct Status {
    public:
-    enum Value {
+    enum Value : std::uint8_t {
       /// Indicates an internal error occurred.
       INTERNAL_ERROR,
       /// Indicates the program runs normally.
@@ -6981,7 +7798,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case OK:
       return "ok";
     default:
-      panic(format("Unknown generator report status: %d", static_cast<int>(value_)));
+      panic(format("Unknown generator report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -7041,14 +7858,14 @@ inline auto parse_arg(std::string_view arg) -> std::pair<std::string, std::optio
 
 inline auto print_help_message(std::string_view program_name, std::string_view args_usage) -> void {
   std::string msg =
-      format(CPLIB_STARTUP_TEXT
-             "\n"
-             "Usage:\n"
-             "  %s %s\n"
-             "\n"
-             "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-             "enable colors",
-             program_name.data(), args_usage.data());
+      cplib::format(CPLIB_STARTUP_TEXT
+                    "\n"
+                    "Usage:\n"
+                    "  {} {}\n"
+                    "\n"
+                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                    "enable colors",
+                    program_name, args_usage);
   panic(msg);
 }
 
@@ -7082,8 +7899,9 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   return true;
 }
 
-inline auto validate_required_arguments(
-    const State& state, const std::map<std::string, std::string>& var_args) -> void {
+inline auto validate_required_arguments(const State& state,
+                                        const std::map<std::string, std::string>& var_args)
+    -> void {
   for (const auto& var : state.required_var_args) {
     if (!var_args.count(var)) panic("Missing variable: " + var);
   }
@@ -7110,15 +7928,15 @@ inline auto set_binary_mode() {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0,
-                                     const std::vector<std::string>& args) -> void {
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+    -> void {
   auto& state = this->state();
 
   detail::detect_reporter(state);
 
   // required args are initially unordered, sort them to ensure subsequent binary_search is correct
-  std::sort(state.required_flag_args.begin(), state.required_flag_args.end());
-  std::sort(state.required_var_args.begin(), state.required_var_args.end());
+  std::ranges::sort(state.required_flag_args);
+  std::ranges::sort(state.required_var_args);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
   auto args_usage = detail::get_args_usage(state);
@@ -7128,11 +7946,10 @@ inline auto DefaultInitializer::init(std::string_view arg0,
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(format("Unknown %s option: %s", key.c_str(), value.c_str()));
+        panic(cplib::format("Unknown {} option: {}", key, value));
       }
     } else {
-      if (!std::binary_search(state.required_var_args.begin(), state.required_var_args.end(),
-                              key)) {
+      if (!std::ranges::binary_search(state.required_var_args, key)) {
         panic("Unknown command-line argument variable: " + key);
       }
       if (auto it = var_args.find(key); it != var_args.end()) {
@@ -7148,8 +7965,7 @@ inline auto DefaultInitializer::init(std::string_view arg0,
     if (flag == "help") {
       detail::print_help_message(arg0, args_usage);
     } else {
-      if (!std::binary_search(state.required_flag_args.begin(), state.required_flag_args.end(),
-                              flag)) {
+      if (!std::ranges::binary_search(state.required_flag_args, flag)) {
         panic("Unknown command-line argument flag: " + flag);
       }
       flag_args.emplace(flag);
@@ -7179,7 +7995,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::OK:
       return "OK";
     default:
-      panic(format("Unknown generator report status: %d", static_cast<int>(status)));
+      panic(format("Unknown generator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -7191,19 +8007,20 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::OK:
       return "\x1b[0;32mOK\x1b[0m";
     default:
-      panic(format("Unknown generator report status: %d", static_cast<int>(status)));
+      panic(format("Unknown generator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
 }  // namespace detail
 
 inline auto JsonReporter::report(const Report& report) -> int {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
-  map.emplace("message", std::make_unique<json::String>(report.message));
+  json::Map map{
+      {"status", json::Value(json::String(report.status.to_string()))},
+      {"message", json::Value(report.message)},
+  };
 
   std::ostream stream(std::clog.rdbuf());
-  stream << json::Map(std::move(map)).to_string() << '\n';
+  stream << json::Value(std::move(map)).to_string() << '\n';
   return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
