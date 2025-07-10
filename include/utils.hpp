@@ -25,6 +25,7 @@
 #include <vector>
 
 #ifdef CPLIB_USE_FMT_LIB
+#define FMT_HEADER_ONLY
 #include "fmt/base.h"
 #include "fmt/core.h"
 #else
