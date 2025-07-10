@@ -30,6 +30,7 @@
 #include <cstdlib>
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
@@ -45,6 +46,7 @@
 #include "io.hpp"
 #include "json.hpp"
 #include "macros.hpp"
+#include "trace.hpp"
 #include "utils.hpp"
 #include "var.hpp"
 /* cplib_embed_ignore end */
@@ -85,23 +87,22 @@ inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
 
 inline auto Initializer::state() -> State& { return *state_; };
 
-inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", true, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         state_->quit_invalid(msg);
       });
 }
 
-inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", true, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         state_->quit_invalid(msg);
@@ -110,15 +111,12 @@ inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceL
 
 inline Reporter::~Reporter() = default;
 
-inline auto Reporter::attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void {
-  trace_stacks_.emplace(std::string(trace_stack.stream), trace_stack);
+inline auto Reporter::attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void {
+  trace_stacks_.emplace_back(std::move(trace_stack));
 }
 
-inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
-  trace_stacks_.erase(stream);
-}
-
-inline auto Reporter::attach_trace_tree(const var::Reader::TraceTreeNode* root) -> void {
+inline auto Reporter::attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* root)
+    -> void {
   if (!root) {
     panic("Reporter::attach_trace_tree failed: Trace tree root pointer is nullptr");
   }
@@ -231,7 +229,7 @@ inline auto validate_traits(const std::vector<Trait>& traits,
 
 inline State::State(std::unique_ptr<Initializer> initializer)
     : rnd(),
-      inf(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
+      inf(var::Reader(nullptr, trace::Level::NONE, {})),
       initializer(std::move(initializer)),
       reporter(std::make_unique<JsonReporter>()),
       traits_(),
@@ -268,7 +266,7 @@ inline auto State::quit(Report report) -> void {
   if (report.status == Report::Status::VALID) {
     reporter->attach_trait_status(detail::validate_traits(traits_, trait_edges_));
 
-    if (inf.get_trace_level() >= var::Reader::TraceLevel::FULL) {
+    if (inf.get_trace_level() >= trace::Level::FULL) {
       reporter->attach_trace_tree(inf.get_trace_tree());
     }
   }
@@ -365,9 +363,9 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   }
 
   if (parsed_args.ordered.empty()) {
-    set_inf_fileno(fileno(stdin), var::Reader::TraceLevel::FULL);
+    set_inf_fileno(fileno(stdin), trace::Level::FULL);
   } else {
-    set_inf_path(parsed_args.ordered[0], var::Reader::TraceLevel::FULL);
+    set_inf_path(parsed_args.ordered[0], trace::Level::FULL);
   }
 }
 // /Impl DefaultInitializer }}}
@@ -402,21 +400,18 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
   }
 }
 
-inline auto trait_status_to_json(const std::map<std::string, bool>& traits)
-    -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-
+inline auto trait_status_to_json(const std::map<std::string, bool>& traits) -> json::Value {
+  json::Map map;
   for (const auto& [k, v] : traits) {
-    map.emplace(k, std::make_unique<json::Bool>(v));
+    map.emplace(k, json::Value(v));
   }
-
-  return std::make_unique<json::Map>(std::move(map));
+  return json::Value(map);
 }
 
-inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t depth,
+inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node, std::size_t depth,
                              std::size_t& n_remaining_node, bool colored_output, std::ostream& os)
     -> void {
-  if (!node || depth >= 8 || (node->json_tag && node->json_tag->inner.count("#hidden"))) {
+  if (!node || depth >= 8 || (node->tags.count("#hidden"))) {
     return;
   }
 
@@ -439,32 +434,32 @@ inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t
     }
 
     // type
-    if (node->json_tag && node->json_tag->inner.count("#t")) {
+    if (node->tags.count("#t")) {
       if (colored_output) {
         os << "\x1b[0;90m";
       }
-      os << ": " << node->json_tag->inner.at("#t")->to_string();
+      os << ": " << node->tags.at("#t").to_string();
       if (colored_output) {
         os << "\x1b[0m";
       }
     }
 
     // value
-    if (node->json_tag && node->json_tag->inner.count("#v")) {
-      os << " = " << node->json_tag->inner.at("#v")->to_string();
+    if (node->tags.count("#v")) {
+      os << " = " << node->tags.at("#v").to_string();
     }
     os << '\n';
   }
 
   std::size_t n_visible_children = 0;
   for (const auto& child : node->get_children()) {
-    if (!child->json_tag || !child->json_tag->inner.count("#hidden")) {
+    if (!!child->tags.count("#hidden")) {
       ++n_visible_children;
     }
   }
 
   for (const auto& child : node->get_children()) {
-    if (child->json_tag && child->json_tag->inner.count("#hidden")) {
+    if (child->tags.count("#hidden")) {
       continue;
     }
     if (!n_remaining_node) {
@@ -481,16 +476,17 @@ inline auto print_trace_tree(const var::Reader::TraceTreeNode* node, std::size_t
 }  // namespace detail
 
 inline auto JsonReporter::report(const Report& report) -> int {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
-  map.emplace("message", std::make_unique<json::String>(report.message));
+  json::Map map{
+      {"status", json::Value(json::String(report.status.to_string()))},
+      {"message", json::Value(report.message)},
+  };
 
   if (!trace_stacks_.empty()) {
-    std::map<std::string, std::unique_ptr<json::Value>> trace_stacks_map;
-    for (const auto& [name, stack] : trace_stacks_) {
-      trace_stacks_map.emplace(name, stack.to_json());
-    }
-    map.emplace("reader_trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+    json::List trace_stacks;
+    trace_stacks.reserve(trace_stacks_.size());
+    std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
+                           [](auto& s) { return json::Value(s.to_json()); });
+    map.emplace("reader_trace_stacks", trace_stacks);
   }
 
   if (!trait_status_.empty()) {
@@ -499,13 +495,13 @@ inline auto JsonReporter::report(const Report& report) -> int {
 
   if (trace_tree_) {
     auto json = trace_tree_->to_json();
-    if (json && json->inner.count("children")) {
-      map.emplace("reader_trace_tree", std::move(json->inner.at("children")));
+    if (json.count("children")) {
+      map.emplace("reader_trace_tree", std::move(json.at("children")));
     }
   }
 
   std::ostream stream(std::clog.rdbuf());
-  stream << json::Map(std::move(map)).to_string() << '\n';
+  stream << json::Value(std::move(map)).to_string() << '\n';
   return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
@@ -514,13 +510,13 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
 
   stream << detail::status_to_title_string(report.status) << ".\n";
 
-  if (report.status != Report::Status::VALID || !report.message.empty()) {
+  if (!report.message.empty()) {
     stream << report.message << '\n';
   }
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& [_, stack] : trace_stacks_) {
+    for (const auto& stack : trace_stacks_) {
       for (const auto& line : stack.to_plain_text_lines()) {
         stream << '\n' << "  " << line;
       }
@@ -562,13 +558,13 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 
   stream << detail::status_to_colored_title_string(report.status) << ".\n";
 
-  if (report.status != Report::Status::VALID || !report.message.empty()) {
+  if (!report.message.empty()) {
     stream << report.message << '\n';
   }
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& [_, stack] : trace_stacks_) {
+    for (const auto& stack : trace_stacks_) {
       for (const auto& line : stack.to_colored_text_lines()) {
         stream << '\n' << "  " << line;
       }

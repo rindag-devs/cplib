@@ -17,14 +17,15 @@
 #define CPLIB_CHECKER_HPP_
 
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
 
 /* cplib_embed_ignore start */
+#include "evaluate.hpp"
 #include "random.hpp"
+#include "trace.hpp"
 #include "var.hpp"
 /* cplib_embed_ignore end */
 
@@ -60,6 +61,13 @@ struct Report {
      * @param value The value of the status.
      */
     constexpr Status(Value value);  // NOLINT(google-explicit-constructor)
+
+    /**
+     * Constructor for Status from cplib::evaluate::Result::Status.
+     *
+     * @param status The evaluate result status.
+     */
+    constexpr explicit Status(evaluate::Result::Status status);
 
     /**
      * Implicit conversion operator to Value.
@@ -119,12 +127,13 @@ struct Initializer {
 
  protected:
   auto state() -> State&;
-  auto set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
-  auto set_ouf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
-  auto set_ans_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
-  auto set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
-  auto set_ouf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
-  auto set_ans_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
+  auto set_inf_fileno(int fileno, trace::Level trace_level) -> void;
+  auto set_ouf_fileno(int fileno, trace::Level trace_level) -> void;
+  auto set_ans_fileno(int fileno, trace::Level trace_level) -> void;
+  auto set_inf_path(std::string_view path, trace::Level trace_level) -> void;
+  auto set_ouf_path(std::string_view path, trace::Level trace_level) -> void;
+  auto set_ans_path(std::string_view path, trace::Level trace_level) -> void;
+  auto set_evaluator(trace::Level trace_level) -> void;
 
  private:
   State* state_{};
@@ -139,11 +148,13 @@ struct Reporter {
 
   [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
-  auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
-  auto detach_trace_stack(const std::string& stream) -> void;
+  auto attach_reader_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
+  auto attach_evaluator_trace_stack(trace::TraceStack<evaluate::EvaluatorTrace> trace_stack)
+      -> void;
 
  protected:
-  std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
+  std::vector<trace::TraceStack<var::ReaderTrace>> reader_trace_stacks_{};
+  std::vector<trace::TraceStack<evaluate::EvaluatorTrace>> evaluator_trace_stacks_{};
 };
 
 /**
@@ -162,6 +173,9 @@ struct State {
 
   /// Answer file reader.
   var::Reader ans;
+
+  /// Evaluator
+  evaluate::Evaluator evaluator;
 
   /// Initializer parses command-line arguments and initializes `checker::State`
   std::unique_ptr<Initializer> initializer;
@@ -262,17 +276,28 @@ struct ColoredTextReporter : Reporter {
  * @param var_ The variable name of state object to be initialized.
  * @param initializer_ The initializer function.
  */
-#define CPLIB_REGISTER_CHECKER_OPT(var_, initializer_)                                            \
-  auto var_ = ::cplib::checker::State(std::unique_ptr<decltype(initializer_)>(new initializer_)); \
-  auto main(int argc, char** argv) -> int {                                                       \
-    std::vector<std::string> args;                                                                \
-    for (int i = 1; i < argc; ++i) {                                                              \
-      args.emplace_back(argv[i]);                                                                 \
-    }                                                                                             \
-    var_.initializer->init(argv[0], args);                                                        \
-    auto checker_main(void) -> void;                                                              \
-    checker_main();                                                                               \
-    return 0;                                                                                     \
+#define CPLIB_REGISTER_CHECKER_OPT(var_, input_struct_, output_struct_, initializer_)              \
+  static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
+  static_assert(::cplib::var::Readable<output_struct_, const input_struct_&>,                      \
+                "`" #output_struct_ "` should be Readable");                                       \
+  static_assert(::cplib::evaluate::Evaluatable<output_struct_, const input_struct_&>,              \
+                "`" #output_struct_ "` should be Evaluatable");                                    \
+  auto var_ =                                                                                      \
+      ::cplib::checker::State(::std::unique_ptr<decltype(initializer_)>(new initializer_));        \
+  auto main(int argc, char** argv) -> int {                                                        \
+    ::std::vector<::std::string> args;                                                             \
+    for (int i = 1; i < argc; ++i) {                                                               \
+      args.emplace_back(argv[i]);                                                                  \
+    }                                                                                              \
+    var_.initializer->init(argv[0], args);                                                         \
+    input_struct_ input{var_.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};              \
+    output_struct_ output{var_.ouf.read(::cplib::var::ExtVar<output_struct_>("output", input))};   \
+    output_struct_ answer{var_.ans.read(::cplib::var::ExtVar<output_struct_>("answer", input))};   \
+    ::cplib::evaluate::Result result = var_.evaluator("output", output, answer, input);            \
+    ::cplib::checker::Report report{::cplib::checker::Report::Status(result.status), result.score, \
+                                    ""};                                                           \
+    var_.quit(report);                                                                             \
+    return 0;                                                                                      \
   }
 
 /**
@@ -280,8 +305,9 @@ struct ColoredTextReporter : Reporter {
  *
  * @param var The variable name of state object to be initialized.
  */
-#define CPLIB_REGISTER_CHECKER(var) \
-  CPLIB_REGISTER_CHECKER_OPT(var, ::cplib::checker::DefaultInitializer())
+#define CPLIB_REGISTER_CHECKER(var_, input_struct_, output_struct_) \
+  CPLIB_REGISTER_CHECKER_OPT(var_, input_struct_, output_struct_,   \
+                             ::cplib::checker::DefaultInitializer())
 }  // namespace cplib::checker
 
 #include "checker.i.hpp"  // IWYU pragma: export

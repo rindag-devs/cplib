@@ -1,1 +1,1 @@
-{"message":"Plan and shortest path length do not match","reader_trace_stacks":{"ouf":{"fatal":true,"stack":[{"pos":{"byte":0,"col":0,"line":0},"var_name":"output"}]}},"score":0,"status":"wrong_answer"}
+{"message":"Calculated path sum (7) from plan does not match reported sum (4)","reader_trace_stacks":[{"fatal":true,"stack":[{"pos":{"byte":0,"col":0,"line":0},"var_name":"<ouf>"},{"pos":{"byte":0,"col":0,"line":0},"var_name":"output"}]}],"score":0,"status":"wrong_answer"}

@@ -46,7 +46,7 @@ struct Position {
   explicit Position();
   explicit Position(std::size_t line, std::size_t col, std::size_t byte);
 
-  [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
+  [[nodiscard]] auto to_json() const -> json::Map;
 };
 
 /// Buffer for input stream.

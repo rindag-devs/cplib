@@ -1,1 +1,1 @@
-{"message":"Expected 3, got 4","score":0,"status":"wrong_answer"}
+{"evaluator_trace_stacks":[{"fatal":false,"stack":[{"var_name":"<eval>"},{"var_name":"output"},{"result":{"message":"`ans` is not equal: expected 3, got 4","score":0,"status":"wrong_answer"},"var_name":"ans"}]}],"message":"","score":0,"status":"wrong_answer"}

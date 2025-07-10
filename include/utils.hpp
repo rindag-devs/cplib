@@ -21,6 +21,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #ifdef CPLIB_USE_FMT_LIB
@@ -52,9 +53,19 @@ template <class... Args>
 #ifdef CPLIB_USE_FMT_LIB
 template <class... Args>
 [[nodiscard]] auto format(fmt::format_string<Args...> fmt, Args &&...args) -> std::string;
+
+template <typename T>
+concept formattable = requires(T &v, fmt::format_context ctx) {
+  fmt::formatter<std::remove_cvref_t<T> >().format(v, ctx);
+};
 #else
 template <class... Args>
 [[nodiscard]] auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string;
+
+template <typename T>
+concept formattable = requires(T &v, std::format_context ctx) {
+  std::formatter<std::remove_cvref_t<T> >().format(v, ctx);
+};
 #endif
 
 /**

@@ -16,6 +16,7 @@
 #ifndef CPLIB_VAR_HPP_
 #define CPLIB_VAR_HPP_
 
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -32,11 +33,12 @@
 #include "io.hpp"
 #include "json.hpp"
 #include "pattern.hpp"
+#include "trace.hpp"
 #include "utils.hpp"
 /* cplib_embed_ignore end */
 
-#ifndef CPLIB_VAR_READER_TRACE_LEVEL_MAX
-#define CPLIB_VAR_READER_TRACE_LEVEL_MAX static_cast<int>(::cplib::var::Reader::TraceLevel::FULL)
+#ifndef CPLIB_READER_TRACE_LEVEL_MAX
+#define CPLIB_READER_TRACE_LEVEL_MAX static_cast<int>(::cplib::trace::Level::FULL)
 #endif
 
 namespace cplib::var {
@@ -44,130 +46,44 @@ template <class T, class D>
 struct Var;
 
 /**
+ * `ReaderTrace` represents trace information for a variable.
+ */
+struct ReaderTrace {
+  std::string var_name;
+  io::Position pos;
+
+  /// The length of the variable in the raw stream, units of bytes.
+  /// Incomplete variables will have zero length.
+  std::size_t byte_length{0};
+
+  explicit ReaderTrace(std::string var_name, io::Position pos);
+
+  /// Get name of node;
+  [[nodiscard]] auto node_name() const -> std::string;
+
+  /// Convert trace to plain text.
+  [[nodiscard]] auto to_plain_text() const -> std::string;
+
+  /// Convert trace to colored text.
+  [[nodiscard]] auto to_colored_text() const -> std::string;
+
+  /// Convert incomplete trace to JSON map.
+  [[nodiscard]] auto to_stack_json() const -> json::Value;
+
+  /// Convert complete trace to JSON map.
+  [[nodiscard]] auto to_tree_json() const -> json::Value;
+};
+
+/**
  * `Reader` represents a traced input stream with line and column information.
  */
-struct Reader {
+struct Reader : trace::Traced<ReaderTrace> {
  public:
-  /**
-   * Trace level.
-   */
-  enum struct TraceLevel : std::uint8_t {
-    NONE,        /// Do not trace.
-    STACK_ONLY,  /// Enable trace stack only.
-    FULL,        /// Trace the whole input stream. Enable trace stack and trace tree.
-  };
-
-  /**
-   * `Trace` represents trace information for a variable.
-   */
-  struct Trace {
-    std::string var_name;
-    io::Position pos;
-
-    /// The length of the variable in the raw stream, units of bytes.
-    /// Incomplete variables will have zero length.
-    std::size_t byte_length{0};
-
-    explicit Trace(std::string var_name, io::Position pos);
-
-    /// Convert incomplete trace to JSON map.
-    [[nodiscard]] auto to_json_incomplete() const -> std::unique_ptr<json::Map>;
-
-    /// Convert complete trace to JSON map.
-    [[nodiscard]] auto to_json_complete() const -> std::unique_ptr<json::Map>;
-  };
-
-  /**
-   * `TraceStack` represents a stack of trace.
-   */
-  struct TraceStack {
-    std::vector<Trace> stack;
-    std::string stream;
-    bool fatal;
-
-    /// Convert to JSON map.
-    [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
-
-    /// Convert to human-friendly plain text.
-    /// Each line does not contain the trailing `\n` character.
-    [[nodiscard]] auto to_plain_text_lines() const -> std::vector<std::string>;
-
-    /// Convert to human-friendly colored text (ANSI escape color).
-    /// Each line does not contain the trailing `\n` character.
-    [[nodiscard]] auto to_colored_text_lines() const -> std::vector<std::string>;
-  };
-
-  /**
-   * `TraceTreeNode` represents a node of trace tree.
-   */
-  struct TraceTreeNode {
-   public:
-    Trace trace;
-    std::unique_ptr<json::Map> json_tag{nullptr};
-
-    /**
-     * Create a TraceTreeNode with trace.
-     *
-     * @param trace The trace of the node.
-     */
-    explicit TraceTreeNode(Trace trace);
-
-    /// Copy constructor (deleted to prevent copying).
-    TraceTreeNode(const TraceTreeNode&) = delete;
-
-    /// Copy assignment operator (deleted to prevent copying).
-    auto operator=(const TraceTreeNode&) -> TraceTreeNode& = delete;
-
-    /// Move constructor.
-    TraceTreeNode(TraceTreeNode&&) = default;
-
-    /// Move assignment operator.
-    auto operator=(TraceTreeNode&&) -> TraceTreeNode& = default;
-
-    /**
-     * Get the children of the node.
-     *
-     * @return The children of the node.
-     */
-    [[nodiscard]] auto get_children() const -> const std::vector<std::unique_ptr<TraceTreeNode>>&;
-
-    /**
-     * Get the parent of the node.
-     *
-     * @return The parent of the node.
-     */
-    [[nodiscard]] auto get_parent() -> TraceTreeNode*;
-
-    /**
-     * Convert to JSON value.
-     *
-     * If node has tag `#hidden`, return `nullptr`.
-     *
-     * @return The JSON value or nullptr.
-     */
-    [[nodiscard]] auto to_json() const -> std::unique_ptr<json::Map>;
-
-    /**
-     * Convert a node to its child and return it again (as reference).
-     *
-     * @param child The child node.
-     * @return The child node.
-     */
-    auto add_child(std::unique_ptr<TraceTreeNode> child) -> std::unique_ptr<TraceTreeNode>&;
-
-   private:
-    std::vector<std::unique_ptr<TraceTreeNode>> children_{};
-    TraceTreeNode* parent_{nullptr};
-  };
-
   using FailFunc = UniqueFunction<auto(const Reader&, std::string_view)->void>;
 
-  /**
-   * Create a reader of input stream.
-   *
-   * @param inner The inner input stream to wrap.
-   */
-  explicit Reader(std::unique_ptr<io::InStream> inner, TraceLevel trace_level, FailFunc fail_func);
+  /// Create a reader of input stream.
+  explicit Reader(std::unique_ptr<io::InStream> inner, trace::Level trace_level,
+                  FailFunc fail_func);
 
   /// Copy constructor (deleted to prevent copying).
   Reader(const Reader&) = delete;
@@ -176,10 +92,10 @@ struct Reader {
   auto operator=(const Reader&) -> Reader& = delete;
 
   /// Move constructor.
-  Reader(Reader&&) = default;
+  Reader(Reader&&) noexcept = default;
 
   /// Move assignment operator.
-  auto operator=(Reader&&) -> Reader& = default;
+  auto operator=(Reader&&) noexcept -> Reader& = default;
 
   /**
    * Get the inner wrapped input stream.
@@ -196,7 +112,7 @@ struct Reader {
   [[nodiscard]] auto inner() const -> const io::InStream&;
 
   /**
-   * Call `Instream::fail` of the wrapped input stream.
+   * Call fail func with a message.
    *
    * @param message The error message.
    */
@@ -223,41 +139,9 @@ struct Reader {
   template <class... T>
   auto operator()(T... vars) -> std::tuple<typename T::Var::Target...>;
 
-  /**
-   * Get the trace level.
-   */
-  [[nodiscard]] auto get_trace_level() const -> TraceLevel;
-
-  /**
-   * Make a trace stack from the current trace.
-   *
-   * Only available when `TraceLevel::STACK_ONLY` or higher is set.
-   * Otherwise, an error will be panicked.
-   */
-  [[nodiscard]] auto make_trace_stack(bool fatal) const -> TraceStack;
-
-  /**
-   * Get the trace tree.
-   *
-   * Only available when `TraceLevel::FULL` is set.
-   * Otherwise, an error will be panicked.
-   */
-  [[nodiscard]] auto get_trace_tree() const -> const TraceTreeNode*;
-
-  /**
-   * Attach a JSON tag to the current trace.
-   *
-   * @param tag The JSON tag.
-   */
-  auto attach_json_tag(std::string_view key, std::unique_ptr<json::Value> value);
-
  private:
   std::unique_ptr<io::InStream> inner_;
-  TraceLevel trace_level_;
   FailFunc fail_func_;
-  std::vector<Trace> trace_stack_;
-  std::unique_ptr<TraceTreeNode> trace_tree_root_;
-  TraceTreeNode* trace_tree_current_;
 };
 
 template <class T>
@@ -351,7 +235,7 @@ struct Var {
  *
  * @tparam T The target type of the variable reading template.
  */
-template <class T>
+template <std::integral T>
 struct Int : Var<T, Int<T>> {
  public:
   std::optional<T> min, max;
@@ -398,7 +282,7 @@ struct Int : Var<T, Int<T>> {
  * `Float` is a variable reading template, indicating to read a floating-point number in a given
  * range in fixed form or scientific form.
  */
-template <class T>
+template <std::floating_point T>
 struct Float : Var<T, Float<T>> {
  public:
   std::optional<T> min, max;
@@ -445,7 +329,7 @@ struct Float : Var<T, Float<T>> {
  * `StrictFloat` is a variable reading template, indicating to read a floating-point number in a
  * given range in fixed for with digit count restrictions.
  */
-template <class T>
+template <std::floating_point T>
 struct StrictFloat : Var<T, StrictFloat<T>> {
  public:
   T min, max;
@@ -848,9 +732,6 @@ struct Tuple : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
 template <class F>
 struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
  public:
-  /// The inner function.
-  std::function<typename std::function<F>::result_type(Reader& in)> inner;
-
   /**
    * Constructor.
    *
@@ -872,6 +753,20 @@ struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
    * @return The result of the function.
    */
   auto read_from(Reader& in) const -> typename std::function<F>::result_type override;
+
+ private:
+  /// The inner function.
+  std::function<typename std::function<F>::result_type(Reader& in)> inner_function_;
+};
+
+// Defines the requirements for a type T to be "readable"
+// with a static 'read' method that takes a Reader and additional arguments.
+template <typename T, typename... Args>
+concept Readable = requires(Reader& reader, Args&&... args) {
+  // T must have a static member function named 'read'.
+  // It must be callable with a Reader& and the given Args.
+  // Its return type must be convertible to T (or exactly T).
+  { T::read(reader, std::forward<Args>(args)...) } -> std::same_as<T>;
 };
 
 /**
@@ -884,9 +779,6 @@ struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
 template <class T>
 struct ExtVar : Var<T, ExtVar<T>> {
  public:
-  /// The inner function.
-  std::function<auto(Reader& in)->T> inner;
-
   /**
    * Constructor.
    *
@@ -894,7 +786,8 @@ struct ExtVar : Var<T, ExtVar<T>> {
    * @param args The second to last arguments to the function `T::read`.
    */
   template <class... Args>
-  explicit ExtVar(std::string name, Args... args);
+  explicit ExtVar(std::string name, Args... args)
+    requires Readable<T, Args...>;
 
   /**
    * Read from reader.
@@ -906,6 +799,10 @@ struct ExtVar : Var<T, ExtVar<T>> {
    * @return The result of `T::read`.
    */
   auto read_from(Reader& in) const -> T override;
+
+ private:
+  /// The inner function that encapsulates the call to T::read.
+  std::function<T(Reader&)> inner_function_;
 };
 
 using i8 = Int<std::int8_t>;

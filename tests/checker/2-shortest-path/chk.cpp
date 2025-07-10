@@ -10,14 +10,13 @@
 
 #include <map>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "cplib.hpp"
 
 using namespace cplib;
-
-CPLIB_REGISTER_CHECKER(chk);
 
 struct Edge {
   int u, v, w;
@@ -54,36 +53,50 @@ struct Output {
     auto [sum, len] = in(var::i32("sum", 0, std::nullopt), var::i32("len", 1, std::nullopt));
     auto plan = in.read(var::i32("plan", 1, input.n) * len);
 
-    if (plan.front() != 1) in.fail("Plan should begin with 1");
-    if (plan.back() != input.n) in.fail("Plan should end with n");
+    if (plan.empty()) {
+      in.fail("Plan cannot be empty");
+    }
+    if (plan.front() != 1) {
+      in.fail("Plan should begin with 1");
+    }
+    if (plan.back() != input.n) {
+      in.fail("Plan should end with n");
+    }
+    if ((int)plan.size() != len) {
+      in.fail(format("Plan length ({}) does not match reported len ({})", plan.size(), len));
+    }
+
     int result_sum = 0;
     for (int i = 1; i < (int)plan.size(); ++i) {
-      if (!input.graph.count({plan[i - 1], plan[i]}))
+      if (!input.graph.count({plan[i - 1], plan[i]})) {
         in.fail(format("Edge {} <-> {} does not exist", plan[i - 1], plan[i]));
+      }
       result_sum += input.graph.at({plan[i - 1], plan[i]});
     }
-    if (result_sum != sum) in.fail("Plan and shortest path length do not match");
+
+    if (result_sum != sum) {
+      in.fail(format("Calculated path sum ({}) from plan does not match reported sum ({})",
+                     result_sum, sum));
+    }
 
     return {sum, len, plan};
   }
 
-  static void check(const Output& expected, const Output& result) {
-    if (result.sum > expected.sum)
-      chk.quit_wa(format("Wrong sum, expected {}, got {}", expected.sum, result.sum));
+  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+                                   const Input&) {
+    auto res = evaluate::Result::ac();
 
-    if (result.sum < expected.sum)
-      panic(format("Contestant answers are better than standard answers, expected {}, got {}",
-                   expected.sum, result.sum));
+    if (pans.sum < jans.sum) {
+      ev.fail(
+          format("Participant's path sum ({}) is less than judge's path sum ({})! This indicates a "
+                 "judge error.",
+                 pans.sum, jans.sum));
+    }
+
+    res &= ev.eq("sum", pans.sum, jans.sum);
+
+    return res;
   }
 };
 
-void checker_main() {
-  auto input = chk.inf.read(var::ExtVar<Input>("input"));
-
-  auto output = var::ExtVar<Output>("output", input);
-  auto ouf_output = chk.ouf.read(output);
-  auto ans_output = chk.ans.read(output);
-
-  Output::check(ans_output, ouf_output);
-  chk.quit_ac();
-}
+CPLIB_REGISTER_CHECKER(chk, Input, Output);

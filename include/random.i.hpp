@@ -90,7 +90,7 @@ template <class T>
 inline auto rand_int_between(Random::Engine& rnd, T l, T r) -> T {
   using UnsignedT = std::make_unsigned_t<T>;
 
-  if (l > r) panic("rand_int_between failed: l must be <= r");
+  if (l > r) panic("Rand_int_between failed: l must be <= r");
 
   UnsignedT size = r - l;
   if (size == std::numeric_limits<UnsignedT>::max()) {
@@ -110,7 +110,7 @@ inline auto rand_float(Random::Engine& rnd) -> T {
 /// Get random float in [l,r).
 template <class T>
 inline auto rand_float_between(Random::Engine& rnd, T l, T r) -> T {
-  if (l > r) panic("rand_float_between failed: l must be <= r");
+  if (l > r) panic("Rand_float_between failed: l must be <= r");
 
   T size = r - l;
   if (float_delta(l, r) <= 1E-9) return l;

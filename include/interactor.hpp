@@ -17,7 +17,6 @@
 #define CPLIB_INTERACTOR_HPP_
 
 #include <cstdint>
-#include <map>
 #include <memory>
 #include <ostream>
 #include <streambuf>
@@ -27,6 +26,7 @@
 
 /* cplib_embed_ignore start */
 #include "random.hpp"
+#include "trace.hpp"
 #include "var.hpp"
 /* cplib_embed_ignore end */
 
@@ -122,11 +122,11 @@ struct Initializer {
  protected:
   auto state() -> State&;
 
-  auto set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
-  auto set_from_user_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void;
+  auto set_inf_fileno(int fileno, trace::Level trace_level) -> void;
+  auto set_from_user_fileno(int fileno, trace::Level trace_level) -> void;
   auto set_to_user_fileno(int fileno) -> void;
-  auto set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
-  auto set_from_user_path(std::string_view path, var::Reader::TraceLevel trace_level) -> void;
+  auto set_inf_path(std::string_view path, trace::Level trace_level) -> void;
+  auto set_from_user_path(std::string_view path, trace::Level trace_level) -> void;
   auto set_to_user_path(std::string_view path) -> void;
 
  private:
@@ -142,11 +142,10 @@ struct Reporter {
 
   [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
-  auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
-  auto detach_trace_stack(const std::string& stream) -> void;
+  auto attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
 
  protected:
-  std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
+  std::vector<trace::TraceStack<var::ReaderTrace>> trace_stacks_{};
 };
 
 /**

@@ -8,17 +8,17 @@ Trace 是 CPLib 的特色功能，它可以记录变量读入时的包含关系�
 
 Trace 的原理是在使用 `cplib::var::Reader::read` 读取变量时维护一个变量包含关系组成的栈（或同时有树），在即将读入变量时将输入流当前的行列位置、字节序数、变量名称等信息入栈（或在树上当前结点添加叶子），在变量读入结束时候出栈（或回溯至树上的父亲结点）．
 
-CPLib 中具有两种形式的 trace：trace stack 和 trace tree，分别对应栈和树．其中，trace stack 仅包含变量基本信息，而 trace tree 允许在结点上添加附加 JSON tag 来描述附加信息．
+CPLib 中具有两种形式的 trace：trace stack 和 trace tree，分别对应栈和树．其中，trace stack 仅包含变量基本信息，而 trace tree 允许在结点上添加附加 tag 来描述附加信息．
 
-## JSON Tag
+## Tag
 
-你可以在 trace tree 的结点上添加 JSON tag 来描述更加详细的信息．JSON tag 是一个字符串键名到任意 CPLib 所支持的 JSON value 的映射．
+你可以在 trace tree 的结点上添加 tag 来描述更加详细的信息．Tag 是一个字符串键名到任意 CPLib 所支持的 JSON value 的映射．
 
-在实现自定义类型（如 `FnVar` 或 `ExtVar`）时，可以调用 `in.attach_json_tag(key, value)` 来自定义一个键名为 `key`，值为 `value` 附加信息（`in` 是当前读入的 Reader）．`key` 不要重复，否则后定义的会覆盖先定义的．
+在实现自定义类型（如 `FnVar` 或 `ExtVar`）时，可以调用 `in.attach_tag(key, value)` 来自定义一个键名为 `key`，值为 `value` 附加信息（`in` 是当前读入的 Reader）．`key` 不要重复，否则后定义的会覆盖先定义的．
 
 CPLib 内置变量读入模版（`cplib::var::Separator` 除外）在读入变量结束时会添加一个键 `#t` 表示变量的类型．若读入的类型属于基本类型或字符串，还会额外添加一个键 `#v` 表示变量读入到的值．变量读入模版和 `#t` 的值对应如下：
 
-|     Var     | #t  |
+| Var         | #t  |
 | ----------- | --- |
 | Int         | i   |
 | Float       | f   |
@@ -53,7 +53,7 @@ CPLib 中与 trace 相关的接口如下．
 
 在使用 `DefaultInitializer` 的默认情况下，validator 模式的 inf 读入器具有 `FULL` 级别，其他模式下的 Reader 均具有 `STACK_ONLY` 级别．
 
-你可以使用 `CPLIB_VAR_READER_TRACE_LEVEL_MAX` 宏来设置 DefaultInitializer 使用的最高 trace level．具体方式可以在编译时添加命令行参数 `-DCPLIB_VAR_READER_TRACE_LEVEL_MAX={int}` 或在 `#include "cplib.h"` 之前定义 `#define CPLIB_VAR_READER_TRACE_LEVEL_MAX {int}`．
+你可以使用 `CPLIB_READER_TRACE_LEVEL_MAX` 宏来设置 DefaultInitializer 使用的最高 trace level．具体方式可以在编译时添加命令行参数 `-DCPLIB_READER_TRACE_LEVEL_MAX={int}` 或在 `#include "cplib.h"` 之前定义 `#define CPLIB_READER_TRACE_LEVEL_MAX {int}`．
 
 你可以使用 `cplib::var::Reader::get_trace_level()` 方法获取当前 Reader 的 trace level．
 
@@ -81,7 +81,7 @@ CPLib 中与 trace 相关的接口如下．
 
 表示 trace tree 上的一个结点．
 
-字段 `trace` 以 `cplib::var::Reader::Trace` 类型记录变量基本信息，`json_tag` 记录变量附加信息．
+字段 `trace` 以 `cplib::var::Reader::Trace` 类型记录变量基本信息，`tags` 记录变量附加信息．
 
 提供 `get_children()` 方法获取当前结点的子节点；`get_parent()` 方法获取当前结点的父结点，若不存在返回 `nullptr`．
 

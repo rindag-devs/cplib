@@ -55,7 +55,7 @@ inline Pattern::Pattern(std::string src)
   // regular expression contains `^` or `$`.
   if (int err = regcomp(&re_->first, ("^" + src_ + "$").c_str(), REG_EXTENDED | REG_NOSUB); err) {
     auto err_msg = detail::get_regex_err_msg(err, &re_->first);
-    panic("pattern constructor failed: " + err_msg);
+    panic("Pattern constructor failed: " + err_msg);
   }
   re_->second = true;
 }
@@ -68,7 +68,7 @@ inline auto Pattern::match(std::string_view s) const -> bool {
   if (result == REG_NOMATCH) return false;
 
   auto err_msg = detail::get_regex_err_msg(result, &re_->first);
-  panic("pattern match failed: " + err_msg);
+  panic("Pattern match failed: " + err_msg);
   return false;
 }
 

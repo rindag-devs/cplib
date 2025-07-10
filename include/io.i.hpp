@@ -32,7 +32,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <ios>
-#include <map>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -54,14 +53,12 @@ inline Position::Position() : line(0), col(0), byte(0) {}
 inline Position::Position(std::size_t line, std::size_t col, std::size_t byte)
     : line(line), col(col), byte(byte) {}
 
-inline auto Position::to_json() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-
-  map.emplace("line", std::make_unique<json::Int>(line));
-  map.emplace("col", std::make_unique<json::Int>(col));
-  map.emplace("byte", std::make_unique<json::Int>(byte));
-
-  return std::make_unique<json::Map>(std::move(map));
+inline auto Position::to_json() const -> json::Map {
+  return {
+      {"line", json::Value(static_cast<json::Int>(line))},
+      {"col", json::Value(static_cast<json::Int>(col))},
+      {"byte", json::Value(static_cast<json::Int>(byte))},
+  };
 }
 
 InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {

@@ -27,6 +27,7 @@
 
 /* cplib_embed_ignore start */
 #include "random.hpp"
+#include "trace.hpp"
 #include "var.hpp"
 /* cplib_embed_ignore end */
 
@@ -147,8 +148,8 @@ struct Initializer {
  protected:
   auto state() -> State&;
 
-  auto set_inf_fileno(int fileno, var::Reader::TraceLevel level) -> void;
-  auto set_inf_path(std::string_view path, var::Reader::TraceLevel level) -> void;
+  auto set_inf_fileno(int fileno, trace::Level level) -> void;
+  auto set_inf_path(std::string_view path, trace::Level level) -> void;
 
  private:
   State* state_{};
@@ -163,16 +164,15 @@ struct Reporter {
 
   [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
 
-  auto attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void;
-  auto detach_trace_stack(const std::string& stream) -> void;
+  auto attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
 
-  auto attach_trace_tree(const var::Reader::TraceTreeNode* root) -> void;
+  auto attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* root) -> void;
 
   auto attach_trait_status(const std::map<std::string, bool>& trait_status) -> void;
 
  protected:
-  std::map<std::string, var::Reader::TraceStack> trace_stacks_{};
-  const var::Reader::TraceTreeNode* trace_tree_{};
+  std::vector<trace::TraceStack<var::ReaderTrace>> trace_stacks_{};
+  const trace::TraceTreeNode<var::ReaderTrace>* trace_tree_{};
   std::map<std::string, bool> trait_status_{};
 };
 

@@ -8,17 +8,17 @@ Trace is a distinctive feature of CPLib, which can record the inclusion relation
 
 The principle of Trace is to maintain a stack (or a tree at the same time) composed of the inclusion relationship of variables when using `cplib::var::Reader::read` to read variables. When a variable is about to be read in, the current line and column position, byte sequence number, variable name, and other information of the input stream are pushed onto the stack (or added as a leaf node to the current node in the tree). When the variable reading is completed, it is popped off the stack (or backtracked to the parent node in the tree).
 
-CPLib has two forms of trace: trace stack and trace tree, corresponding to the stack and tree respectively. Among them, the trace stack only contains basic information about the variables, while the trace tree allows additional JSON tags to be added to the nodes to describe additional information.
+CPLib has two forms of trace: trace stack and trace tree, corresponding to the stack and tree respectively. Among them, the trace stack only contains basic information about the variables, while the trace tree allows additional tags to be added to the nodes to describe additional information.
 
-## JSON Tag
+## Tag
 
-You can add JSON tags to the nodes of the trace tree to describe more detailed information. A JSON tag is a mapping from a string key name to any JSON value supported by CPLib.
+You can add tags to the nodes of the trace tree to describe more detailed information. A tag is a mapping from a string key name to any JSON value supported by CPLib.
 
-When implementing custom types (such as `FnVar` or `ExtVar`), you can call `in.attach_json_tag(key, value)` to customize a key-value pair of additional information (where `in` is the current Reader being read). The `key` should not be repeated, otherwise the later defined one will overwrite the earlier one.
+When implementing custom types (such as `FnVar` or `ExtVar`), you can call `in.attach_tag(key, value)` to customize a key-value pair of additional information (where `in` is the current Reader being read). The `key` should not be repeated, otherwise the later defined one will overwrite the earlier one.
 
 The built-in variable read-in templates (except `cplib::var::Separator`) in CPLib will add a key `#t` at the end of the variable reading to indicate the type of the variable. If the read-in type is a basic type or a string, an additional key `#v` will be added to indicate the value read-in. The variable read-in templates and the corresponding values of `#t` are as follows:
 
-|     Var     | #t  |
+| Var         | #t  |
 | ----------- | --- |
 | Int         | i   |
 | Float       | f   |
@@ -33,10 +33,11 @@ The built-in variable read-in templates (except `cplib::var::Separator`) in CPLi
 | FnVar       | F   |
 | ExtVar      | E   |
 
-`#hidden` is a special key, and if this key (regardless of the value) exists in the JSON tag of a node, the nodes in the subtree of the current node will be ignored when encoded as JSON. The variable read-in template `cplib::var::Separator` will add `#hidden` to the current node when the reading is completed.
+`#hidden` is a special key, and if this key (regardless of the value) exists in the tag of a node, the nodes in the subtree of the current node will be ignored when encoded as JSON. The variable read-in template `cplib::var::Separator` will add `#hidden` to the current node when the reading is completed.
 
 <Callout type="warning">
-  Key names starting with `#` are all considered reserved or have special purposes by CPLib. It is best not to use special prefixes when customizing additional information.
+  Key names starting with `#` are all considered reserved or have special purposes by CPLib. It is
+  best not to use special prefixes when customizing additional information.
 </Callout>
 
 ## Interface
@@ -53,7 +54,7 @@ The interfaces related to trace in CPLib are as follows.
 
 In the default case of using `DefaultInitializer`, the inf reader in validator mode has a `FULL` level, while the Reader in other modes has a `STACK_ONLY` level.
 
-You can use the `CPLIB_VAR_READER_TRACE_LEVEL_MAX` macro to set the maximum trace level used by the DefaultInitializer. The specific method is to add the command line argument `-DCPLIB_VAR_READER_TRACE_LEVEL_MAX={int}` at compile time, or define `#define CPLIB_VAR_READER_TRACE_LEVEL_MAX {int}` before `#include "cplib.h"`.
+You can use the `CPLIB_READER_TRACE_LEVEL_MAX` macro to set the maximum trace level used by the DefaultInitializer. The specific method is to add the command line argument `-DCPLIB_READER_TRACE_LEVEL_MAX={int}` at compile time, or define `#define CPLIB_READER_TRACE_LEVEL_MAX {int}` before `#include "cplib.h"`.
 
 You can use the `cplib::var::Reader::get_trace_level()` method to get the trace level of the Reader.
 
@@ -81,7 +82,7 @@ For Readers with `STACK_ONLY` or higher level enabled, you can use the `cplib::v
 
 Represents a node in the trace tree.
 
-The `trace` field records the basic information of the variable in the `cplib::var::Reader::Trace` type, and the `json_tag` field records the additional information of the variable.
+The `trace` field records the basic information of the variable in the `cplib::var::Reader::Trace` type, and the `tags` field records the additional information of the variable.
 
 It provides the `get_children()` method to get the child nodes of the current node, and the `get_parent()` method to get the parent node of the current node, which returns `nullptr` if it does not exist.
 

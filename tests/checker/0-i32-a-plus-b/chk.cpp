@@ -12,17 +12,24 @@
 
 using namespace cplib;
 
-CPLIB_REGISTER_CHECKER(chk);
+struct Input {
+  static Input read(var::Reader&) { return {}; }
+};
 
-void checker_main() {
-  auto var_ans = var::i32("ans", -2000, 2000);
+struct Output {
+  int ans;
 
-  int ouf_output = chk.ouf.read(var_ans);
-  int ans_output = chk.ans.read(var_ans);
-
-  if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
+  static Output read(var::Reader& in, const Input&) {
+    auto ans = in.read(var::i32("ans", -2000, 2000));
+    return {ans};
   }
 
-  chk.quit_ac();
-}
+  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+                                   const Input&) {
+    auto res = evaluate::Result::ac();
+    res &= ev.eq("ans", pans.ans, jans.ans);
+    return res;
+  }
+};
+
+CPLIB_REGISTER_CHECKER(chk, Input, Output);

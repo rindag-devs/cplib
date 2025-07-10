@@ -12,23 +12,31 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <utility>
+#include <optional>
 #include <vector>
 
 #include "cplib.hpp"
 
 using namespace cplib;
 
-CPLIB_REGISTER_CHECKER(chk);
+struct Input {
+  int32_t n;
+
+  static Input read(var::Reader& in) {
+    int32_t n = in.read(var::i32("n"));
+    return {n};
+  }
+};
 
 struct Set : std::vector<int32_t> {
-  static Set read(var::Reader& in, int32_t n) {
-    auto len = in.read(var::i32("len", 1, n));
-    auto result = in.read(var::i32("set", 1, n) * len);
+  static Set read(var::Reader& in, const Input& input) {
+    auto len = in.read(var::i32("len", 1, input.n));
+    auto result = in.read(var::i32("set", 1, input.n) * len);
 
     std::sort(result.begin(), result.end());
-    if (std::unique(result.begin(), result.end()) != result.end())
+    if (std::unique(result.begin(), result.end()) != result.end()) {
       in.fail("Elements of set are not unique");
+    }
 
     return {result};
   }
@@ -38,27 +46,21 @@ struct Output {
   int32_t len;
   std::vector<Set> sets;
 
-  static Output read(var::Reader& in, int32_t n) {
+  static Output read(var::Reader& in, const Input& input) {
     auto len = in.read(var::i32("len", 0, std::nullopt));
-    auto sets = in.read(var::ExtVar<Set>("sets", n) * len);
+    auto sets = in.read(var::ExtVar<Set>("sets", input) * len);
+
     std::sort(sets.begin(), sets.end());
     return {len, sets};
   }
 
-  static void check(const Output& expected, const Output& result) {
-    if (expected.len != result.len)
-      chk.quit_wa(format("Wrong number of sets, expected {}, got {}", expected.len, result.len));
-    if (expected.sets != result.sets) chk.quit_wa("Wrong sets");
+  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+                                   const Input&) {
+    auto res = evaluate::Result::ac();
+    res &= ev.eq("len", pans.len, jans.len);
+    res &= ev.eq("sets", pans.sets, jans.sets);
+    return res;
   }
 };
 
-void checker_main() {
-  auto n = chk.inf.read(var::i32("n"));
-
-  auto output = var::ExtVar<Output>("output", n);
-  auto ouf_output = chk.ouf.read(output);
-  auto ans_output = chk.ans.read(output);
-
-  Output::check(ans_output, ouf_output);
-  chk.quit_ac();
-}
+CPLIB_REGISTER_CHECKER(chk, Input, Output);

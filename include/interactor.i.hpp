@@ -14,7 +14,6 @@
  */
 
 /* cplib_embed_ignore start */
-#include "io.hpp"
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
 #include "interactor.hpp"  // IWYU pragma: associated
@@ -25,11 +24,12 @@
 #endif
 /* cplib_embed_ignore end */
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
-#include <map>
+#include <iterator>
 #include <memory>
 #include <ostream>
 #include <string>
@@ -39,8 +39,10 @@
 
 /* cplib_embed_ignore start */
 #include "cmd_args.hpp"
+#include "io.hpp"
 #include "json.hpp"
 #include "macros.hpp"
+#include "trace.hpp"
 #include "utils.hpp"
 #include "var.hpp"
 /* cplib_embed_ignore end */
@@ -75,23 +77,22 @@ inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
 
 inline auto Initializer::state() -> State& { return *state_; };
 
-inline auto Initializer::set_inf_fileno(int fileno, var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         panic(msg);
       });
 }
 
-inline auto Initializer::set_from_user_fileno(int fileno, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_from_user_fileno(int fileno, trace::Level trace_level) -> void {
   state_->from_user = var::detail::make_reader_by_fileno(
       fileno, "from_user", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         state_->quit_wa(msg);
@@ -102,24 +103,23 @@ inline auto Initializer::set_to_user_fileno(int fileno) -> void {
   io::detail::make_ostream_by_fileno(fileno, state_->to_user_buf, state_->to_user);
 }
 
-inline auto Initializer::set_inf_path(std::string_view path, var::Reader::TraceLevel trace_level)
-    -> void {
+inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         panic(msg);
       });
 }
 
-inline auto Initializer::set_from_user_path(std::string_view path,
-                                            var::Reader::TraceLevel trace_level) -> void {
+inline auto Initializer::set_from_user_path(std::string_view path, trace::Level trace_level)
+    -> void {
   state_->from_user = var::detail::make_reader_by_path(
       path, "from_user", false, trace_level,
       [this, trace_level](const var::Reader& reader, std::string_view msg) {
-        if (trace_level >= var::Reader::TraceLevel::STACK_ONLY) {
+        if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
         state_->quit_wa(msg);
@@ -132,19 +132,15 @@ inline auto Initializer::set_to_user_path(std::string_view path) -> void {
 
 inline Reporter::~Reporter() = default;
 
-inline auto Reporter::attach_trace_stack(const var::Reader::TraceStack& trace_stack) -> void {
-  trace_stacks_.emplace(std::string(trace_stack.stream), trace_stack);
-}
-
-inline auto Reporter::detach_trace_stack(const std::string& stream) -> void {
-  trace_stacks_.erase(stream);
+inline auto Reporter::attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void {
+  trace_stacks_.emplace_back(std::move(trace_stack));
 }
 
 // Impl State {{{
 inline State::State(std::unique_ptr<Initializer> initializer)
     : rnd(),
-      inf(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
-      from_user(var::Reader(nullptr, var::Reader::TraceLevel::NONE, {})),
+      inf(var::Reader(nullptr, trace::Level::NONE, {})),
+      from_user(var::Reader(nullptr, trace::Level::NONE, {})),
       to_user(std::ostream(nullptr)),
       to_user_buf(nullptr),
       initializer(std::move(initializer)),
@@ -274,8 +270,8 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   }
   auto inf_path = parsed_args.ordered[0];
 
-  set_inf_path(inf_path, var::Reader::TraceLevel::STACK_ONLY);
-  set_from_user_fileno(fileno(stdin), var::Reader::TraceLevel::STACK_ONLY);
+  set_inf_path(inf_path, trace::Level::STACK_ONLY);
+  set_from_user_fileno(fileno(stdin), trace::Level::STACK_ONLY);
   set_to_user_fileno(fileno(stdout));
 
   detail::disable_stdio();
@@ -318,21 +314,22 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }  // namespace detail
 
 inline auto JsonReporter::report(const Report& report) -> int {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
-  map.emplace("score", std::make_unique<json::Real>(report.score));
-  map.emplace("message", std::make_unique<json::String>(report.message));
+  json::Map map{
+      {"status", json::Value(json::String(report.status.to_string()))},
+      {"score", json::Value(report.score)},
+      {"message", json::Value(report.message)},
+  };
 
   if (!trace_stacks_.empty()) {
-    std::map<std::string, std::unique_ptr<json::Value>> trace_stacks_map;
-    for (const auto& [name, stack] : trace_stacks_) {
-      trace_stacks_map.emplace(name, stack.to_json());
-    }
-    map.emplace("reader_trace_stacks", std::make_unique<json::Map>(std::move(trace_stacks_map)));
+    json::List trace_stacks;
+    trace_stacks.reserve(trace_stacks_.size());
+    std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
+                           [](auto& s) { return json::Value(s.to_json()); });
+    map.emplace("reader_trace_stacks", trace_stacks);
   }
 
   std::ostream stream(std::clog.rdbuf());
-  stream << json::Map(std::move(map)).to_string() << '\n';
+  stream << json::Value(std::move(map)).to_string() << '\n';
   return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
@@ -342,13 +339,13 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
   stream << std::fixed << std::setprecision(2) << detail::status_to_title_string(report.status)
          << ", scores " << report.score * 100.0 << " of 100.\n";
 
-  if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
+  if (!report.message.empty()) {
     stream << report.message << '\n';
   }
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& [_, stack] : trace_stacks_) {
+    for (const auto& stack : trace_stacks_) {
       for (const auto& line : stack.to_plain_text_lines()) {
         stream << '\n' << "  " << line;
       }
@@ -365,13 +362,13 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
   stream << std::fixed << std::setprecision(2)
          << detail::status_to_colored_title_string(report.status) << ", scores \x1b[0;33m"
          << report.score * 100.0 << "\x1b[0m of 100.\n";
-  if (report.status != Report::Status::ACCEPTED || !report.message.empty()) {
+  if (!report.message.empty()) {
     stream << report.message << '\n';
   }
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& [_, stack] : trace_stacks_) {
+    for (const auto& stack : trace_stacks_) {
       for (const auto& line : stack.to_colored_text_lines()) {
         stream << '\n' << "  " << line;
       }

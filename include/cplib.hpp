@@ -25,6 +25,8 @@
 #include "pattern.hpp"
 #include "random.hpp"
 #include "io.hpp"
+#include "trace.hpp"
+#include "evaluate.hpp"
 #include "var.hpp"
 #include "cmd_args.hpp"
 #include "checker.hpp"

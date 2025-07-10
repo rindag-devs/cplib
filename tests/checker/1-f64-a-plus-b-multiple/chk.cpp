@@ -11,43 +11,40 @@
  * ```
  */
 
-#include <cstdint>
+#include <string>
 #include <vector>
 
 #include "cplib.hpp"
 
 using namespace cplib;
 
-CPLIB_REGISTER_CHECKER(chk);
-
 constexpr double MAX_ERR = 1e-6;
+
+struct Input {
+  int n;
+
+  static Input read(var::Reader& in) {
+    int n = in.read(var::i32("n"));
+    return {n};
+  }
+};
 
 struct Output {
   std::vector<double> ans;
 
-  static Output read(var::Reader& in, int32_t n) {
-    auto ans = in.read(var::f64("ans") * n);
+  static Output read(var::Reader& in, Input inp) {
+    auto ans = in.read(var::f64("ans") * inp.n);
     return {ans};
   }
 
-  static void check(const Output& expected, const Output& result, int32_t n) {
-    for (int32_t i = 0; i < n; ++i) {
-      if (!cplib::float_equals(expected.ans[i], result.ans[i], MAX_ERR)) {
-        auto delta = cplib::float_delta(expected.ans[i], result.ans[i]);
-        chk.quit_wa(format("ans[{}] error, expected {:.10g}, got {:.10g}, delta {:.10g}", i,
-                           expected.ans[i], result.ans[i], delta));
-      }
+  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+                                   Input inp) {
+    auto res = evaluate::Result::ac();
+    for (int i = 0; i < inp.n; ++i) {
+      res &= ev.approx(std::to_string(i), pans.ans[i], jans.ans[i], MAX_ERR);
     }
+    return res;
   }
 };
 
-void checker_main() {
-  auto n = chk.inf.read(var::i32("n"));
-
-  auto output = var::ExtVar<Output>("output", n);
-  auto ouf_output = chk.ouf.read(output);
-  auto ans_output = chk.ans.read(output);
-
-  Output::check(ans_output, ouf_output, n);
-  chk.quit_ac();
-}
+CPLIB_REGISTER_CHECKER(chk, Input, Output);

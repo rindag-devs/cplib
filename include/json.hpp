@@ -18,78 +18,50 @@
 
 #include <cstdint>
 #include <map>
-#include <memory>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace cplib::json {
 
+struct Value;
+
+using String = std::string;
+using Int = std::int64_t;
+using Real = double;
+using Bool = bool;
+using List = std::vector<Value>;
+using Map = std::map<std::string, Value>;
+
 struct Value {
-  virtual ~Value() = 0;
+  std::variant<String, Int, Real, Bool, List, Map> inner;
 
-  [[nodiscard]] virtual auto clone() const -> std::unique_ptr<Value> = 0;
+  [[nodiscard]] auto to_string() const -> std::string;
 
-  virtual auto to_string() -> std::string = 0;
-};
+  [[nodiscard]] auto is_string() const -> bool;
+  [[nodiscard]] auto is_int() const -> bool;
+  [[nodiscard]] auto is_real() const -> bool;
+  [[nodiscard]] auto is_bool() const -> bool;
+  [[nodiscard]] auto is_list() const -> bool;
+  [[nodiscard]] auto is_map() const -> bool;
 
-struct String : Value {
-  std::string inner;
+  [[nodiscard]] auto as_string() -> String &;
+  [[nodiscard]] auto as_string() const -> const String &;
 
-  explicit String(std::string inner);
+  [[nodiscard]] auto as_int() -> Int &;
+  [[nodiscard]] auto as_int() const -> const Int &;
 
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
+  [[nodiscard]] auto as_real() -> Real &;
+  [[nodiscard]] auto as_real() const -> const Real &;
 
-  auto to_string() -> std::string override;
-};
+  [[nodiscard]] auto as_bool() -> Bool &;
+  [[nodiscard]] auto as_bool() const -> const Bool &;
 
-struct Int : Value {
-  std::int64_t inner;
+  [[nodiscard]] auto as_list() -> List &;
+  [[nodiscard]] auto as_list() const -> const List &;
 
-  explicit Int(std::int64_t inner);
-
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
-
-  auto to_string() -> std::string override;
-};
-
-struct Real : Value {
-  double inner;
-
-  explicit Real(double inner);
-
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
-
-  auto to_string() -> std::string override;
-};
-
-struct Bool : Value {
-  bool inner;
-
-  explicit Bool(bool inner);
-
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
-
-  auto to_string() -> std::string override;
-};
-
-struct List : Value {
-  std::vector<std::unique_ptr<Value>> inner;
-
-  explicit List(std::vector<std::unique_ptr<Value>> inner);
-
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
-
-  auto to_string() -> std::string override;
-};
-
-struct Map : Value {
-  std::map<std::string, std::unique_ptr<Value>> inner;
-
-  explicit Map(std::map<std::string, std::unique_ptr<Value>> inner);
-
-  [[nodiscard]] auto clone() const -> std::unique_ptr<Value> override;
-
-  auto to_string() -> std::string override;
+  [[nodiscard]] auto as_map() -> Map &;
+  [[nodiscard]] auto as_map() const -> const Map &;
 };
 
 }  // namespace cplib::json

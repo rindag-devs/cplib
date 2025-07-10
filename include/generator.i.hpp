@@ -273,12 +273,13 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }  // namespace detail
 
 inline auto JsonReporter::report(const Report& report) -> int {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  map.emplace("status", std::make_unique<json::String>(std::string(report.status.to_string())));
-  map.emplace("message", std::make_unique<json::String>(report.message));
+  json::Map map{
+      {"status", json::Value(json::String(report.status.to_string()))},
+      {"message", json::Value(report.message)},
+  };
 
   std::ostream stream(std::clog.rdbuf());
-  stream << json::Map(std::move(map)).to_string() << '\n';
+  stream << json::Value(std::move(map)).to_string() << '\n';
   return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

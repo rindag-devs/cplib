@@ -1,0 +1,1 @@
+{"evaluator_trace_stacks":[{"fatal":true,"stack":[{"var_name":"<eval>"},{"var_name":"output"}]}],"message":"Participant's path sum (2) is less than judge's path sum (4)! This indicates a judge error.","score":0,"status":"internal_error"}

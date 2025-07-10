@@ -28,13 +28,12 @@
 #include <cctype>
 #include <charconv>
 #include <cmath>
-#include <cstdint>
+#include <concepts>
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
 #include <ios>
 #include <iostream>
-#include <map>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -49,144 +48,52 @@
 #include "io.hpp"
 #include "json.hpp"
 #include "pattern.hpp"
+#include "trace.hpp"
 #include "utils.hpp"
 /* cplib_embed_ignore end */
 
 namespace cplib::var {
 
-inline Reader::Trace::Trace(std::string var_name, io::Position pos)
+inline ReaderTrace::ReaderTrace(std::string var_name, io::Position pos)
     : var_name(std::move(var_name)), pos(pos) {}
 
-[[nodiscard]] inline auto Reader::Trace::to_json_incomplete() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  map.emplace("var_name", std::make_unique<json::String>(var_name));
-  map.emplace("pos", pos.to_json());
+[[nodiscard]] inline auto ReaderTrace::node_name() const -> std::string { return var_name; }
 
-  return std::make_unique<json::Map>(std::move(map));
+[[nodiscard]] inline auto ReaderTrace::to_plain_text() const -> std::string {
+  return cplib::format("{} @ line {}, col {}, byte {}", var_name, pos.line + 1, pos.col + 1,
+                       pos.byte + 1);
 }
 
-[[nodiscard]] inline auto Reader::Trace::to_json_complete() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  map.emplace("n", std::make_unique<json::String>(var_name));
-  map.emplace("b", std::move(pos.to_json()->inner.at("byte")));
-  map.emplace("l", std::make_unique<json::Int>(byte_length));
-
-  return std::make_unique<json::Map>(std::move(map));
+[[nodiscard]] inline auto ReaderTrace::to_colored_text() const -> std::string {
+  return cplib::format(
+      "\x1b[0;33m{}\x1b[0m @ line \x1b[0;33m{}\x1b[0m, col \x1b[0;33m{}\x1b[0m, byte "
+      "\x1b[0;33m{}\x1b[0m",
+      var_name, pos.line + 1, pos.col + 1, pos.byte + 1);
 }
 
-[[nodiscard]] inline auto Reader::TraceStack::to_json() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-  std::vector<std::unique_ptr<json::Value>> stack_list;
-
-  stack_list.reserve(stack.size());
-  for (const auto& trace : stack) {
-    stack_list.emplace_back(trace.to_json_incomplete());
-  }
-
-  map.emplace("stack", std::make_unique<json::List>(std::move(stack_list)));
-  map.emplace("fatal", std::make_unique<json::Bool>(fatal));
-  return std::make_unique<json::Map>(std::move(map));
+[[nodiscard]] inline auto ReaderTrace::to_stack_json() const -> json::Value {
+  return {json::Map{
+      {"var_name", json::Value(var_name)},
+      {"pos", json::Value(pos.to_json())},
+  }};
 }
 
-[[nodiscard]] inline auto Reader::TraceStack::to_plain_text_lines() const
-    -> std::vector<std::string> {
-  std::vector<std::string> lines;
-  lines.reserve(stack.size() + 1);
-
-  auto stream_line = std::string("Stream: ") + stream;
-  if (fatal) {
-    stream_line += " [fatal]";
-  }
-  lines.emplace_back(stream_line);
-
-  std::size_t id = 0;
-  for (const auto& trace : stack) {
-    auto line = cplib::format("#{}: {} @ line {}, col {}, byte {}", id, trace.var_name,
-                              trace.pos.line + 1, trace.pos.col + 1, trace.pos.byte + 1);
-    ++id;
-    lines.emplace_back(std::move(line));
-  }
-
-  return lines;
+[[nodiscard]] inline auto ReaderTrace::to_tree_json() const -> json::Value {
+  return {json::Map{
+      {"n", json::Value(var_name)},
+      {"b", json::Value(static_cast<json::Int>(pos.byte))},
+      {"l", json::Value(static_cast<json::Int>(byte_length))},
+  }};
 }
 
-[[nodiscard]] inline auto Reader::TraceStack::to_colored_text_lines() const
-    -> std::vector<std::string> {
-  std::vector<std::string> lines;
-  lines.reserve(stack.size() + 1);
-
-  auto stream_line = std::string("Stream: \x1b[0;33m") + stream + "\x1b[0m";
-  if (fatal) {
-    stream_line += " \x1b[0;31m[fatal]\x1b[0m";
-  }
-  lines.emplace_back(stream_line);
-
-  std::size_t id = 0;
-  for (const auto& trace : stack) {
-    auto line = cplib::format(
-        "#{}: \x1b[0;33m{}\x1b[0m @ line \x1b[0;33m{}\x1b[0m, col \x1b[0;33m{}\x1b[0m, byte "
-        "\x1b[0;33m{}\x1b[0m",
-        id, trace.var_name.c_str(), trace.pos.line + 1, trace.pos.col + 1, trace.pos.byte + 1);
-    ++id;
-    lines.emplace_back(std::move(line));
-  }
-
-  return lines;
-}
-
-inline Reader::TraceTreeNode::TraceTreeNode(Trace trace) : trace(std::move(trace)) {}
-
-[[nodiscard]] inline auto Reader::TraceTreeNode::get_children() const
-    -> const std::vector<std::unique_ptr<TraceTreeNode>>& {
-  return children_;
-}
-
-[[nodiscard]] inline auto Reader::TraceTreeNode::get_parent() -> TraceTreeNode* { return parent_; }
-
-[[nodiscard]] inline auto Reader::TraceTreeNode::to_json() const -> std::unique_ptr<json::Map> {
-  std::map<std::string, std::unique_ptr<json::Value>> map;
-
-  if (json_tag && json_tag->inner.count("#hidden")) {
-    return nullptr;
-  }
-
-  map.emplace("trace", trace.to_json_complete());
-
-  if (json_tag) {
-    map.emplace("tag", json_tag->clone());
-  }
-
-  const auto& children = get_children();
-  std::vector<std::unique_ptr<json::Value>> children_list;
-  children_list.reserve(children.size());
-  for (const auto& child : children) {
-    auto child_value = child->to_json();
-    if (child_value) {
-      children_list.emplace_back(std::move(child_value));
-    }
-  }
-  if (!children_list.empty()) {
-    map.emplace("children", std::make_unique<json::List>(std::move(children_list)));
-  }
-
-  return std::make_unique<json::Map>(std::move(map));
-}
-
-inline auto Reader::TraceTreeNode::add_child(std::unique_ptr<TraceTreeNode> child)
-    -> std::unique_ptr<TraceTreeNode>& {
-  child->parent_ = this;
-  return children_.emplace_back(std::move(child));
-}
-
-inline Reader::Reader(std::unique_ptr<io::InStream> inner, Reader::TraceLevel trace_level,
+inline Reader::Reader(std::unique_ptr<io::InStream> inner, trace::Level trace_level,
                       FailFunc fail_func)
-    : inner_(std::move(inner)),
-      trace_level_(static_cast<Reader::TraceLevel>(
-          std::min(static_cast<int>(trace_level), CPLIB_VAR_READER_TRACE_LEVEL_MAX))),
-      fail_func_(std::move(fail_func)),
-      trace_stack_(),
-      trace_tree_root_(std::make_unique<TraceTreeNode>(Trace("<root>", io::Position()))),
-      trace_tree_current_(trace_tree_root_.get()) {}
+    : trace::Traced<ReaderTrace>(
+          static_cast<trace::Level>(
+              std::min(static_cast<int>(trace_level), CPLIB_READER_TRACE_LEVEL_MAX)),
+          ReaderTrace(cplib::format("<{}>", inner ? inner->name() : "dummy"), io::Position())),
+      inner_(std::move(inner)),
+      fail_func_(std::move(fail_func)) {}
 
 inline auto Reader::inner() -> io::InStream& { return *inner_; }
 
@@ -201,27 +108,18 @@ template <class T, class D>
 inline auto Reader::read(const Var<T, D>& v) -> T {
   auto trace_level = get_trace_level();
 
-  if (trace_level >= TraceLevel::STACK_ONLY) {
-    Trace trace{std::string(v.name()), inner().pos()};
-    trace_stack_.emplace_back(trace);
-
-    if (trace_level >= TraceLevel::FULL) {
-      auto& child = trace_tree_current_->add_child(std::make_unique<TraceTreeNode>(trace));
-      trace_tree_current_ = child.get();
-    }
+  if (trace_level >= trace::Level::STACK_ONLY) {
+    ReaderTrace trace{std::string(v.name()), inner().pos()};
+    push_trace(trace);
   }
 
   auto result = v.read_from(*this);
 
-  if (trace_level >= TraceLevel::STACK_ONLY) {
-    trace_stack_.back().byte_length = inner().pos().byte - trace_stack_.back().pos.byte;
-    trace_stack_.pop_back();
-
-    if (trace_level >= TraceLevel::FULL) {
-      trace_tree_current_->trace.byte_length =
-          inner().pos().byte - trace_tree_current_->trace.pos.byte;
-      trace_tree_current_ = trace_tree_current_->get_parent();
-    }
+  if (trace_level >= trace::Level::STACK_ONLY) {
+    auto trace = get_current_trace();
+    trace.byte_length = inner().pos().byte - trace.pos.byte;
+    set_current_trace(std::move(trace));
+    pop_trace();
   }
   return result;
 }
@@ -231,37 +129,10 @@ inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::Target.
   return {read(vars)...};
 }
 
-[[nodiscard]] inline auto Reader::get_trace_level() const -> TraceLevel { return trace_level_; }
-
-[[nodiscard]] inline auto Reader::make_trace_stack(bool fatal) const -> TraceStack {
-  return {.stack = trace_stack_, .stream = std::string(inner_->name()), .fatal = fatal};
-}
-
-[[nodiscard]] inline auto Reader::get_trace_tree() const -> const TraceTreeNode* {
-  if (get_trace_level() < TraceLevel::FULL) {
-    panic("Reader::get_trace_tree requires `TraceLevel::FULL`");
-  }
-
-  return trace_tree_root_.get();
-}
-
-inline auto Reader::attach_json_tag(std::string_view key, std::unique_ptr<json::Value> value) {
-  if (get_trace_level() < TraceLevel::FULL) {
-    panic("Reader::get_trace_tree requires `TraceLevel::FULL`");
-  }
-
-  if (!trace_tree_current_->json_tag) {
-    trace_tree_current_->json_tag =
-        std::make_unique<json::Map>(std::map<std::string, std::unique_ptr<json::Value>>{});
-  }
-
-  trace_tree_current_->json_tag->inner.emplace(key, std::move(value));
-}
-
 namespace detail {
 // Open the given file and create a `var::Reader`
 inline auto make_reader_by_path(std::string_view path, std::string name, bool strict,
-                                Reader::TraceLevel trace_level, Reader::FailFunc fail_func)
+                                trace::Level trace_level, Reader::FailFunc fail_func)
     -> var::Reader {
   auto buf = std::make_unique<io::InBuf>(path);
   return var::Reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
@@ -270,7 +141,7 @@ inline auto make_reader_by_path(std::string_view path, std::string name, bool st
 
 // Use file with givin fileno as input stream and create a `var::Reader`
 inline auto make_reader_by_fileno(int fileno, std::string name, bool strict,
-                                  Reader::TraceLevel trace_level, Reader::FailFunc fail_func)
+                                  trace::Level trace_level, Reader::FailFunc fail_func)
     -> var::Reader {
   auto buf = std::make_unique<io::InBuf>(fileno);
   var::Reader reader(std::make_unique<io::InStream>(std::move(buf), std::move(name), strict),
@@ -308,7 +179,7 @@ template <class T, class D>
 inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
   auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
-                       Reader::TraceLevel::NONE, [](const Reader&, std::string_view msg) {
+                       trace::Level::NONE, [](const Reader&, std::string_view msg) {
                          panic(std::string("Var::parse failed: ") + msg.data());
                        });
   T result = reader.read(*this);
@@ -329,21 +200,21 @@ inline Var<T, D>::Var() : name_(std::string(detail::VAR_DEFAULT_NAME)) {}
 template <class T, class D>
 inline Var<T, D>::Var(std::string name) : name_(std::move(name)) {}
 
-template <class T>
+template <std::integral T>
 inline Int<T>::Int() : Int<T>(std::string(detail::VAR_DEFAULT_NAME), std::nullopt, std::nullopt) {}
 
-template <class T>
+template <std::integral T>
 inline Int<T>::Int(std::string name) : Int<T>(std::move(name), std::nullopt, std::nullopt) {}
 
-template <class T>
+template <std::integral T>
 inline Int<T>::Int(std::optional<T> min, std::optional<T> max)
     : Int<T>(std::string(detail::VAR_DEFAULT_NAME), std::move(min), std::move(max)) {}
 
-template <class T>
+template <std::integral T>
 inline Int<T>::Int(std::string name, std::optional<T> min, std::optional<T> max)
     : Var<T, Int<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
-template <class T>
+template <std::integral T>
 inline auto Int<T>::read_from(Reader& in) const -> T {
   auto token = in.inner().read_token();
 
@@ -373,30 +244,30 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
                           compress(token)));
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::Int>(static_cast<std::uint64_t>(result)));
-    in.attach_json_tag("#t", std::make_unique<json::String>("i"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(static_cast<json::Int>(result)));
+    in.attach_tag("#t", json::Value("i"));
   }
 
   return result;
 }
 
-template <class T>
+template <std::floating_point T>
 inline Float<T>::Float()
     : Float<T>(std::string(detail::VAR_DEFAULT_NAME), std::nullopt, std::nullopt) {}
 
-template <class T>
+template <std::floating_point T>
 inline Float<T>::Float(std::string name) : Float<T>(std::move(name), std::nullopt, std::nullopt) {}
 
-template <class T>
+template <std::floating_point T>
 inline Float<T>::Float(std::optional<T> min, std::optional<T> max)
     : Float<T>(std::string(detail::VAR_DEFAULT_NAME), std::move(min), std::move(max)) {}
 
-template <class T>
+template <std::floating_point T>
 inline Float<T>::Float(std::string name, std::optional<T> min, std::optional<T> max)
     : Var<T, Float<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
-template <class T>
+template <std::floating_point T>
 inline auto Float<T>::read_from(Reader& in) const -> T {
   auto token = in.inner().read_token();
 
@@ -438,9 +309,9 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
         cplib::format("Expected a float <= {}, got `{}`", std::to_string(*max), compress(token)));
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::Real>(static_cast<double>(result)));
-    in.attach_json_tag("#t", std::make_unique<json::String>("f"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
+    in.attach_tag("#t", json::Value("f"));
   }
 
   return result;
@@ -464,11 +335,11 @@ inline auto get_decimal_places(std::string_view token_sv) -> std::size_t {
 }
 }  // namespace detail
 
-template <class T>
+template <std::floating_point T>
 inline StrictFloat<T>::StrictFloat(T min, T max, size_t min_n_digit, size_t max_n_digit)
     : StrictFloat<T>(std::string(detail::VAR_DEFAULT_NAME), min, max, min_n_digit, max_n_digit) {}
 
-template <class T>
+template <std::floating_point T>
 inline StrictFloat<T>::StrictFloat(std::string name, T min, T max, size_t min_n_digit,
                                    size_t max_n_digit)
     : Var<T, StrictFloat<T>>(std::move(name)),
@@ -482,7 +353,7 @@ inline StrictFloat<T>::StrictFloat(std::string name, T min, T max, size_t min_n_
   }
 }
 
-template <class T>
+template <std::floating_point T>
 inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
   auto token = in.inner().read_token();
 
@@ -535,9 +406,9 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
                           compress(token)));
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::Real>(static_cast<double>(result)));
-    in.attach_json_tag("#t", std::make_unique<json::String>("sf"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
+    in.attach_tag("#t", json::Value("sf"));
   }
 
   return result;
@@ -561,9 +432,9 @@ inline auto YesNo::read_from(Reader& in) const -> bool {
     panic("Expected `Yes` or `No`, got " + token);
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::Bool>(result));
-    in.attach_json_tag("#t", std::make_unique<json::String>("yn"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(result));
+    in.attach_tag("#t", json::Value("yn"));
   }
 
   return result;
@@ -597,9 +468,9 @@ inline auto String::read_from(Reader& in) const -> std::string {
                           compress(token)));
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::String>(token));
-    in.attach_json_tag("#t", std::make_unique<json::String>("s"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(token));
+    in.attach_tag("#t", json::Value("s"));
   }
 
   return token;
@@ -637,8 +508,8 @@ inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
     }
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#hidden", std::make_unique<json::Bool>(true));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#hidden", json::Value(true));
   }
 
   return std::nullopt;
@@ -666,9 +537,9 @@ inline auto Line::read_from(Reader& in) const -> std::string {
                           compress(*line)));
   }
 
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#v", std::make_unique<json::String>(*line));
-    in.attach_json_tag("#t", std::make_unique<json::String>("l"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#v", json::Value(*line));
+    in.attach_tag("#t", json::Value("l"));
   }
 
   return *line;
@@ -691,8 +562,8 @@ inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::
     if (i > 0) in.read(sep);
     result[i] = in.read(element.renamed(std::to_string(i)));
   }
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("v"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("v"));
   }
   return result;
 }
@@ -723,8 +594,8 @@ inline auto Mat<T>::read_from(Reader& in) const
       result[i][j] = in.read(element.renamed(name_prefix + std::to_string(j)));
     }
   }
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("m"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("m"));
   }
   return result;
 }
@@ -750,8 +621,8 @@ inline auto Pair<F, S>::read_from(Reader& in) const
   auto result_first = in.read(first.renamed("first"));
   in.read(sep);
   auto result_second = in.read(second.renamed("second"));
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("p"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("p"));
   }
   return {result_first, result_second};
 }
@@ -772,8 +643,8 @@ inline Tuple<T...>::Tuple(std::string name, std::tuple<T...> elements, Separator
 
 template <class... T>
 inline auto Tuple<T...>::read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> {
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("t"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("t"));
   }
   return std::apply(
       [&in](const auto&... args) {
@@ -788,27 +659,44 @@ template <class F>
 template <class... Args>
 inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args... args)
     : Var<typename std::function<F>::result_type, FnVar<F>>(std::move(name)),
-      inner([f, args...](Reader& in) { return f(in, args...); }) {}
+      inner_function_(
+          [captured_args = std::make_tuple(std::forward<Args>(args)...), f](Reader& in) {
+            return std::apply(
+                [&in, f](auto&&... unpacked_args) {
+                  return f(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
+                },
+                captured_args);
+          }) {}
 
 template <class F>
 inline auto FnVar<F>::read_from(Reader& in) const -> typename std::function<F>::result_type {
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("F"));
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("F"));
   }
-  return inner(in);
+  return inner_function_(in);
 }
 
 template <class T>
 template <class... Args>
 inline ExtVar<T>::ExtVar(std::string name, Args... args)
+  requires Readable<T, Args...>
     : Var<T, ExtVar<T>>(std::move(name)),
-      inner([args...](Reader& in) { return T::read(in, args...); }) {}
+      // Capture arguments into a tuple, then use std::apply to call T::read.
+      // This is a robust way to handle variadic arguments within std::function.
+      inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...)](Reader& in) {
+        return std::apply(
+            [&in](auto&&... unpacked_args) {
+              // Call T::read with the Reader and the unpacked arguments
+              return T::read(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
+            },
+            captured_args);
+      }) {}
 
 template <class T>
-inline auto ExtVar<T>::read_from(Reader& in) const -> T {
-  if (in.get_trace_level() >= Reader::TraceLevel::FULL) {
-    in.attach_json_tag("#t", std::make_unique<json::String>("E"));
+auto ExtVar<T>::read_from(Reader& in) const -> T {
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("E"));
   }
-  return inner(in);
+  return inner_function_(in);
 }
 }  // namespace cplib::var
