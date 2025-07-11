@@ -2624,9 +2624,6 @@ struct Result {
   /// @return A std::strong_ordering indicating the relationship.
   constexpr auto operator<=>(const Result& other) const -> std::strong_ordering;
 
-  /// Equality operator (synthesized from <=>).
-  constexpr auto operator==(const Result& other) const -> bool = default;
-
   /// Scales the score of the Result by a given factor.
   /// @param scale The scaling factor.
   /// @return A new Result object with the scaled score. Status and messages remain unchanged.
@@ -3062,11 +3059,11 @@ inline auto Evaluator::eq(std::string_view var_name, const T& pans, const T& jan
   if (pans != jans) {
     if constexpr (std::convertible_to<T, std::string_view>) {
       result = Result::wa(cplib::format("`{}` is not equal: expected `{}`, got `{}`", var_name,
-                                        cplib::detail::hex_encode(jans),
-                                        cplib::detail::hex_encode(pans)));
+                                        compress(cplib::detail::hex_encode(jans)),
+                                        compress(cplib::detail::hex_encode(pans))));
     } else if constexpr (cplib::formattable<T>) {
-      result =
-          Result::wa(cplib::format("`{}` is not equal: expected {}, got {}", var_name, jans, pans));
+      result = Result::wa(cplib::format("`{}` is not equal: expected {}, got {}", var_name,
+                                        compress(jans), compress(pans)));
     } else {
       result = Result::wa(cplib::format("`{}` is not equal", var_name));
     }
@@ -4172,10 +4169,19 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
   }
 
   T result{};
-  auto [ptr, ec] = std::from_chars(token.c_str(), token.c_str() + token.size(), result);
+  const char* first = token.data();
+  const char* last = token.data() + token.length();
+  auto [ptr, ec] = std::from_chars(first, last, result);
 
-  if (ec != std::errc() || ptr != token.c_str() + token.size()) {
-    in.fail(cplib::format("Expected an integer, got `{}`", compress(token)));
+  if (ec == std::errc::invalid_argument || ptr != last) {
+    // * ec == std::errc::invalid_argument: String is not a valid integer format (e.g. "abc",
+    //   "NaN", "Inf")
+    // * ptr != last: The string is not fully parsed (for example "123abc")
+    in.fail(cplib::format("Expected a integer, got `{}`", compress(token)));
+  } else if (ec == std::errc::result_out_of_range) {
+    // The parsing is successful, but the value exceeds the range of T
+    in.fail(cplib::format("Integer value `{}` is out of range for type `{}`", compress(token),
+                          typeid(T).name()));
   }
 
   if (min.has_value() && result < *min) {
