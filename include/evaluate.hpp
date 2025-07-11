@@ -119,9 +119,6 @@ struct Result {
   /// @return A std::strong_ordering indicating the relationship.
   constexpr auto operator<=>(const Result& other) const -> std::strong_ordering;
 
-  /// Equality operator (synthesized from <=>).
-  constexpr auto operator==(const Result& other) const -> bool = default;
-
   /// Scales the score of the Result by a given factor.
   /// @param scale The scaling factor.
   /// @return A new Result object with the scaled score. Status and messages remain unchanged.

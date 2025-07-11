@@ -228,10 +228,19 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
   }
 
   T result{};
-  auto [ptr, ec] = std::from_chars(token.c_str(), token.c_str() + token.size(), result);
+  const char* first = token.data();
+  const char* last = token.data() + token.length();
+  auto [ptr, ec] = std::from_chars(first, last, result);
 
-  if (ec != std::errc() || ptr != token.c_str() + token.size()) {
-    in.fail(cplib::format("Expected an integer, got `{}`", compress(token)));
+  if (ec == std::errc::invalid_argument || ptr != last) {
+    // * ec == std::errc::invalid_argument: String is not a valid integer format (e.g. "abc",
+    //   "NaN", "Inf")
+    // * ptr != last: The string is not fully parsed (for example "123abc")
+    in.fail(cplib::format("Expected a integer, got `{}`", compress(token)));
+  } else if (ec == std::errc::result_out_of_range) {
+    // The parsing is successful, but the value exceeds the range of T
+    in.fail(cplib::format("Integer value `{}` is out of range for type `{}`", compress(token),
+                          typeid(T).name()));
   }
 
   if (min.has_value() && result < *min) {

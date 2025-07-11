@@ -1,13 +1,31 @@
-#include "cplib.hpp"
+#include <vector>
 
-CPLIB_REGISTER_CHECKER(chk);
+#include "cplib.hpp"
 
 using namespace cplib;
 
-auto checker_main() -> void {
-  auto n = chk.inf.read(var::i32("n", 1, 1e7));
-  auto a = chk.ouf.read(var::f64("a", 1, 1e9) * n);
-  auto b = chk.ans.read(var::f64("a", 1, 1e9) * n);
-  if (a != b) chk.quit_wa("");
-  chk.quit_ac();
-}
+struct Input {
+  int n;
+  static Input read(var::Reader& in) {
+    int n = in.read(var::i32("n", 1, 1e7));
+    return {n};
+  }
+};
+
+struct Output {
+  std::vector<double> a;
+
+  static Output read(var::Reader& in, const Input& inp) {
+    std::vector<double> a = in.read(var::f64("a", 1, 1e9) * inp.n);
+    return {a};
+  }
+
+  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+                                   const Input&) {
+    auto res = evaluate::Result::ac();
+    res &= ev.eq("a", pans.a, jans.a);
+    return res;
+  }
+};
+
+CPLIB_REGISTER_CHECKER(chk, Input, Output);
