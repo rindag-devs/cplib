@@ -3062,8 +3062,10 @@ inline auto Evaluator::eq(std::string_view var_name, const T& pans, const T& jan
                                         compress(cplib::detail::hex_encode(jans)),
                                         compress(cplib::detail::hex_encode(pans))));
     } else if constexpr (cplib::formattable<T>) {
+      auto jans_str = format("{}", jans);
+      auto pans_str = format("{}", pans);
       result = Result::wa(cplib::format("`{}` is not equal: expected {}, got {}", var_name,
-                                        compress(jans), compress(pans)));
+                                        compress(jans_str), compress(pans_str)));
     } else {
       result = Result::wa(cplib::format("`{}` is not equal", var_name));
     }
