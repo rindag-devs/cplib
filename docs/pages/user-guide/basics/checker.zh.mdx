@@ -2,7 +2,7 @@ import { Callout, FileTree, Tab, Tabs } from "nextra-theme-docs";
 
 # Checker
 
-Checker，即「自定义判分器」，通常用于在正确答案不唯一的题目对选手答案进行检验，或者细化得分需求．
+Checker，即「检查器」，通常用于在正确答案不唯一的题目对选手答案进行检验，或者细化得分需求．
 
 Checker 通常需要处理三个文件：
 
@@ -12,8 +12,8 @@ Checker 通常需要处理三个文件：
 
 Checker 通常需要检测两个条件：
 
-- 根据测试点输入文件，判断选手输出是否具有「有效性」．
-- 比较选手输出和标准答案，并检验它们是否具有「等价性」．
+- 根据测试点的输入文件，判断选手的输出是否「有效」（即符合输出格式和约束）．
+- 将选手的输出与标准答案进行比较，检查它们是否「等价」（即根据问题规则在逻辑上正确）．
 
 ## 基础
 
@@ -34,20 +34,47 @@ Checker 通常需要检测两个条件：
 
 using namespace cplib;
 
-CPLIB_REGISTER_CHECKER(chk);
+// Define the Input struct to read problem-specific inputs (A and B for A+B problem)
+struct Input {
+  int a, b;
 
-void checker_main() {
-  auto var_ans = var::i32("ans", -2000, 2000);
+  static Input read(var::Reader& in) {
+    // Read integer 'a' within range [-1000, 1000]
+    auto a = in.read(var::i32("a", -1000, 1000));
+    // Read integer 'b' within range [-1000, 1000]
+    auto b = in.read(var::i32("b", -1000, 1000));
+    return {a, b};
+  }
+};
 
-  int ouf_output = chk.ouf.read(var_ans);
-  int ans_output = chk.ans.read(var_ans);
+// Define the Output struct to read the answer and evaluate it
+struct Output {
+  int ans;
 
-  if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
+  // Static read method to parse participant/jury output
+  // It receives a var::Reader and the Input struct for context if needed.
+  static Output read(var::Reader& in, const Input&) {
+    // Read integer 'ans' within range [-2000, 2000]
+    auto ans = in.read(var::i32("ans", -2000, 2000));
+    return {ans};
   }
 
-  chk.quit_ac();
-}
+  // Static evaluate method to compare participant's output with jury's output
+  // It receives an evaluate::Evaluator, participant's output (pans),
+  // jury's output (jans), and the original Input.
+  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+                                   const Input&) {
+    // Use ev.eq to compare the 'ans' field.
+    // If pans.ans == jans.ans, it contributes to AC. Otherwise, it marks WA.
+    auto res = evaluate::Result::ac();
+    res &= ev.eq("ans", pans.ans, jans.ans);
+    return res;
+  }
+};
+
+// Register the checker with CPLib, specifying the Input and Output structs.
+// This macro sets up the main checker logic behind the scenes.
+CPLIB_REGISTER_CHECKER(chk, Input, Output);
 ```
 
 我们将逐行讲解这段代码．
@@ -56,87 +83,78 @@ void checker_main() {
 using namespace cplib;
 ```
 
-CPLib 的主要功能都存放在命名空间 `cplib` 中．由于算法竞赛使用的程序一般很短小，在一定程度上讲，`using namespace cplib;` 可极大优化开发效率．
+CPLib 的主要功能都存放在命名空间 `cplib` 中．由于算法竞赛使用的程序一般很短，在一定程度上讲，`using namespace cplib;` 可极大优化开发效率．
 
 ```cpp
-CPLIB_REGISTER_CHECKER(chk);
+struct Input { /* ... */ };
 ```
 
-`CPLIB_REGISTER_CHECKER(name)` 宏将所含程序注册成一个 CPLib checker，并将 checker 的状态保存至名称为 `name` 的全局变量中．（代码中名称为 `chk`）．`name` 可替换为任意符合 C++ 语法的变量名，但在本文档中，为了可读性和简洁性，均会使用 `chk` 作为全局状态变量名．
+`Input` 结构体封装了从问题输入文件读取的所有数据．它必须包含一个静态方法 `read`，该方法以 `cplib::var::Reader&` 作为第一个参数并返回一个 `Input` 实例．此方法负责解析输入文件并对输入数据本身执行任何必要的初始验证．
 
 ```cpp
-void checker_main() {
+struct Output { /* ... */ };
 ```
 
-`checker_main` 是一个被注册为 CPLib checker 的程序的主函数，该函数将会在 CPLib 完成初始化后调用一次，类似于一般 C++ 程序中的 `main` 函数．而真正的 `main` 函数将会由 CPLib 实现．
+`Output` 结构体封装了从程序输出文件（包括选手和评测方）读取的所有数据．它必须包含：
+
+- 一个静态方法 `read`，它以 `cplib::var::Reader&` 作为第一个参数，并可选地以 `const Input&` 作为第二个参数（如果输出解析依赖于输入数据）．它返回一个 `Output` 实例．此方法负责解析输出文件并对输出格式和约束执行「有效性」检查．如果输出无效（例如，超出范围，格式错误），它应该调用 `in.fail("message")`．
+- 一个静态方法 `evaluate`，它以 `evaluate::Evaluator&`、`const Output& pans`（选手输出）、`const Output& jans`（评测方输出）和 `const Input& input` 作为参数．它返回一个 `evaluate::Result`．此方法负责根据问题的逻辑正确性规则比较 `pans` 和 `jans`．
 
 ```cpp
-  auto var_ans = var::i32("ans", -2000, 2000);
+  auto a = in.read(var::i32("a", -1000, 1000));
 ```
 
-声明一个 **变量读入模板**．模板的类型为 `i32`（32 位有符号整数），并给予名称 `ans`．一个变量读入模板负责表述如何按照给定方式读入一个给定类型的变量．
+这行代码演示了如何使用 **变量读取模板** 来读取变量．`cplib::var::i32` 是 `cplib::var::Int<int32_t>` 的别名．它是一个模板，用于指定如何读取一个 32 位有符号整数．构造函数参数 `("a", -1000, 1000)` 定义了：
+
+- `"a"`：变量的名称．当读取过程中发生错误时，此名称将与读取堆栈跟踪一起显示在错误消息中，使错误报告更具可读性．
+- `-1000, 1000`：整数允许的最小值和最大值．CPLib 会自动检查读取的值是否在此范围内．
 
 <Callout type="info">
-`cplib::var::i32` 是 `cplib::var::Int<int32_t>` 的类型别名．`cplib::var::Int<T>` 的构造函数声明参考如下：
+`cplib::var::Int<T>` 的构造函数声明为：
 
 - `explicit Int();`
 - `explicit Int(std::string name);`
 - `explicit Int(std::optional<T> min, std::optional<T> max);`
 - `explicit Int(std::string name, std::optional<T> min, std::optional<T> max);`
 
-其中 `min` 与 `max` 分别规定了整数的最小值和最大值．在本题中，最小值为 $(-1000) + (-1000) = -2000$，最大值为 $1000 + 1000 = 2000$．`name` 规定了变量的名称．当读入发生错误时，出错变量的名称将会随着读入栈轨迹（Trace）会显示在错误信息中．你可以使用一个没有 `name` 参数的构造函数重载来省略名称参数．但是这么做会使得发生错误时的报告失去部分阅读性，所以我们 **非常不推荐** 你去这么做．
+尽管 `name` 参数可以被省略，但 **强烈不建议** 这样做，因为它会降低错误报告的可读性．
 </Callout>
 
 ```cpp
-  int ouf_output = chk.ouf.read(var_ans);
-  int ans_output = chk.ans.read(var_ans);
+    auto res = evaluate::Result::ac();
+    res &= ev.eq("ans", pans.ans, jans.ans);
+    return res;
 ```
 
-根据刚才定义的变量读入模版，从选手输出文件和标准答案中各读取一个整数．我们并不需要关心读入格式的正确性和整数范围的检验，CPLib 会自动完成上述检查．
+在 `Output::evaluate` 方法内部，`evaluate::Evaluator& ev` 用于比较结果．`ev.eq("ans", pans.ans, jans.ans)` 比较选手输出（`pans`）的 `ans` 字段与评测方输出（`jans`）．如果它们相等，则得到「Accepted」结果．如果它们不相等，则将结果标记为「Wrong Answer」，并提供包含变量名「ans」和值的详细消息．
 
-当选手的输出不符合条件时，CPLib 会立即退出程序，并以 Wrong Answer 为结果进行报告，同时生成清晰的读入栈轨迹（Trace）信息以供参考．
-
-当标准答案不符合条件时，CPLib 的表现与选手输出错误时大致近似．不同点在于，此时返回的结果为 Internal Error．当然在实际题目中，标准答案出错这一情况是一定要杜绝发生的．
+当输出文件（选手或答案）不符合其 `read` 方法中指定的格式或范围约束时，CPLib 将自动退出程序并报告错误．对于选手的输出，这将导致「Wrong Answer」．对于答案方的输出，这将导致「Internal Error」（内部错误），表明测试数据本身存在问题．
 
 ```cpp
-  if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
-  }
+CPLIB_REGISTER_CHECKER(chk, Input, Output);
 ```
 
-在发现选手输出和标准答案不一致时，需要调用 `chk.quit_wa` 函数报告 Wrong Answer 并退出程序．我们推荐你在使用 `chk.quit_wa` 系列函数时给出清晰的信息．此处使用 `cplib::format` 函数对错误信息进行格式化，该函数使用类似 `std::format` 的格式，可便捷地格式化字符串．
-
-```cpp
-  chk.quit_ac();
-```
-
-`chk.quit_ac` 报告 Accepted，即没有错误，并退出程序．
-
-<Callout type="info">
-当你的答案错误时，有必要解释为什么出错．但当你的答案正确时，解释为什么正确就没有任何必要了．因此，CPLib 没有设计，也不打算设计一个输出自定义信息的 `chk.quit_ac` 重载．但一切都要考虑扩展性，如果你确实有这方面的需求，请参阅 [chk.quit]() 函数的文档．
-</Callout>
+`CPLIB_REGISTER_CHECKER(name, InputStruct, OutputStruct)` 宏将程序注册为 CPLib checker．`name`（在代码中为 `chk`）是 checker 全局状态变量的名称．`InputStruct` 和 `OutputStruct` 是定义如何读取问题输入以及如何读取和评估程序输出的结构体名称．CPLib 将在内部管理 `main` 函数并调用这些结构体的 `read` 和 `evaluate` 方法．
 
 <Callout type="warning">
-注册成为 CPLib 的程序必须使用 `chk.quit*` 系列函数退出，而 **不允许** 直接使用 `std::exit` 等函数退出．
+注册为 CPLib 程序的 checker 必须在 `evaluate` 方法中使用 `evaluate::Evaluator` 方法（如 `ev.eq`、`ev.fail`），或在 `read` 方法中使用 `in.fail()` 来报告错误并退出．**不允许** 直接使用 `std::exit` 等函数进行常规错误报告．`panic` 仅应用于不可恢复的内部错误，例如 checker 逻辑本身的严重错误，或 `ev.fail()` 无法优雅处理的无效评测方答案．
 </Callout>
 
 ### 使用
 
 <Tabs items={['UNIX-like', 'Windows']} storageKey="selected-os">
 <Tab>
-打开终端，切换到刚才建立的工作目录．执行编译命令来编译 checker，它通常类似于这样：
+打开终端，导航到你刚刚创建的工作目录，然后执行编译命令以编译 checker，通常类似于：
 
 ```bash
-g++ chk.cpp -o chk -std=c++17
+g++ chk.cpp -o chk -std=c++20
 ```
 
-<Callout type="warning">
-CPLib 所需的最低 C++ 标准为 C++ 17．
-</Callout>
+<Callout type="warning">CPLib 所需的最低 C++ 标准是 C++ 20．</Callout>
 
-接下来在工作目录下创建文件夹 `data/`，用于存储测试 checker 使用的测试点，并放入测试数据．本例中以 `data/0.in`、`data/0.out`、`data/0.ans` 作为测试数据的名称以作演示．
+接下来，在工作目录中创建一个名为 `data/` 的文件夹，用于存储 checker 使用的测试点，并将测试数据放入其中．在此示例中，我们使用 `data/0.in`、`data/0.out` 和 `data/0.ans` 作为测试数据的名称．
 
-此时的你的工作目录结构应该如下图所示：
+此时，你的工作目录结构应如下所示：
 
 <FileTree>
   <FileTree.Folder name="data" defaultOpen>
@@ -162,19 +180,17 @@ CPLib 所需的最低 C++ 标准为 C++ 17．
 
 </Tab>
 <Tab>
-打开 cmd.exe 或 Windows Terminal 程序，切换到刚才建立的工作目录．执行编译命令来编译 checker，它通常类似于这样：
+启动 `cmd.exe` 或 Windows 终端应用程序，导航到你刚刚创建的工作目录，然后执行编译命令以编译 checker，通常类似于：
 
 ```cmd
-g++ chk.cpp -o chk.exe -std=c++17
+g++ chk.cpp -o chk.exe -std=c++20
 ```
 
-<Callout type="warning">
-CPLib 所需的最低 C++ 标准为 C++ 17．
-</Callout>
+<Callout type="warning">CPLib 所需的最低 C++ 标准是 C++ 20．</Callout>
 
-接下来在工作目录下创建文件夹 `data\`，用于存储测试 checker 使用的测试点，并放入测试数据．本例中以 `data\0.in`、`data\0.out`、`data\0.ans` 作为测试数据的名称以作演示．
+接下来，在工作目录中创建一个名为 `data/` 的文件夹，用于存储 checker 使用的测试点，并将测试数据放入其中．在此示例中，我们使用 `data/0.in`、`data/0.out` 和 `data/0.ans` 作为测试数据的名称．
 
-此时的你的工作目录结构应该如下图所示：
+此时，你的工作目录结构应如下所示：
 
 <FileTree>
   <FileTree.Folder name="data" defaultOpen>
@@ -201,18 +217,18 @@ CPLib 所需的最低 C++ 标准为 C++ 17．
 <Callout type="warning">
 Windows 10 [自 v1511 起](https://www.reddit.com/r/Windows10/comments/44czox/windows_10_v1511_adds_support_for_ansi_escape/) 支持 ANSI 颜色．如果你在使用早期版本的 Windows，且 checker 的输出包含无法识别的乱码，可以尝试以下几种解决方案：
 
-- 安装 [ANSICON](https://github.com/adoxa/ansicon)，这会在 cmd.exe 中启用 ANSI 颜色．
+- 安装 [ANSICON](https://github.com/adoxa/ansicon)，它可以在 cmd.exe 中启用 ANSI 颜色．
 - 使用其他支持 ANSI 颜色的终端模拟器．
-- 设置 `NO_COLOR=1` 环境变量，这会直接禁用 checker 的颜色输出．
+- 设置环境变量 `NO_COLOR=1` 以直接禁用 checker 的彩色输出．
 </Callout>
 </Tab>
 </Tabs>
 
 <Callout>
-如果你想要自己动手操作，可以：
+如果你想自行尝试，可以：
 
-- 尝试更改你的测试点输入文件、选手输出文件和标准答案文件中的内容，并观察 checker 输出的变化．
-- 执行 `./chk --help`，观察改变 `--report-format` 命令行参数和设置 `NO_COLOR=1` 或 `CLICOLOR_FORCE=1` 环境变量对 checker 输出的影响．
+- 尝试更改测试点输入文件、选手输出文件和标准答案文件的内容，并观察 checker 输出的变化．
+- 运行 `./chk --help`，观察更改 `--report-format` 命令行参数以及设置 `NO_COLOR=1` 或 `CLICOLOR_FORCE=1` 环境变量对 checker 输出的影响．
 </Callout>
 
 ## 进阶
@@ -221,7 +237,7 @@ Windows 10 [自 v1511 起](https://www.reddit.com/r/Windows10/comments/44czox/wi
 本节的相关代码见 [GitHub 仓库](https://github.com/rindag-devs/cplib/tree/main/tests/checker/2-shortest-path)．
 </Callout>
 
-算法竞赛中实际的题目不会像 A+B 这么简单．当我们看一个稍微复杂的例子．
+算法竞赛中实际的题目不会像 A+B 这么简单．让我们看一个稍微复杂的例子．
 
 > **题目描述**：给定一张点数为 $n$（$1 \le n \le 100$），边数为 $m$（$1 \le n \le 100$）的无向连通简单图，第 $i$ 条边的两个端点分别为 $u_i$ 和 $v_i$（$1 \le u_i, v_i \le n$），边权为 $w_i$（$1 \le w_i \le 100$）．你需要解决两个问题：求出从 $1$ 到 $n$ 最短路径的权值和，以及输出任意一条最短路径．
 >
@@ -229,11 +245,12 @@ Windows 10 [自 v1511 起](https://www.reddit.com/r/Windows10/comments/44czox/wi
 >
 > **输出格式**：第一行输出一个整数 $\mathit{sum}$，表示第一问的答案．第二行首先输出一个在 $[1,n^2]$ 区间内的整数 $\mathit{len}$，表示最短路径经过的点数．然后输出 $\mathit{len}$ 个整数，表示最短路径依次经过的结点编号（需要包含最开始的 $1$ 和最末尾的 $n$）．
 
-编写更为复杂的 checker 时，像上个示例一样把全部逻辑都写在 `checker_main` 里是一种 **非常错误** 的选择．下面给出了一个更易阅读和维护的 checker 实现：
+编写更复杂的 checker 时，建议使用「Input」和「Output」结构体及其各自的「read」和「evaluate」方法来构建逻辑．这种方法可以使实现更具可读性和可维护性．
 
 ```cpp filename="chk.cpp" copy showLineNumbers
 #include <map>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -241,101 +258,134 @@ Windows 10 [自 v1511 起](https://www.reddit.com/r/Windows10/comments/44czox/wi
 
 using namespace cplib;
 
-CPLIB_REGISTER_CHECKER(chk);
-
+// Define an Edge struct for reading graph edges
 struct Edge {
   int u, v, w;
 
+  // Edge::read takes a Reader and the graph size 'n' as context
   static Edge read(var::Reader& in) {
+    // Using in() operator for reading multiple variables conveniently
     auto [u, v, w] = in(var::i32("u"), var::i32("v"), var::i32("w"));
     return {u, v, w};
   }
 };
 
+// Define the Input struct to hold graph data
 struct Input {
   int n, m;
-  std::map<std::pair<int, int>, int> graph;
+  std::map<std::pair<int, int>, int> graph; // Adjacency map for quick edge lookup
 
   static Input read(var::Reader& in) {
     auto [n, m] = in(var::i32("n"), var::i32("m"));
+    // Read 'm' edges, passing 'n' as context to Edge::read via var::ExtVar
     auto edges = in.read(var::ExtVar<Edge>("edges") * m);
 
     std::map<std::pair<int, int>, int> graph;
     for (auto [u, v, w] : edges) {
       graph[{u, v}] = w;
-      graph[{v, u}] = w;
+      graph[{v, u}] = w; // Undirected graph
     }
 
     return {n, m, graph};
   }
 };
 
+// Define the Output struct to hold the shortest path sum and the path itself
 struct Output {
   int sum, len;
   std::vector<int> plan;
 
+  // Output::read takes Reader and the Input struct as context
   static Output read(var::Reader& in, const Input& input) {
-    auto [sum, len] = in(var::i32("sum", 0, std::nullopt), var::i32("len", 1, std::nullopt));
+    // Read sum and length, with appropriate ranges
+    auto sum = in.read(var::i32("sum", 0, std::nullopt));
+    auto len = in.read(var::i32("len", 1, input.n * input.n)); // Max path length for N nodes
+
+    // Read the path plan, ensuring nodes are within [1, input.n]
     auto plan = in.read(var::i32("plan", 1, input.n) * len);
 
-    if (plan.front() != 1) in.fail("Plan should begin with 1");
-    if (plan.back() != input.n) in.fail("Plan should end with n");
+    // Perform validity checks on the path
+    if (plan.empty()) in.fail("Path cannot be empty");
+    if (plan.front() != 1) in.fail("Path should begin with 1");
+    if (plan.back() != input.n) in.fail("Path should end with n");
+
     int result_sum = 0;
     for (int i = 1; i < (int)plan.size(); ++i) {
       if (!input.graph.count({plan[i - 1], plan[i]}))
         in.fail(format("Edge {} <-> {} does not exist", plan[i - 1], plan[i]));
       result_sum += input.graph.at({plan[i - 1], plan[i]});
     }
-    if (result_sum != sum) in.fail("Plan and shortest path length do not match");
+
+    if (result_sum != sum)
+      in.fail(format("Calculated path sum ({}) from plan does not match reported sum ({})",
+                     result_sum, sum));
 
     return {sum, len, plan};
   }
 
-  static void check(const Output& expected, const Output& result) {
-    if (result.sum > expected.sum)
-      chk.quit_wa(format("Wrong sum, expected {}, got {}", expected.sum, result.sum));
+  // Output::evaluate compares participant's output with jury's output
+  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+                                   const Input&) {
+    auto res = evaluate::Result::ac();
 
-    if (result.sum < expected.sum)
-      panic(format("Contestant answers are better than standard answers, expected {}, got {}",
-                   expected.sum, result.sum));
+    // If participant's sum is strictly less than jury's sum,
+    // it implies the jury's answer is not optimal. This is an internal error.
+    if (pans.sum < jans.sum) {
+      ev.fail(
+          format("Participant's path sum ({}) is less than jury's path sum ({})! This indicates a "
+                 "judge error.",
+                 pans.sum, jans.sum));
+    }
+
+    // The problem asks for the shortest path sum.
+    // If participant's sum is greater than jury's, it's WA.
+    res &= ev.eq("sum", pans.sum, jans.sum);
+
+    // If sums are equal, the path itself needs to be valid (already checked in read)
+    // and correctly connects 1 to n (also checked in read).
+    // No further comparison of 'plan' is strictly needed if 'sum' is correct,
+    // as any valid path yielding the shortest sum is acceptable.
+    // However, for completeness or stricter checks, one might compare 'len' or 'plan'
+    // if multiple shortest paths exist and specific ones are preferred.
+    // For this problem, we only care about the sum.
+
+    return res;
   }
 };
 
-void checker_main() {
-  auto input = chk.inf.read(var::ExtVar<Input>("input"));
-
-  auto output = var::ExtVar<Output>("output", input);
-  auto ouf_output = chk.ouf.read(output);
-  auto ans_output = chk.ans.read(output);
-
-  Output::check(ans_output, ouf_output);
-  chk.quit_ac();
-}
-
+// Register the checker
+CPLIB_REGISTER_CHECKER(chk, Input, Output);
 ```
 
-这个示例展现了如何对自定义类型使用变量读入模板进行读入．
+这个例子演示了如何为自定义类型使用变量读取模板以及如何组织评估逻辑．
 
-首先定义结构体 `Edge` 描述一条边．如果我们要创建读入 `Edge` 的变量读入模板，最简单的方式是使用 `cplib::var::ExtVar`．使用它之前，需要为 `Edge` 结构体编写名称为 `read` 的 public static 方法．该方法的第一个形参类型必须为 `cplib::var::Reader&`：即上节介绍的的 `chk.inf`、`chk.ouf`、`chk.ans` 对象对应的类型的引用．后续形参可以任意定义．
+**结构化数据类型和 `read` 方法：**
 
-上一节的代码展示了 `cplib::var::Reader` 类型的 `.read` 方法．而 `Edge::read` 的实现使用了它的 `operator()` 运算符重载．该运算符会依次以多个变量读入模板的实例作为参数调用 `.read`，并将所有的结果按顺序打包为一个 `std::tuple` 返回．在读入多个 **不存在依赖关系** 的变量时，使用 `operator()` 可让代码更加简短．
+- **`Edge` 结构体**：定义单个边的结构．其 `static read` 方法读取 `u`、`v` 和 `w`．
+- **`Input` 结构体**：封装了 `n`、`m` 和图的邻接映射．其 `static read` 方法读取 `n` 和 `m`，然后使用 `var::ExtVar<Edge>("edges") * m` 读取 `m` 条边．`var::ExtVar<T>` 用于为自定义类型 `T` 创建变量读取模板．当 `T::read` 需要额外参数时，这些参数会传递给 `var::ExtVar<T>` 的构造函数．对于本例中的 `Edge` 类型，其 `Edge::read` 方法只有一个参数，构造函数除了 `name` 之外不需要传递任何参数．`in` 的 `operator()`（例如 `in(var::i32("n"), var::i32("m"))`）提供了一种简洁的方式，将 **没有相互依赖关系** 的多个变量读取到 `std::tuple` 中．
+- **`Output` 结构体**：保存报告的总和、路径长度和路径本身．其 `static read` 方法执行关键的「有效性」检查：
+  - 确保路径节点在 `[1, input.n]` 范围内．
+  - 验证路径以 `1` 开始并以 `n` 结束．
+  - 检查路径中的所有边是否存在于图中．
+  - 确认报告的 `sum` 与从 `plan` 计算出的总和匹配．
+  - 如果任何有效性检查失败，将调用 `in.fail(message)`，这将立即报告「Wrong Answer」（对于选手输出）或「Internal Error」（对于评测方输出），并附带详细的堆栈跟踪．
 
-CPLib 提供了 `cplib::var::Vec` 来创建 `std::vector` 的变量读入模板，同时为 `cplib::var::Var` 实现了 `operator*(size_t)`．使用类似代码中 `Input::read` 中的语法将任意一个 `cplib::var::Var` 子类的对象与整数相乘来快速创建 `cplib::var::Vec`．
+**使用 `evaluate::Evaluator` 进行评估：**
 
-编写完 `Edge::read` 后，我们就可以使用 `cplib::var::ExtVar<Edge>` 来创建一个通过调用 `Edge::read` 来读入 `Edge` 类型的变量读入模板了．当实例化一个以 `T` 为目标读入类型的 `cplib::var::ExtVar<T>` 时，若 `T::read` 的参数数量大于等于 $2$ 个，则你需要根据 `T::read` 的第二个至最后一个形参来向 `cplib::var::ExtVar<T>` 的构造函数传递实参．如果像本例的 `Edge` 类型这样，其 `Edge::read` 方法只有一个形参，则构造函数不需要传递任何实参．
+`Output::evaluate` 方法是核心「等价性」检查发生的地方．
 
-在可以提前（在读入全部选手输出前）检查选手输出是否具有「有效性」时，我们推荐你把检查「有效性」的逻辑写在对应类型的 `read` 方法里，例如本例中 `Output::read` 的实现．若出现读入不符合题目要求的情况，应使用 `in.fail(message)` 函数来报告错误．该函数会以传入的参数 `message` 和当前的读入栈轨迹（stack trace）生成错误报告并退出程序，`Reader` 对应输入流的不同决定报告的错误类型．例如在 checker 中，对 `chk.inf` 和 `chk.ans` 流调用 `fail` 会返回 `Internal Error` 错误类型，而 `chk.ouf` 流则是 `Wrong Answer`．
-
-检查完「有效性」之后，下一步就是检查选手输出和标准答案的「等价性」，我们推荐你在每个需要进行比较的类型上实现一个静态的 `check(expected, result)` 方法，并在 `checker_main` 中调用最外层类型 `Output` 的 `check` 方法．最后在 `check` 均通过后调用 `chk.quit_ac`．
+- 它接收一个 `evaluate::Evaluator& ev`，这是报告结果的主要工具．
+- 处理了一个特殊情况：如果 `pans.sum < jans.sum`，这意味着选手找到了比评测方答案 *更好* 的答案．这表明评测方解决方案或测试数据存在问题．此处使用 `ev.fail()` 报告「Internal Error」（内部错误）并附带特定消息，提示审查评测方答案．这是一种处理此类情况的健壮方法，将其与常规的「Wrong Answer」区分开来．
+- `ev.eq("sum", pans.sum, jans.sum)` 检查选手的总和（`pans.sum`）是否等于评测方的总和（`jans.sum`）．如果 `pans.sum > jans.sum`，它会自动标记为「Wrong Answer」并附带描述性消息．
 
 ## 建议
 
-综上所述，在编写较为复杂的 checker 时，我们推荐你遵循如下建议：
+总之，在编写更复杂的 checker 时，我们建议以下几点：
 
-- 使用自定义类型和 `cplib::var::ExtVar` 封装你的代码，而不是完全使用基本类型读入．
-- 检验 `T` 的「有效性」时，优先考虑在 `T::read` 中实现．其次考虑在 `T::check` 中对 `result` 参数单独检验．
-- 检验 `T` 的「等价性」时，考虑在 `T::check` 中实现，最后只在 `checker_main` 中调用最外层变量的 `check` 方法．
-- 对于仅在测试点输入文件中出现的类型，没有必要对其实现有效性检验：你应该 Validator 中做这件事．
+- **组织代码结构**：使用自定义的 `Input` 和 `Output` 结构体及其 `static read` 和 `static evaluate` 方法．这种模块化设计提高了可读性和可维护性．
+- **利用 `var::Var`**：为自定义类型使用 `cplib::var::ExtVar`，为 vector 使用 `operator*`．`in` 的 `operator()` 可以简化读取多个独立变量．
+- **在 `read` 方法中执行「有效性」检查**：在 `Output` 结构体及其嵌套类型的 `static read` 方法中实现对输出格式、范围和基本一致性（例如，路径起点/终点是否正确，边是否存在）的检查．使用 `in.fail("message")` 报告这些错误．
+- **在 `evaluate` 方法中执行「等价性」检查**：在 `Output` 结构体的 `static evaluate` 方法中实现选手输出和评测方输出之间的核心逻辑比较．使用 `evaluate::Evaluator` 方法（如 `ev.eq`、`ev.approx`、`ev.fail`）进行健壮且描述性的结果报告．
 
 <Callout>
 如果你想要自己动手操作，可以：

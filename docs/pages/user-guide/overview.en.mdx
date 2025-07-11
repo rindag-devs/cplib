@@ -4,30 +4,64 @@
 
 CPLib is a library written in C++ for processing test data of competitive programming problems. It helps you write clear and efficient checkers, interactors, validators, and generators.
 
-Here is a basic example of a checker using CPLib:
+CPLib embraces a structured and modular approach, centered around `Input` and `Output` structs. This design paradigm enhances clarity, maintainability, and testability of your problem logic.
+
+Each checker defines:
+
+- An `Input` struct with a static `read` method to parse problem input.
+- An `Output` struct with a static `read` method to parse participant/jury output and perform basic format validation, and a static `evaluate` method that takes an `evaluate::Evaluator`, participant's output, jury's output, and the original input to compare results and determine correctness.
+
+Here is a basic example of an A+B problem checker using CPLib:
 
 ```cpp filename="chk.cpp" copy showLineNumbers
 #include "cplib.hpp"
 
 using namespace cplib;
 
-CPLIB_REGISTER_CHECKER(chk);
+// Define the Input struct to read problem-specific inputs (A and B for A+B problem)
+struct Input {
+  int a, b;
 
-void checker_main() {
-  auto var_ans = var::i32("ans", -2000, 2000);
+  static Input read(var::Reader& in) {
+    // Read integer 'a' within range [-1000, 1000]
+    auto a = in.read(var::i32("a", -1000, 1000));
+    // Read integer 'b' within range [-1000, 1000]
+    auto b = in.read(var::i32("b", -1000, 1000));
+    return {a, b};
+  }
+};
 
-  int ouf_output = chk.ouf.read(var_ans);
-  int ans_output = chk.ans.read(var_ans);
+// Define the Output struct to read the answer and evaluate it
+struct Output {
+  int ans;
 
-  if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
+  // Static read method to parse participant/jury output
+  // It receives a var::Reader and the Input struct for context if needed.
+  static Output read(var::Reader& in, const Input&) {
+    // Read integer 'ans' within range [-2000, 2000]
+    auto ans = in.read(var::i32("ans", -2000, 2000));
+    return {ans};
   }
 
-  chk.quit_ac();
-}
+  // Static evaluate method to compare participant's output with jury's output
+  // It receives an evaluate::Evaluator, participant's output (pans),
+  // jury's output (jans), and the original Input.
+  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+                                   const Input&) {
+    // Use ev.eq to compare the 'ans' field.
+    // If pans.ans == jans.ans, it contributes to AC. Otherwise, it marks WA.
+    auto res = evaluate::Result::ac();
+    res &= ev.eq("ans", pans.ans, jans.ans);
+    return res;
+  }
+};
+
+// Register the checker with CPLib, specifying the Input and Output structs.
+// This macro sets up the main checker logic behind the scenes.
+CPLIB_REGISTER_CHECKER(chk, Input, Output);
 ```
 
-The above example demonstrates a core logic of CPLib: "variable input template". Using the "variable input template", you can save and reuse the logic of reading variables with the same restrictions. At the same time, based on the hierarchy of variable input, CPLib generates concise input stack information in case of errors.
+This example demonstrates how CPLib now leverages structured data types (`Input`, `Output`) and dedicated `read`/`evaluate` methods to clearly separate concerns: input parsing, output parsing, and result evaluation. The `evaluate::Evaluator` provides a powerful and flexible way to compare results, handle floating-point precision, and provide detailed feedback in case of errors.
 
 ## Why use CPLib?
 
@@ -35,17 +69,21 @@ The advantages of the CPLib project over other similarly positioned libraries ar
 
 ### Modernization
 
-CPLib is developed using the newer C++ 17 standard and uses modern C++ syntax more frequently in its code. The standard library and features of modern C++ offer CPLib numerous syntactic sugars and enable fast implementation. Simultaneously, CPLib prioritizes utilizing the standard library instead of creating separate implementations, ensuring better compatibility with other libraries.
+CPLib is developed using the C++ 20 standard. The standard library and features of modern C++ offer CPLib numerous syntactic sugars and enable fast implementation. Simultaneously, CPLib prioritizes utilizing the standard library instead of creating separate implementations, ensuring better compatibility with other libraries.
 
 CPLib also has more modernized handling of some functional details. For example, when an input error occurs, CPLib returns a complete input stack trace, and when reporting output to a file, it uses the more popular JSON format instead of the XML format used by Testlib.
 
-### Scalability
+### Structured Design & Extensibility
 
-CPLib's scalability is mainly reflected in two points: the design of the variable input template `cplib::var::Var` and customization for various evaluation platforms.
+CPLib's extensibility and robust design are primarily reflected in two key areas: the "variable input template" (`cplib::var::Var`) and the powerful `evaluate::Evaluator` system, alongside customization for various evaluation platforms.
 
-CPLib's variable input is based on the "variable input template", rather than Testlib-style `readXYZ()` series of functions that apply to various basic types. This makes it more convenient for CPLib to extend and combine input types, making the program more modular.
+#### Variable Input Template (`cplib::var::Var`)
 
-Here is a simple example that shows how to read a directed graph by combining and extending `cplib::var::Var`.
+CPLib's variable input is based on the "variable input template", rather than Testlib-style `readXYZ()` series of functions that apply to various basic types. This makes it more convenient for CPLib to extend and combine input types, making the program more modular and readable.
+
+CPLib's design encourages users to split complex problem inputs and outputs into several dedicated structures that implement static `read` functions. This approach simplifies the code and makes it easier to understand.
+
+Here is a simple example that shows how to read a directed graph by combining and extending `cplib::var::Var` within custom structs:
 
 ```cpp
 struct Edge {
@@ -70,7 +108,13 @@ struct Graph {
 };
 ```
 
-CPLib's design encourages users to split complex input of a problem into several structures that implement static `read` functions, making the program simpler and easier to read.
+#### Powerful Evaluation (`evaluate::Evaluator`)
+
+Beyond input/output parsing, CPLib introduces a dedicated `evaluate::Evaluator` system for defining problem-specific correctness, allowing for:
+
+- **Clear Separation of Concerns**: Evaluation logic resides in a dedicated `Output::evaluate` static method, distinct from input/output parsing.
+- **Flexible Comparison Methods**: The `Evaluator` provides methods like `ev.eq()` for exact comparisons (integers, strings, vectors) and `ev.approx()` for floating-point comparisons with customizable error margins.
+- **Detailed Feedback**: It enables rich error reporting with trace stack support, allowing you to specify which specific part of the output is incorrect and provide context-specific messages.
 
 On the other hand, CPLib takes into account the differences in some interfaces of various evaluation platforms and allows the use of `initializer` and `reporter` to customize the program's initialization and reporting methods. This way, you can achieve compatibility with upper-level evaluation platforms without modifying the CPLib source code.
 

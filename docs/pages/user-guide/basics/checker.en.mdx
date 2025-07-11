@@ -12,8 +12,8 @@ Checkers usually need to process three files:
 
 Checkers usually need to check two conditions:
 
-- Based on the input file of the test point, determine whether the participant's output is "valid".
-- Compare the participant's output with the standard answer and check if they are "equivalent".
+- Based on the input file of the test point, determine whether the participant's output is "valid" (i.e., conforms to the output format and constraints).
+- Compare the participant's output with the standard answer and check if they are "equivalent" (i.e., logically correct according to problem rules).
 
 ## Basics
 
@@ -34,20 +34,47 @@ First, start with an empty working directory, copy `cplib.hpp` into the working 
 
 using namespace cplib;
 
-CPLIB_REGISTER_CHECKER(chk);
+// Define the Input struct to read problem-specific inputs (A and B for A+B problem)
+struct Input {
+  int a, b;
 
-void checker_main() {
-  auto var_ans = var::i32("ans", -2000, 2000);
+  static Input read(var::Reader& in) {
+    // Read integer 'a' within range [-1000, 1000]
+    auto a = in.read(var::i32("a", -1000, 1000));
+    // Read integer 'b' within range [-1000, 1000]
+    auto b = in.read(var::i32("b", -1000, 1000));
+    return {a, b};
+  }
+};
 
-  int ouf_output = chk.ouf.read(var_ans);
-  int ans_output = chk.ans.read(var_ans);
+// Define the Output struct to read the answer and evaluate it
+struct Output {
+  int ans;
 
-  if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
+  // Static read method to parse participant/jury output
+  // It receives a var::Reader and the Input struct for context if needed.
+  static Output read(var::Reader& in, const Input&) {
+    // Read integer 'ans' within range [-2000, 2000]
+    auto ans = in.read(var::i32("ans", -2000, 2000));
+    return {ans};
   }
 
-  chk.quit_ac();
-}
+  // Static evaluate method to compare participant's output with jury's output
+  // It receives an evaluate::Evaluator, participant's output (pans),
+  // jury's output (jans), and the original Input.
+  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+                                   const Input&) {
+    // Use ev.eq to compare the 'ans' field.
+    // If pans.ans == jans.ans, it contributes to AC. Otherwise, it marks WA.
+    auto res = evaluate::Result::ac();
+    res &= ev.eq("ans", pans.ans, jans.ans);
+    return res;
+  }
+};
+
+// Register the checker with CPLib, specifying the Input and Output structs.
+// This macro sets up the main checker logic behind the scenes.
+CPLIB_REGISTER_CHECKER(chk, Input, Output);
 ```
 
 We will explain each line of this code step by step.
@@ -59,65 +86,58 @@ using namespace cplib;
 The main functionalities of CPLib are stored in the namespace `cplib`. Since programs used in Competitive Programming are generally short, to a certain extent, `using namespace cplib;` greatly optimizes development efficiency.
 
 ```cpp
-CPLIB_REGISTER_CHECKER(chk);
+struct Input { /* ... */ };
 ```
 
-The `CPLIB_REGISTER_CHECKER(name)` macro registers the program as a CPLib checker and saves the state of the checker in a global variable named `name` (in the code, the name is `chk`). `name` can be replaced with any variable name that complies with C++ syntax. However, for readability and conciseness, we will use `chk` as the global state variable name in this document.
+The `Input` struct encapsulates all data read from the problem's input file. It must contain a static method `read` that takes a `cplib::var::Reader&` as its first parameter and returns an instance of `Input`. This method is responsible for parsing the input file and performing any necessary initial validations on the input data itself.
 
 ```cpp
-void checker_main() {
+struct Output { /* ... */ };
 ```
 
-`checker_main` is the main function of a program registered as a CPLib checker, which will be called once CPLib completes initialization, similar to the `main` function in a regular C++ program. The actual `main` function will be implemented by CPLib.
+The `Output` struct encapsulates all data read from a program's output file (both participant's and jury's). It must contain:
+
+- A static method `read` that takes a `cplib::var::Reader&` as its first parameter, and optionally a `const Input&` as its second parameter (if output parsing depends on input data). It returns an instance of `Output`. This method is responsible for parsing the output file and performing "validity" checks on the output format and constraints. If the output is invalid (e.g., out of range, wrong format), it should call `in.fail("message")`.
+- A static method `evaluate` that takes an `evaluate::Evaluator&`, `const Output& pans` (participant's output), `const Output& jans` (jury's output), and `const Input& input` as parameters. It returns an `evaluate::Result`. This method is responsible for comparing `pans` and `jans` based on the problem's logical correctness rules.
 
 ```cpp
-  auto var_ans = var::i32("ans", -2000, 2000);
+  auto a = in.read(var::i32("a", -1000, 1000));
 ```
 
-Declare a **variable reading template**. The type is `i32` (32-bit signed integer), and it is named `ans`. A variable reading template is responsible for specifying how to read a variable of a given type according to the given method.
+This line demonstrates reading a variable using a **variable reading template**. `cplib::var::i32` is an alias for `cplib::var::Int<int32_t>`. It's a template that specifies how to read a 32-bit signed integer. The constructor parameters `("a", -1000, 1000)` define:
+
+- `"a"`: The name of the variable. When an error occurs during reading, this name will be displayed in the error message along with the reading stack trace, making error reports more readable.
+- `-1000, 1000`: The minimum and maximum allowed values for the integer. CPLib automatically checks if the read value falls within this range.
 
 <Callout type="info">
-`cplib::var::i32` is an alias for `cplib::var::Int<int32_t>`. The constructor declaration of `cplib::var::Int<T>` is as follows:
+The constructor declarations for `cplib::var::Int<T>` are:
 
 - `explicit Int();`
 - `explicit Int(std::string name);`
 - `explicit Int(std::optional<T> min, std::optional<T> max);`
 - `explicit Int(std::string name, std::optional<T> min, std::optional<T> max);`
 
-Where `min` and `max` specify the minimum and maximum values of the integer. In this problem, the minimum value is $(-1000) + (-1000) = -2000$, and the maximum value is $1000 + 1000 = 2000$. `name` specifies the name of the variable. When an error occurs during reading, the name of the erroneous variable will be displayed in the error message along with the reading stack trace. You can use an overload of the constructor without the `name` parameter to omit the name parameter. However, doing so will make the error report less readable, so we **strongly discourage** you from doing so.
+While the `name` parameter can be omitted , it is **strongly discouraged** as it makes error reports less readable.
 </Callout>
 
 ```cpp
-  int ouf_output = chk.ouf.read(var_ans);
-  int ans_output = chk.ans.read(var_ans);
+    auto res = evaluate::Result::ac();
+    res &= ev.eq("ans", pans.ans, jans.ans);
+    return res;
 ```
 
-Based on the variable reading template defined just now, read an integer from both the participant's output file and the standard answer file. We don't need to worry about the correctness of the reading format and the range of the integers, as CPLib will automatically perform the above checks.
+Inside the `Output::evaluate` method, `evaluate::Evaluator& ev` is used to compare results. `ev.eq("ans", pans.ans, jans.ans)` compares the `ans` field of the participant's output (`pans`) with the jury's output (`jans`). If they are equal, it contributes to an "Accepted" result. If they are not equal, it marks the result as "Wrong Answer" and provides a detailed message including the variable name "ans" and the values.
 
-When the participant's output does not meet the conditions, CPLib will immediately exit the program and report "Wrong Answer", while generating a clear reading stack trace information for reference.
-
-When the standard answer does not meet the conditions, CPLib's behavior is roughly similar to when the participant's output is incorrect. The difference is that in this case, the result returned is "Internal Error". Of course, in actual problems, it is essential to prevent such cases of incorrect standard answers.
+When an output file (participant's or jury's) does not meet the format or range constraints specified in its `read` method, CPLib will automatically exit the program and report an error. For participant's output, this results in "Wrong Answer". For jury's output, it results in "Internal Error", indicating a problem with the test data itself.
 
 ```cpp
-  if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
-  }
+CPLIB_REGISTER_CHECKER(chk, Input, Output);
 ```
 
-When it is found that the participant's output and the standard answer are not consistent, the `chk.quit_wa` function needs to be called to report "Wrong Answer" and exit the program. We recommend providing clear information when using the `chk.quit_wa` series of functions. Here, the `cplib::format` function is used to format the error message. This function uses a format similar to `std::format`, making it convenient to format strings.
-
-```cpp
-  chk.quit_ac();
-```
-
-`chk.quit_ac` reports "Accepted", meaning there are no errors, and then exits the program.
-
-<Callout type="info">
-When your answer is wrong, it is necessary to explain why it is wrong. However, when your answer is correct, there is no need to explain why it is correct. Therefore, CPLib does not provide, nor intend to provide, an overloaded `chk.quit_ac` function for outputting custom information. However, everything should consider extensibility. If you do have such a need, please refer to the documentation of the [chk.quit]() function.
-</Callout>
+The `CPLIB_REGISTER_CHECKER(name, InputStruct, OutputStruct)` macro registers the program as a CPLib checker. `name` (in the code, `chk`) is the name of the global state variable for the checker. `InputStruct` and `OutputStruct` are the names of the `struct`s that define how to read the problem input and how to read and evaluate the program output, respectively. CPLib will internally manage the `main` function and call the `read` and `evaluate` methods of these structs.
 
 <Callout type="warning">
-Programs registered as CPLib programs must use the `chk.quit*` series of functions to exit, and it is **not allowed** to directly use functions like `std::exit` to exit.
+Programs registered as CPLib programs must use the `evaluate::Evaluator` methods (like `ev.eq`, `ev.fail`) in `evaluate` methods, or `in.fail()` in `read` methods, to report errors and exit. It is **not allowed** to directly use functions like `std::exit` for normal error reporting. `panic` should only be used for unrecoverable internal errors, such as a critical bug in the checker logic itself or an invalid jury's answer that cannot be handled gracefully by `ev.fail()`.
 </Callout>
 
 ### Usage
@@ -127,12 +147,10 @@ Programs registered as CPLib programs must use the `chk.quit*` series of functio
 Open the terminal, navigate to the working directory you just created, and execute the compilation command to compile the checker, which is typically similar to this:
 
 ```bash
-g++ chk.cpp -o chk -std=c++17
+g++ chk.cpp -o chk -std=c++20
 ```
 
-<Callout type="warning">
-The minimum C++ standard required by CPLib is C++ 17.
-</Callout>
+<Callout type="warning">The minimum C++ standard required by CPLib is C++ 20.</Callout>
 
 Next, create a folder named `data/` in the working directory to store the test points used by the checker and place the test data inside. In this example, we use `data/0.in`, `data/0.out`, and `data/0.ans` as the names of the test data.
 
@@ -165,12 +183,10 @@ If everything is normal up to this point, you will see the following results fro
 Start `cmd.exe` or Windows Terminal app, navigate to the working directory you just created, and execute the compilation command to compile the checker, which is typically similar to this:
 
 ```cmd
-g++ chk.cpp -o chk.exe -std=c++17
+g++ chk.cpp -o chk.exe -std=c++20
 ```
 
-<Callout type="warning">
-The minimum C++ standard required by CPLib is C++ 17.
-</Callout>
+<Callout type="warning">The minimum C++ standard required by CPLib is C++ 20.</Callout>
 
 Next, create a folder named `data/` in the working directory to store the test points used by the checker and place the test data inside. In this example, we use `data/0.in`, `data/0.out`, and `data/0.ans` as the names of the test data.
 
@@ -224,16 +240,17 @@ The relevant code for this section can be found in the [GitHub repository](https
 In actual problems encountered in Competitive Programming, the problems are not as simple as A+B. Let's look at a slightly more complex example.
 
 > **Problem Description**: Given an undirected connected simple graph with $n$ nodes ($1 \le n \le 100$) and $m$ edges ($1 \le n \le 100$), where the endpoints of the $i$-th edge are $u_i$ and $v_i$ ($1 \le u_i, v_i \le n$), and the edge weight is $w_i$ ($1 \le w_i \le 100$). You need to solve two problems: find the sum of the weights of the shortest path from $1$ to $n$, and output any one shortest path.
-
+>
 > **Input Format**: The first line contains two integers $n$ and $m$. Next, there are $m$ lines, each containing three integers $u_i,v_i,w_i$.
-
+>
 > **Output Format**: The first line outputs an integer $\mathit{sum}$, representing the answer to the first problem. The second line first outputs an integer $\mathit{len}$ in the range $[1,n^2]$, representing the number of nodes traversed in the shortest path. Then it outputs $\mathit{len}$ integers, representing the node numbers traversed in the shortest path (including the starting node $1$ and the ending node $n$).
 
-When writing a more complex checker, it is **not** recommended to include all the logic in `checker_main`. Below is a more readable and maintainable implementation of a checker:
+When writing a more complex checker, it is recommended to structure the logic using `Input` and `Output` structs with their respective `read` and `evaluate` methods. This approach leads to more readable and maintainable implementations.
 
 ```cpp filename="chk.cpp" copy showLineNumbers
 #include <map>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -241,100 +258,134 @@ When writing a more complex checker, it is **not** recommended to include all th
 
 using namespace cplib;
 
-CPLIB_REGISTER_CHECKER(chk);
-
+// Define an Edge struct for reading graph edges
 struct Edge {
   int u, v, w;
 
+  // Edge::read takes a Reader and the graph size 'n' as context
   static Edge read(var::Reader& in) {
+    // Using in() operator for reading multiple variables conveniently
     auto [u, v, w] = in(var::i32("u"), var::i32("v"), var::i32("w"));
     return {u, v, w};
   }
 };
 
+// Define the Input struct to hold graph data
 struct Input {
   int n, m;
-  std::map<std::pair<int, int>, int> graph;
+  std::map<std::pair<int, int>, int> graph; // Adjacency map for quick edge lookup
 
   static Input read(var::Reader& in) {
     auto [n, m] = in(var::i32("n"), var::i32("m"));
+    // Read 'm' edges, passing 'n' as context to Edge::read via var::ExtVar
     auto edges = in.read(var::ExtVar<Edge>("edges") * m);
 
     std::map<std::pair<int, int>, int> graph;
     for (auto [u, v, w] : edges) {
       graph[{u, v}] = w;
-      graph[{v, u}] = w;
+      graph[{v, u}] = w; // Undirected graph
     }
 
     return {n, m, graph};
   }
 };
 
+// Define the Output struct to hold the shortest path sum and the path itself
 struct Output {
   int sum, len;
   std::vector<int> plan;
 
+  // Output::read takes Reader and the Input struct as context
   static Output read(var::Reader& in, const Input& input) {
-    auto [sum, len] = in(var::i32("sum", 0, std::nullopt), var::i32("len", 1, std::nullopt));
+    // Read sum and length, with appropriate ranges
+    auto sum = in.read(var::i32("sum", 0, std::nullopt));
+    auto len = in.read(var::i32("len", 1, input.n * input.n)); // Max path length for N nodes
+
+    // Read the path plan, ensuring nodes are within [1, input.n]
     auto plan = in.read(var::i32("plan", 1, input.n) * len);
 
-    if (plan.front() != 1) in.fail("Plan should begin with 1");
-    if (plan.back() != input.n) in.fail("Plan should end with n");
+    // Perform validity checks on the path
+    if (plan.empty()) in.fail("Path cannot be empty");
+    if (plan.front() != 1) in.fail("Path should begin with 1");
+    if (plan.back() != input.n) in.fail("Path should end with n");
+
     int result_sum = 0;
     for (int i = 1; i < (int)plan.size(); ++i) {
       if (!input.graph.count({plan[i - 1], plan[i]}))
         in.fail(format("Edge {} <-> {} does not exist", plan[i - 1], plan[i]));
       result_sum += input.graph.at({plan[i - 1], plan[i]});
     }
-    if (result_sum != sum) in.fail("Plan and shortest path length do not match");
+
+    if (result_sum != sum)
+      in.fail(format("Calculated path sum ({}) from plan does not match reported sum ({})",
+                     result_sum, sum));
 
     return {sum, len, plan};
   }
 
-  static void check(const Output& expected, const Output& result) {
-    if (result.sum > expected.sum)
-      chk.quit_wa(format("Wrong sum, expected {}, got {}", expected.sum, result.sum));
+  // Output::evaluate compares participant's output with jury's output
+  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+                                   const Input&) {
+    auto res = evaluate::Result::ac();
 
-    if (result.sum < expected.sum)
-      panic(format("Contestant answers are better than standard answers, expected {}, got {}",
-                   expected.sum, result.sum));
+    // If participant's sum is strictly less than jury's sum,
+    // it implies the jury's answer is not optimal. This is an internal error.
+    if (pans.sum < jans.sum) {
+      ev.fail(
+          format("Participant's path sum ({}) is less than jury's path sum ({})! This indicates a "
+                 "judge error.",
+                 pans.sum, jans.sum));
+    }
+
+    // The problem asks for the shortest path sum.
+    // If participant's sum is greater than jury's, it's WA.
+    res &= ev.eq("sum", pans.sum, jans.sum);
+
+    // If sums are equal, the path itself needs to be valid (already checked in read)
+    // and correctly connects 1 to n (also checked in read).
+    // No further comparison of 'plan' is strictly needed if 'sum' is correct,
+    // as any valid path yielding the shortest sum is acceptable.
+    // However, for completeness or stricter checks, one might compare 'len' or 'plan'
+    // if multiple shortest paths exist and specific ones are preferred.
+    // For this problem, we only care about the sum.
+
+    return res;
   }
 };
 
-void checker_main() {
-  auto input = chk.inf.read(var::ExtVar<Input>("input"));
-
-  auto output = var::ExtVar<Output>("output", input);
-  auto ouf_output = chk.ouf.read(output);
-  auto ans_output = chk.ans.read(output);
-
-  Output::check(ans_output, ouf_output);
-  chk.quit_ac();
-}
+// Register the checker
+CPLIB_REGISTER_CHECKER(chk, Input, Output);
 ```
 
-This example demonstrates how to use variable reading templates for custom types.
+This example demonstrates how to use variable reading templates for custom types and how to structure the evaluation logic.
 
-First, define the structure `Edge` to describe an edge. The simplest way to create a variable reading template for reading `Edge` is to use `cplib::var::ExtVar`. Before using it, you need to write a public static method named `read` for the `Edge` structure. The first parameter type of this method must be `cplib::var::Reader&`: that is, a reference to the type corresponding to the objects `chk.inf`, `chk.ouf`, `chk.ans` introduced in the previous section. Subsequent parameters can be defined arbitrarily.
+**Structured Data Types and `read` Methods:**
 
-The code from the previous section shows the `.read` method of the `cplib::var::Reader` type, and the implementation of `Edge::read` uses its `operator()` operator overloading. This operator sequentially calls `.read` method with instances of multiple variable reading templates as parameters and packs all the results into a `std::tuple` in order. When reading multiple variables with **no dependency relationship**, using `operator()` can make the code shorter.
+- **`Edge` struct**: Defines the structure for a single edge. Its `static read` method reads `u`, `v`, and `w`.
+- **`Input` struct**: Encapsulates `n`, `m`, and the graph adjacency map. Its `static read` method reads `n` and `m`, then uses `var::ExtVar<Edge>("edges") * m` to read `m` edges. `var::ExtVar<T>` is used to create a variable reading template for a custom type `T`. When `T::read` requires additional parameters, these parameters are passed to the `var::ExtVar<T>` constructor. For types like the `Edge` type in this example, whose `Edge::read` method has only one parameter, the constructor does not need to pass any parameters without `name`. The `operator()` of `in` (e.g., `in(var::i32("n"), var::i32("m"))`) provides a concise way to read multiple variables with **no interdependencies** into a `std::tuple`.
+- **`Output` struct**: Holds the reported sum, path length, and the path itself. Its `static read` method performs crucial "validity" checks:
+  - Ensuring path nodes are within `[1, input.n]`.
+  - Verifying the path starts at `1` and ends at `n`.
+  - Checking if all edges in the path exist in the graph.
+  - Confirming that the reported `sum` matches the sum calculated from the `plan`.
+  - If any validity check fails, `in.fail(message)` is called, which immediately reports "Wrong Answer" (for participant's output) or "Internal Error" (for jury's output) with a detailed stack trace.
 
-CPLib provides `cplib::var::Vec` for creating variable reading templates for `std::vector`, and also overloads `operator*(size_t)` for `cplib::var::Var`. Using a syntax similar to the one in the `Input::read` method in the code, you can quickly create a `cplib::var::Vec` by multiplying any object of a subclass of `cplib::var::Var` with an integer.
+**Evaluation with `evaluate::Evaluator`:**
 
-After writing `Edge::read`, we can use `cplib::var::ExtVar<Edge>` to create a variable reading template for reading an `Edge` type. When instantiating a `cplib::var::ExtVar<T>` for a target reading type `T`, if the number of parameters for `T::read` is greater than or equal to $2$, you need to pass arguments to the constructor of `cplib::var::ExtVar<T>` based on the second to last parameter of `T::read`. For types like the `Edge` type in this example, whose `Edge::read` method has only one parameter, the constructor does not need to pass any arguments.
+The `Output::evaluate` method is where the core "equivalence" check happens.
 
-When it is possible to check whether the participant's output is "valid" before reading all the participant's output, we recommend that you write the logic for checking "validity" in the corresponding type's `read` method, as shown in the implementation of `Output::read` in this example. If there is a case of reading that does not meet the requirements of the problem, the `in.fail(message)` function should be used to report the error. This function generates an error report based on the input parameter `message` and the current reading stack trace, and exits the program. Different input streams corresponding to `Reader` determine different types of error reports. For example, calling `fail` on `chk.inf` and `chk.ans` streams in the checker will result in an error type of "Internal Error", while on the `chk.ouf` stream, it will result in "Wrong Answer".
-
-After checking for "validity", the next step is to check for the "equivalence" between the participant's output and the standard answer. We recommend that you implement a static `check(expected, result)` method on each type that needs to be compared, and call the `check` method of the outermost type `Output` in `checker_main`. Finally, after all the checks pass in `check`, call `chk.quit_ac`.
+- It receives an `evaluate::Evaluator& ev`, which is the primary tool for reporting results.
+- A special case is handled: if `pans.sum < jans.sum`, it means the participant found a *better* answer than the jury's. This indicates a problem with the jury's solution or test data. `ev.fail()` is used here to report an "Internal Error" with a specific message, prompting a review of the jury's answer. This is a robust way to handle such scenarios, distinguishing them from a regular "Wrong Answer".
+- `ev.eq("sum", pans.sum, jans.sum)` checks if the participant's sum (`pans.sum`) is equal to the jury's sum (`jans.sum`). If `pans.sum > jans.sum`, it automatically marks "Wrong Answer" with a descriptive message.
 
 ## Suggestions
 
 In summary, when writing more complex checkers, we recommend the following suggestions:
 
-- Use custom types and `cplib::var::ExtVar` to encapsulate your code, instead of using basic type reading entirely.
-- When checking the "validity" of `T`, consider implementing it in `T::read` first. Next, consider separately checking the `result` parameter in `T::check`.
-- When checking the "equivalence" of `T`, consider implementing it in `T::check`, and only call the `check` method of the outermost variable in `checker_main`.
-- For types that only appear in the test point input file, it is not necessary to implement "validity" checks for them: you should do this in the validator.
+- **Structure your code**: Use custom `Input` and `Output` structs with their `static read` and `static evaluate` methods. This modular design improves readability and maintainability.
+- **Leverage `var::Var`**: Use `cplib::var::ExtVar` for custom types and `operator*` for vectors. The `operator()` of `in` can simplify reading multiple independent variables.
+- **Perform "validity" checks in `read` methods**: Implement checks for output format, ranges, and basic consistency (e.g., path starts/ends correctly, edges exist) within the `static read` methods of your `Output` struct and its nested types. Use `in.fail("message")` to report these errors.
+- **Perform "equivalence" checks in `evaluate` methods**: Implement the core logical comparison between participant's and jury's outputs in the `static evaluate` method of your `Output` struct. Use `evaluate::Evaluator` methods (like `ev.eq`, `ev.approx`, `ev.fail`) for robust and descriptive result reporting.
 
 <Callout>
 If you want to experiment on your own, you can:
@@ -348,4 +399,5 @@ Try writing a checker for the following problem.
 **Output Format**: The first line contains an integer $x$ representing the number of edge biconnected components. The following $x$ lines each start with an integer $a$ representing the number of nodes in the component, followed by $a$ integers describing an edge biconnected component. You can output the edge biconnected components and the nodes within them in any order.
 
 For the example implementation, see the [GitHub repository](https://github.com/rindag-devs/cplib/tree/main/tests/checker/3-set-of-sets).
+
 </Callout>

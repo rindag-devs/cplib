@@ -4,48 +4,84 @@
 
 CPLib 是使用 C++ 编写的，用于处理算法竞赛测试数据的库．帮助你编写清晰且高效的 checker、interactor、validator 和 generator．
 
-下面是一个基本的 checker 示例：
+每个 checker 都定义：
+
+- 一个 `Input` 结构体，包含用于解析问题输入的静态 `read` 方法．
+- 一个 `Output` 结构体，包含用于解析选手/评测机输出并进行基本格式验证的静态 `read` 方法，以及一个静态 `evaluate` 方法，该方法接收 `evaluate::Evaluator`、选手输出、评测机输出和原始输入，用于比较结果并判断正确性．
+
+以下是一个使用 CPLib 编写 A+B 问题 checker 的基本示例：
 
 ```cpp filename="chk.cpp" copy showLineNumbers
 #include "cplib.hpp"
 
 using namespace cplib;
 
-CPLIB_REGISTER_CHECKER(chk);
+// Define the Input struct to read problem-specific inputs (A and B for A+B problem)
+struct Input {
+  int a, b;
 
-void checker_main() {
-  auto var_ans = var::i32("ans", -2000, 2000);
+  static Input read(var::Reader& in) {
+    // Read integer 'a' within range [-1000, 1000]
+    auto a = in.read(var::i32("a", -1000, 1000));
+    // Read integer 'b' within range [-1000, 1000]
+    auto b = in.read(var::i32("b", -1000, 1000));
+    return {a, b};
+  }
+};
 
-  int ouf_output = chk.ouf.read(var_ans);
-  int ans_output = chk.ans.read(var_ans);
+// Define the Output struct to read the answer and evaluate it
+struct Output {
+  int ans;
 
-  if (ouf_output != ans_output) {
-    chk.quit_wa(format("Expected {}, got {}", ans_output, ouf_output));
+  // Static read method to parse participant/jury output
+  // It receives a var::Reader and the Input struct for context if needed.
+  static Output read(var::Reader& in, const Input&) {
+    // Read integer 'ans' within range [-2000, 2000]
+    auto ans = in.read(var::i32("ans", -2000, 2000));
+    return {ans};
   }
 
-  chk.quit_ac();
-}
+  // Static evaluate method to compare participant's output with jury's output
+  // It receives an evaluate::Evaluator, participant's output (pans),
+  // jury's output (jans), and the original Input.
+  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+                                   const Input&) {
+    // Use ev.eq to compare the 'ans' field.
+    // If pans.ans == jans.ans, it contributes to AC. Otherwise, it marks WA.
+    auto res = evaluate::Result::ac();
+    res &= ev.eq("ans", pans.ans, jans.ans);
+    return res;
+  }
+};
+
+// Register the checker with CPLib, specifying the Input and Output structs.
+// This macro sets up the main checker logic behind the scenes.
+CPLIB_REGISTER_CHECKER(chk, Input, Output);
 ```
 
-上面的实例展示了 CPLib 的一个核心逻辑：「变量读入模板」．通过「变量读入模板」，你可以将限制相同的变量读入逻辑进行保存和复用．同时根据变量之间的读入层次关系，在错误时生成简洁的读入栈信息．
+此示例展示了 CPLib 如何利用结构化数据类型 (`Input`, `Output`) 和专用的 `read`/`evaluate` 方法来清晰地分离关注点：输入解析、输出解析和结果评估．`evaluate::Evaluator` 提供强大灵活的结果比较、浮点精度处理及详细错误反馈机制．
 
-## 为什么要使用 CPLib？
+## 为什么选择 CPLib？
 
-CPLib 项目与其他定位类似的库的优点主要体现在以下几点．
+CPLib 项目相较于其他同类库的优势主要体现在以下几点．
 
 ### 现代性
 
-CPLib 的开发使用较新的 C++ 17 标准，并在代码中较多使用现代 C++ 新语法．现代 C++ 的标准库及特性为 CPLib 提供了众多语法糖和快速的实现．同时，CPLib 偏向于优先使用标准库而非另做实现，使得它可更好的与其他库进行兼容．
+CPLib 基于 C++ 20 标准开发．现代 C++ 的标准库及特性为 CPLib 提供了众多语法糖和快速的实现．同时，CPLib 偏向于优先使用标准库而非另做实现，使得它可更好的与其他库进行兼容．
 
 CPLib 在一些功能细节的处理也更加现代化．例如，读入错误时，CPLib 会返回完整的读入栈 Trace；输出报告至文件时，采用更为流行的 JSON 格式而非 Testlib 使用的 XML 格式．
 
-### 扩展性
+### 结构化设计与可扩展性
 
-CPLib 扩展性主要体现在两点：变量读入模板 `cplib::var::Var` 的设计，以及对用于各大评测平台的定制性．
+CPLib 的可扩展性和健壮设计主要体现在两个关键领域：「变量输入模板」(`cplib::var::Var`) 和强大的 `evaluate::Evaluator` 系统，以及对不同评测平台的定制支持．
 
-CPLib 的变量读入基于「变量读入模板」，而非 Testlib 风格的、适用于各种基本类型的 `readXYZ()` 系列函数．这使得 CPLib 可以更加方便地扩展与组合读入类型，从而使得程序更加模块化．
+#### 变量输入模板 (`cplib::var::Var`)
 
-下面是一个简单的示例，展示了通过将 `cplib::var::Var` 进行组合与扩展的方式，完成读取有向图的任务．
+CPLib 的变量输入基于“变量输入模板”，而非 Testlib 式的 `readXYZ()` 系列函数，后者适用于各种基本类型．这使得 CPLib 更易于扩展和组合输入类型，从而提升程序的模块化和可读性．
+
+CPLib 的设计鼓励用户将复杂的问题输入和输出拆分为多个专用结构体，并实现静态 `read` 函数．这种方法简化了代码，使其更易于理解．
+
+这里是一个简单示例，展示了如何在自定义结构体中结合和扩展 `cplib::var::Var` 来读取有向图：
 
 ```cpp
 struct Edge {
@@ -70,9 +106,15 @@ struct Graph {
 };
 ```
 
-CPLib 的设计引导使用者将一道题目复杂的读入拆分为若干个实现了静态 `read` 函数的结构体，使程序更加简单易读．
+#### 强大的评估机制 (`evaluate::Evaluator`)
 
-另一方面，CPLib 考虑到了各大评测平台部分接口的差异，允许使用 `initializer` 和 `reporter` 来定制程序的初始化与报告方式，不需要修改 CPLib 源代码就能做到与上层评测平台的兼容性．
+除了输入/输出解析，CPLib 还引入了专用的 `evaluate::Evaluator` 系统来定义问题特定的正确性，它支持：
+
+- **清晰的关注点分离**：评估逻辑位于专用的 `Output::evaluate` 静态方法中，与输入/输出解析分离．
+- **灵活的比较方法**：`Evaluator` 提供了 `ev.eq()` 等方法用于精确比较（整数、字符串、`std::vector`），以及 `ev.approx()` 用于浮点数比较，支持自定义误差范围．
+- **详细的反馈**：它支持带堆栈跟踪的丰富错误报告，允许您指定输出中哪个特定部分不正确，并提供上下文相关的消息．
+
+此外，CPLib 考虑了不同评测平台接口的差异，允许通过 `initializer` 和 `reporter` 自定义程序的初始化和报告方法．这样，无需修改 CPLib 源代码即可实现与上层评测平台的兼容．
 
 ### 高效性
 
