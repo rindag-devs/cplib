@@ -44,9 +44,9 @@ The built-in variable read-in templates (except `cplib::var::Separator`) in CPLi
 
 The interfaces related to trace in CPLib are as follows.
 
-### `cplib::var::Reader::TraceLevel`
+### `cplib::trace::Level`
 
-`cplib::var::Reader::TraceLevel` represents the trace enablement level of the Reader, with three possible values:
+`cplib::trace::Level` represents the trace enablement level of the Reader, with three possible values:
 
 - `NONE` (0): Completely disable trace.
 - `STACK_ONLY` (1): Only enable trace stack.
@@ -70,9 +70,9 @@ Contains the basic information of a variable:
 
 It provides two functions, `to_json_incomplete` and `to_json_complete`, to encode its own content into JSON, which are suitable for variables that have not finished reading and those that have finished reading, respectively. Among them, `to_json_incomplete` will export all fields except `byte_length` using the original name; while `to_json_complete` will only export the three fields `var_name`, `byte_num`, and `byte_length`, and they will be renamed to `n`, `b`, and `l` respectively to avoid generating too long JSON.
 
-### `cplib::var::Reader::TraceStack`
+### `cplib::trace::TraceStack`
 
-Records the read-in stack of the current variable, or can also be seen as the chain from the root (not included) to the current node (included) of the read-in tree.
+Records the traceback stack, or can also be seen as the chain from the root (not included) to the current node (included) of the read-in tree.
 
 It provides three methods, `to_json()`, `to_plain_text_lines()`, and `to_colored_text_lines()`, to convert it to the corresponding format.
 
@@ -82,10 +82,10 @@ For Readers with `STACK_ONLY` or higher level enabled, you can use the `cplib::v
 
 Represents a node in the trace tree.
 
-The `trace` field records the basic information of the variable in the `cplib::var::Reader::Trace` type, and the `tags` field records the additional information of the variable.
+The `trace` field records the basic information of the current node, and the `tags` field records the additional information.
 
 It provides the `get_children()` method to get the child nodes of the current node, and the `get_parent()` method to get the parent node of the current node, which returns `nullptr` if it does not exist.
 
 It also provides the `to_json()` method to convert its subtree to JSON.
 
-For Readers with the `FULL` level enabled, you can use the `cplib::var::Reader::get_trace_tree()` method to get the root node of the trace tree for all variables read-in by that Reader. The Trace variable name of the root node is `<root>`.
+For Readers with the `FULL` level enabled, you can use the `cplib::var::Reader::get_trace_tree()` method to get the root node of the trace tree for all variables read-in by that Reader. The Trace variable name of the root node is `<stream_name>`, where `stream_name` is the name of the stream in the reader.

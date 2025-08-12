@@ -3,7 +3,9 @@ import { Callout } from "nextra-theme-docs";
 # Initializer
 
 <Callout type="info">
-  CPLib 官方在 [cplib-initializers](https://github.com/rindag-devs/cplib-initializers) 项目维护了一些适配于主流平台的 initializer，如果你的目标仅是使自己编写的程序运行在目标平台，可以前往项目仓库了解详情．
+  CPLib 官方在 [cplib-initializers](https://github.com/rindag-devs/cplib-initializers)
+  项目维护了一些适配于主流平台的
+  initializer，如果你的目标仅是使自己编写的程序运行在目标平台，可以前往项目仓库了解详情．
 </Callout>
 
 如果你需要在不原生适配 CPLib 的评测平台使用 CPLib，最好的使用方式是实现一个自定义的 initializer．下面将以为 [CMS](https://cms-dev.github.io/) 平台编写 checker 为实例，展示自定义 initializer 的编写方式．
@@ -73,9 +75,10 @@ struct CmsInitializer : cplib::checker::Initializer {
     const auto &ouf = args[2];
     const auto &ans = args[1];
 
-    set_inf_path(inf, cplib::var::Reader::TraceLevel::NONE);
-    set_ouf_path(ouf, cplib::var::Reader::TraceLevel::NONE);
-    set_ans_path(ans, cplib::var::Reader::TraceLevel::NONE);
+    set_inf_path(inf, cplib::trace::Level::NONE);
+    set_ouf_path(ouf, cplib::trace::Level::NONE);
+    set_ans_path(ans, cplib::trace::Level::NONE);
+    set_evaluator(cplib::trace::Level::NONE);
   }
 };
 ```
@@ -89,7 +92,7 @@ Initializer 需继承自 `cplib::<work-modeInitializerReporter` 并实现 `auto 
 首先调用 `this->state()` 获取准备初始化的 `cplib::checker::State` 的对象．之后从 args 参数中提取输入输出文件的路径．对于本例，由于命令行参数较为简单，可以直接处理．但如果遇到命令行参数较为复杂的情况，可借助 `cplib::cmd_args::ParsedArgs` 进行处理．
 
 <Callout type="info">
-  例如，若某平台要求的命令行参数格式如 `./chk <inf> <ouf> <ans> --full-score={int} [--report-as-json]`，可通过以下代码进行处理： 
+  例如，若某平台要求的命令行参数格式如 `./chk <inf> <ouf> <ans> --full-score={int} [--report-as-json]`，可通过以下代码进行处理：
 
   ```cpp copy
   auto parsed_args = cplib::cmd_args::ParsedArgs(args);
@@ -113,7 +116,7 @@ Initializer 需继承自 `cplib::<work-modeInitializerReporter` 并实现 `auto 
 
 对于 checker，可用的 `<name>` 取值如下表格所式：
 
-| 名称 |  类型  |      描述      |
+| 名称 | 类型   | 描述           |
 | ---- | ------ | -------------- |
 | inf  | Reader | 测试点输入文件 |
 | ouf  | Reader | 选手输出文件   |
@@ -121,7 +124,7 @@ Initializer 需继承自 `cplib::<work-modeInitializerReporter` 并实现 `auto 
 
 对于 interactor，可用的 `<name>` 取值如下表格所式：
 
-|   名称    |  类型   |      描述      |
+| 名称      | 类型    | 描述           |
 | --------- | ------- | -------------- |
 | inf       | Reader  | 测试点输入文件 |
 | from_user | Reader  | 用户输入流     |
@@ -129,16 +132,20 @@ Initializer 需继承自 `cplib::<work-modeInitializerReporter` 并实现 `auto 
 
 对于 validator，可用的 `<name>` 取值如下表格所式：
 
-| 名称 |  类型  |      描述      |
+| 名称 | 类型   | 描述           |
 | ---- | ------ | -------------- |
 | inf  | Reader | 测试点输入文件 |
 
 若 `<name>` 类型为 Reader，则还需额外传递一个参数代表 Reader 的 trace level，具体含义见 [Trace](/user-guide/advanced/trace) 一章说明．
 
 <Callout type="warning">
-  不要在实现 `Reporter::report` 的时候通过调用 `cplib::panic` 函数报告错误．因为 CPLib 程序在初始化的时候会将 panic 实现修改为以 INTERNAL_ERROR 作为 status 调用 `Reporter::report`．这会引起无限递归．
+  不要在实现 `Reporter::report` 的时候通过调用 `cplib::panic` 函数报告错误．因为 CPLib
+  程序在初始化的时候会将 panic 实现修改为以 INTERNAL_ERROR 作为 status 调用
+  `Reporter::report`．这会引起无限递归．
 </Callout>
 
 <Callout type="warning">
-  根据 LGPL 许可证要求，当你分发使用 CPLib 的软件时，你需要在某处说明该软件使用 CPLib，并且 CPLib 是 LGPL 许可的．我们推荐的方式是在命令行参数包含 `--help` 时输出有关信息．本教程为保证代码简短并未做出实现，在实际项目中请务必注意严格遵守开源许可证．
+  根据 LGPL 许可证要求，当你分发使用 CPLib 的软件时，你需要在某处说明该软件使用 CPLib，并且 CPLib 是
+  LGPL 许可的．我们推荐的方式是在命令行参数包含 `--help`
+  时输出有关信息．本教程为保证代码简短并未做出实现，在实际项目中请务必注意严格遵守开源许可证．
 </Callout>

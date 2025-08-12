@@ -3,7 +3,10 @@ import { Callout } from "nextra-theme-docs";
 # Initializer
 
 <Callout type="info">
-  The CPLib team maintains a set of initializers for mainstream platforms in the [cplib-initializers](https://github.com/rindag-devs/cplib-initializers) project. If your goal is solely to run your own programs on the target platform, you can visit the project repository to learn more about the details.
+  The CPLib team maintains a set of initializers for mainstream platforms in the
+  [cplib-initializers](https://github.com/rindag-devs/cplib-initializers) project. If your goal is
+  solely to run your own programs on the target platform, you can visit the project repository to
+  learn more about the details.
 </Callout>
 
 If you need to use CPLib on an evaluation platform that does not natively support it, the best way to use it is to implement a custom initializer. The following will use the example of writing a checker for the [CMS](https://cms-dev.github.io/) platform to demonstrate how to write a custom initializer.
@@ -73,9 +76,10 @@ struct CmsInitializer : cplib::checker::Initializer {
     const auto &ouf = args[2];
     const auto &ans = args[1];
 
-    set_inf_path(inf, cplib::var::Reader::TraceLevel::NONE);
-    set_ouf_path(ouf, cplib::var::Reader::TraceLevel::NONE);
-    set_ans_path(ans, cplib::var::Reader::TraceLevel::NONE);
+    set_inf_path(inf, cplib::trace::Level::NONE);
+    set_ouf_path(ouf, cplib::trace::Level::NONE);
+    set_ans_path(ans, cplib::trace::Level::NONE);
+    set_evaluator(cplib::trace::Level::NONE);
   }
 };
 ```
@@ -113,7 +117,7 @@ Of note is the use of the `set_(inf|ouf|ans)_path` functions. To facilitate the 
 
 For checkers, the available `<name>` values are as follows:
 
-| Name |  Type  |       Description       |
+| Name | Type   | Description             |
 | ---- | ------ | ----------------------- |
 | inf  | Reader | Input file              |
 | ouf  | Reader | Participant output file |
@@ -121,24 +125,30 @@ For checkers, the available `<name>` values are as follows:
 
 For interactors, the available `<name>` values are as follows:
 
-| Name     | Type    | Description    |
-| --------- | ------- | -------------- |
-| inf       | Reader  | Input file     |
-| from_user | Reader  | User input     |
-| to_user   | ostream | User output    |
+| Name      | Type    | Description |
+| --------- | ------- | ----------- |
+| inf       | Reader  | Input file  |
+| from_user | Reader  | User input  |
+| to_user   | ostream | User output |
 
 For validators, the available `<name>` values are as follows:
 
-| Name | Type   | Description    |
-| ---- | ------ | -------------- |
-| inf  | Reader | Input file     |
+| Name | Type   | Description |
+| ---- | ------ | ----------- |
+| inf  | Reader | Input file  |
 
 If the `<name>` type is Reader, an additional parameter representing the Reader's trace level needs to be passed, the meaning of which is explained in the [Trace](/user-guide/advanced/trace) chapter.
 
 <Callout type="warning">
-  Do not report errors by calling the `cplib::panic` function when implementing `Reporter::report`. This is because CPLib programs modify the panic implementation during initialization to call `Reporter::report` with `INTERNAL_ERROR` as the status, which will cause an infinite recursion.
+  Do not report errors by calling the `cplib::panic` function when implementing `Reporter::report`.
+  This is because CPLib programs modify the panic implementation during initialization to call
+  `Reporter::report` with `INTERNAL_ERROR` as the status, which will cause an infinite recursion.
 </Callout>
 
 <Callout type="warning">
-  According to the LGPL license requirements, when you distribute software that uses CPLib, you need to indicate somewhere that the software uses CPLib, and that CPLib is licensed under the LGPL. Our recommended approach is to output relevant information when the command line argument contains `--help`. This tutorial has not been implemented to keep the code short. In actual projects, please be sure to strictly abide by the open source license.
+  According to the LGPL license requirements, when you distribute software that uses CPLib, you need
+  to indicate somewhere that the software uses CPLib, and that CPLib is licensed under the LGPL. Our
+  recommended approach is to output relevant information when the command line argument contains
+  `--help`. This tutorial has not been implemented to keep the code short. In actual projects,
+  please be sure to strictly abide by the open source license.
 </Callout>

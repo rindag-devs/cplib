@@ -43,9 +43,9 @@ CPLib 内置变量读入模版（`cplib::var::Separator` 除外）在读入变�
 
 CPLib 中与 trace 相关的接口如下．
 
-### `cplib::var::Reader::TraceLevel`
+### `cplib::trace::Level`
 
-`cplib::var::Reader::TraceLevel` 表示 Reader 的 trace 启用级别，有三种取值：
+`cplib::trace::Level` 表示 Reader 的 trace 启用级别，有三种取值：
 
 - `NONE`（0）：完全关闭 trace．
 - `STACK_ONLY`（1）：仅启用 trace stack．
@@ -69,22 +69,22 @@ CPLib 中与 trace 相关的接口如下．
 
 提供 `to_json_incomplete` 和 `to_json_complete` 两个函数来将自身内容编码为 JSON，分别适用于未完成读入的变量和已完成读入的变量．其中，`to_json_incomplete` 会使用原有名称导出除 `byte_length` 所有字段；而 `to_json_complete` 仅会导出 `var_name`、`byte_num`、`byte_length` 三个字段，且为了避免生成的 JSON 过长，三个字段会被重命名为 `n`、`b`、`l`．
 
-### `cplib::var::Reader::TraceStack`
+### `cplib::trace::TraceStack`
 
-记录当前变量的读入栈，或者也可以视为读入树从根（不包含）到当前结点（包含）的链．
+记录当前栈轨迹，或者也可以视为读入树从根（不包含）到当前结点（包含）的链．
 
 提供 `to_json()`、`to_plain_text_lines()`、`to_colored_text_lines()` 三个方法来将其转换为对应格式．
 
 对于开启了 `STACK_ONLY` 及以上级别的 Reader，你可以使用 `cplib::var::Reader::get_trace_stack()` 方法获取当前读入的变量的 trace stack．
 
-### `cplib::var::Reader::TraceTreeNode`
+### `cplib::trace::TraceTreeNode`
 
 表示 trace tree 上的一个结点．
 
-字段 `trace` 以 `cplib::var::Reader::Trace` 类型记录变量基本信息，`tags` 记录变量附加信息．
+字段 `trace` 记录当前结点的基本信息，`tags` 记录变量附加信息．
 
 提供 `get_children()` 方法获取当前结点的子节点；`get_parent()` 方法获取当前结点的父结点，若不存在返回 `nullptr`．
 
 提供 `to_json()` 方法来将其子树转换为 JSON．
 
-对于开启了 `FULL` 级别的 Reader，你可以使用 `cplib::var::Reader::get_trace_tree()` 方法获取该 Reader 读入的所有变量的 trace tree 的根结点．根结点的 Trace 变量名为 `<root>`．
+对于开启了 `FULL` 级别的 Reader，你可以使用 `cplib::var::Reader::get_trace_tree()` 方法获取该 Reader 读入的所有变量的 trace tree 的根结点．根结点的 Trace 变量名为 `<stream_name>`，其中 `stream_name` 为 Reader 对应流的名称．
