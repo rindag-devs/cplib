@@ -73,7 +73,7 @@ inline auto hex_encode(int c) -> std::string {
   } else if (c == '\t') {
     return "\\t";
   } else if (!isprint(c)) {
-    return format("\\x{:02x}", static_cast<int>(c));
+    return cplib::format("\\x{:02x}", static_cast<int>(c));
   } else {
     return {static_cast<char>(c)};
   }

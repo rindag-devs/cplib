@@ -63,7 +63,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(format("Unknown interactor report status: {}", static_cast<int>(value_)));
+      panic(cplib::format("Unknown interactor report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -291,7 +291,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(format("Unknown interactor report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown interactor report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -307,7 +307,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(format("Unknown interactor report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown interactor report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }

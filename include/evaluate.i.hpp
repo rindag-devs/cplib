@@ -56,7 +56,7 @@ inline constexpr auto Result::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(format("Unknown result status: {}", static_cast<int>(value_)));
+      panic(cplib::format("Unknown result status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -169,7 +169,7 @@ inline auto status_to_title_string(Result::Status status) -> std::string {
     case Result::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(format("Unknown result status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown result status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -183,7 +183,7 @@ inline auto status_to_colored_title_string(Result::Status status) -> std::string
     case Result::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(format("Unknown result status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown result status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -287,8 +287,8 @@ inline auto Evaluator::eq(std::string_view var_name, const T& pans, const T& jan
                                         compress(cplib::detail::hex_encode(jans)),
                                         compress(cplib::detail::hex_encode(pans))));
     } else if constexpr (cplib::formattable<T>) {
-      auto jans_str = format("{}", jans);
-      auto pans_str = format("{}", pans);
+      auto jans_str = cplib::format("{}", jans);
+      auto pans_str = cplib::format("{}", pans);
       result = Result::wa(cplib::format("`{}` is not equal: expected {}, got {}", var_name,
                                         compress(jans_str), compress(pans_str)));
     } else {

@@ -112,6 +112,9 @@ struct Result {
   /// @return A Result object with PARTIALLY_CORRECT status, clamped score, and the given message.
   static auto pc(double score, std::string message) -> Result;
 
+  /// Creates a Result with a specified status, score and message.
+  Result(Status status, double score, std::string message);
+
   /// C++ 20 three-way comparison operator.
   /// Compares Results primarily by status (lower enum value is "worse"),
   /// then by score (lower score is "worse"). Message is not part of comparison logic.
@@ -163,7 +166,6 @@ struct Result {
 
  private:
   Result() = default;
-  Result(Status status, double score, std::string message);
 };
 
 #ifndef CPLIB_EVALUATOR_TRACE_LEVEL_MAX

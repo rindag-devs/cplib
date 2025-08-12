@@ -57,7 +57,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case OK:
       return "ok";
     default:
-      panic(format("Unknown generator report status: {}", static_cast<int>(value_)));
+      panic(cplib::format("Unknown generator report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -254,7 +254,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::OK:
       return "OK";
     default:
-      panic(format("Unknown generator report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown generator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -266,7 +266,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::OK:
       return "\x1b[0;32mOK\x1b[0m";
     default:
-      panic(format("Unknown generator report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown generator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
