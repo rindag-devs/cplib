@@ -404,7 +404,7 @@ inline auto hex_encode(int c) -> std::string {
   } else if (c == '\t') {
     return "\\t";
   } else if (!isprint(c)) {
-    return format("\\x{:02x}", static_cast<int>(c));
+    return cplib::format("\\x{:02x}", static_cast<int>(c));
   } else {
     return {static_cast<char>(c)};
   }
@@ -2617,6 +2617,9 @@ struct Result {
   /// @return A Result object with PARTIALLY_CORRECT status, clamped score, and the given message.
   static auto pc(double score, std::string message) -> Result;
 
+  /// Creates a Result with a specified status, score and message.
+  Result(Status status, double score, std::string message);
+
   /// C++ 20 three-way comparison operator.
   /// Compares Results primarily by status (lower enum value is "worse"),
   /// then by score (lower score is "worse"). Message is not part of comparison logic.
@@ -2668,7 +2671,6 @@ struct Result {
 
  private:
   Result() = default;
-  Result(Status status, double score, std::string message);
 };
 
 #ifndef CPLIB_EVALUATOR_TRACE_LEVEL_MAX
@@ -2831,7 +2833,7 @@ inline constexpr auto Result::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(format("Unknown result status: {}", static_cast<int>(value_)));
+      panic(cplib::format("Unknown result status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -2944,7 +2946,7 @@ inline auto status_to_title_string(Result::Status status) -> std::string {
     case Result::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(format("Unknown result status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown result status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -2958,7 +2960,7 @@ inline auto status_to_colored_title_string(Result::Status status) -> std::string
     case Result::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(format("Unknown result status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown result status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -3062,8 +3064,8 @@ inline auto Evaluator::eq(std::string_view var_name, const T& pans, const T& jan
                                         compress(cplib::detail::hex_encode(jans)),
                                         compress(cplib::detail::hex_encode(pans))));
     } else if constexpr (cplib::formattable<T>) {
-      auto jans_str = format("{}", jans);
-      auto pans_str = format("{}", pans);
+      auto jans_str = cplib::format("{}", jans);
+      auto pans_str = cplib::format("{}", pans);
       result = Result::wa(cplib::format("`{}` is not equal: expected {}, got {}", var_name,
                                         compress(jans_str), compress(pans_str)));
     } else {
@@ -5188,7 +5190,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(format("Unknown checker report status: {}", static_cast<int>(value_)));
+      panic(cplib::format("Unknown checker report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -5446,7 +5448,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(format("Unknown checker report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown checker report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -5462,7 +5464,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(format("Unknown checker report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown checker report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -5910,7 +5912,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(format("Unknown interactor report status: {}", static_cast<int>(value_)));
+      panic(cplib::format("Unknown interactor report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -6138,7 +6140,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(format("Unknown interactor report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown interactor report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -6154,7 +6156,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(format("Unknown interactor report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown interactor report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -6604,7 +6606,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case INVALID:
       return "invalid";
     default:
-      panic(format("Unknown validator report status: {}", static_cast<int>(value_)));
+      panic(cplib::format("Unknown validator report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -6920,7 +6922,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::INVALID:
       return "Invalid";
     default:
-      panic(format("Unknown validator report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown validator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -6934,7 +6936,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::INVALID:
       return "\x1b[0;31mInvalid\x1b[0m";
     default:
-      panic(format("Unknown validator report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown validator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -7807,7 +7809,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case OK:
       return "ok";
     default:
-      panic(format("Unknown generator report status: {}", static_cast<int>(value_)));
+      panic(cplib::format("Unknown generator report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -8004,7 +8006,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::OK:
       return "OK";
     default:
-      panic(format("Unknown generator report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown generator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -8016,7 +8018,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::OK:
       return "\x1b[0;32mOK\x1b[0m";
     default:
-      panic(format("Unknown generator report status: {}", static_cast<int>(status)));
+      panic(cplib::format("Unknown generator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
