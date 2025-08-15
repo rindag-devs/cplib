@@ -52,4 +52,4 @@ struct Output {
 
 // Register the checker with CPLib, specifying the Input and Output structs.
 // This macro sets up the main checker logic behind the scenes.
-CPLIB_REGISTER_CHECKER(chk, Input, Output);
+CPLIB_REGISTER_CHECKER(Input, Output);

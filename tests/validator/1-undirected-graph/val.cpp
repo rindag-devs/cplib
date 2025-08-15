@@ -15,8 +15,6 @@
 
 using namespace cplib;
 
-CPLIB_REGISTER_VALIDATOR(val);
-
 struct Edge {
   int u, v;
 
@@ -31,7 +29,8 @@ struct Input {
   std::vector<Edge> edges;
 
   static Input read(var::Reader& in) {
-    auto [n, _, m, __] = in(var::i32("n", 2, 1000), var::space, var::i32("m", 1, 1000), var::eoln);
+    auto [n, _sp1, m, _sp2] =
+        in(var::i32("n", 2, 1000), var::space, var::i32("m", 1, 1000), var::eoln);
     auto edges = in.read(var::Vec(var::ExtVar<Edge>("edges", n), m, var::eoln));
     in.read(var::eoln);
     return {n, m, edges};
@@ -41,7 +40,7 @@ struct Input {
 struct DSU {
   std::vector<int> fa, size;
 
-  DSU(int n) {
+  explicit DSU(int n) {
     fa.resize(n);
     size.resize(n);
     for (int i = 0; i < n; ++i) fa[i] = i, size[i] = 1;
@@ -74,15 +73,11 @@ bool is_connected(const Input& input) {
   return true;
 }
 
-void validator_main() {
-  Input input;
-
-  val.traits({
+std::vector<validator::Trait> traits(const Input& input) {
+  return {
       {"g_is_connected", [&]() { return is_connected(input); }},
-      {"g_is_tree", [&]() { return input.n == input.m + 1; }, {"g_is_connected"}},
-  });
-
-  input = val.inf.read(var::ExtVar<Input>("input"));
-
-  val.quit_valid();
+      {"g_is_tree", [&]() { return input.n == input.m + 1; }, {{"g_is_connected", true}}},
+  };
 }
+
+CPLIB_REGISTER_VALIDATOR(Input, traits);

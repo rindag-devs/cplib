@@ -74,7 +74,7 @@ struct Output {
 
 // Register the checker with CPLib, specifying the Input and Output structs.
 // This macro sets up the main checker logic behind the scenes.
-CPLIB_REGISTER_CHECKER(chk, Input, Output);
+CPLIB_REGISTER_CHECKER(Input, Output);
 ```
 
 我们将逐行讲解这段代码．
@@ -131,10 +131,10 @@ struct Output { /* ... */ };
 当输出文件（选手或答案）不符合其 `read` 方法中指定的格式或范围约束时，CPLib 将自动退出程序并报告错误．对于选手的输出，这将导致「Wrong Answer」．对于答案方的输出，这将导致「Internal Error」（内部错误），表明测试数据本身存在问题．
 
 ```cpp
-CPLIB_REGISTER_CHECKER(chk, Input, Output);
+CPLIB_REGISTER_CHECKER(Input, Output);
 ```
 
-`CPLIB_REGISTER_CHECKER(name, InputStruct, OutputStruct)` 宏将程序注册为 CPLib checker．`name`（在代码中为 `chk`）是 checker 全局状态变量的名称．`InputStruct` 和 `OutputStruct` 是定义如何读取问题输入以及如何读取和评估程序输出的结构体名称．CPLib 将在内部管理 `main` 函数并调用这些结构体的 `read` 和 `evaluate` 方法．
+`CPLIB_REGISTER_CHECKER(InputStruct, OutputStruct)` 宏将程序注册为 CPLib checker．`InputStruct` 和 `OutputStruct` 是定义如何读取问题输入以及如何读取和评估程序输出的结构体名称．CPLib 将在内部管理 `main` 函数并调用这些结构体的 `read` 和 `evaluate` 方法．
 
 <Callout type="warning">
 注册为 CPLib 程序的 checker 必须在 `evaluate` 方法中使用 `evaluate::Evaluator` 方法（如 `ev.eq`、`ev.fail`），或在 `read` 方法中使用 `in.fail()` 来报告错误并退出．**不允许** 直接使用 `std::exit` 等函数进行常规错误报告．`panic` 仅应用于不可恢复的内部错误，例如 checker 逻辑本身的严重错误，或 `ev.fail()` 无法优雅处理的无效评测方答案．
@@ -354,7 +354,7 @@ struct Output {
 };
 
 // Register the checker
-CPLIB_REGISTER_CHECKER(chk, Input, Output);
+CPLIB_REGISTER_CHECKER(Input, Output);
 ```
 
 这个例子演示了如何为自定义类型使用变量读取模板以及如何组织评估逻辑．

@@ -263,7 +263,8 @@ struct ColoredTextReporter : Reporter {
   auto var_ =                                                                                \
       ::cplib::interactor::State(std::unique_ptr<decltype(initializer_)>(new initializer_)); \
   auto main(int argc, char** argv) -> int {                                                  \
-    std::vector<std::string> args;                                                           \
+    ::std::vector<::std::string> args;                                                       \
+    args.reserve(argc);                                                                      \
     for (int i = 1; i < argc; ++i) {                                                         \
       args.emplace_back(argv[i]);                                                            \
     }                                                                                        \

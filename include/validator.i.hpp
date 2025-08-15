@@ -76,7 +76,8 @@ inline Report::Report(Report::Status status, std::string message)
 inline Trait::Trait(std::string name, CheckFunc check_func)
     : Trait(std::move(name), std::move(check_func), {}) {}
 
-inline Trait::Trait(std::string name, CheckFunc check_func, std::vector<std::string> dependencies)
+inline Trait::Trait(std::string name, CheckFunc check_func,
+                    std::map<std::string, bool> dependencies)
     : name(std::move(name)),
       check_func(std::move(check_func)),
       dependencies(std::move(dependencies)) {}
@@ -132,27 +133,31 @@ inline auto Reporter::attach_trait_status(const std::map<std::string, bool>& tra
 namespace detail {
 /**
  * In topological sorting, `callback` is called every time a new node is reached.
- * If `fn` returns false, nodes reachable by the current node will no longer be visited.
+ *
+ * If `follow_unmatched_edge` is false, outgoing edges with a value different from the value
+ * returned by the callback for the current node will not be visited.
  */
-inline auto topo_sort(const std::vector<std::vector<size_t>>& edges,
-                      const std::function<auto(size_t)->bool>& callback) -> void {
-  std::vector<size_t> degree(edges.size(), 0);
+inline auto topo_sort(const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges,
+                      const bool follow_unmatched_edge,
+                      const std::function<auto(std::size_t)->bool>& callback) -> void {
+  std::vector<std::size_t> degree(edges.size(), 0);
 
   for (const auto& edge : edges) {
-    for (auto to : edge) ++degree[to];
+    for (auto [to, v] : edge) ++degree[to];
   }
 
-  std::queue<size_t> queue;
+  std::queue<std::size_t> queue;
 
-  for (size_t i = 0; i < edges.size(); ++i) {
+  for (std::size_t i = 0; i < edges.size(); ++i) {
     if (degree[i] == 0) queue.push(i);
   }
 
   while (!queue.empty()) {
     auto front = queue.front();
     queue.pop();
-    if (!callback(front)) continue;
-    for (auto to : edges[front]) {
+    auto result = callback(front);
+    for (auto [to, v] : edges[front]) {
+      if (!follow_unmatched_edge && v != result) continue;
       --degree[to];
       if (!degree[to]) queue.push(to);
     }
@@ -161,7 +166,7 @@ inline auto topo_sort(const std::vector<std::vector<size_t>>& edges,
 
 // Returns std::nullopt if failed
 inline auto build_edges(std::vector<Trait>& traits)
-    -> std::optional<std::vector<std::vector<size_t>>> {
+    -> std::optional<std::vector<std::vector<std::pair<std::size_t, bool>>>> {
   // Check duplicate name
   std::ranges::sort(traits, [](const Trait& x, const Trait& y) { return x.name < y.name; });
   if (std::ranges::unique(traits, [](const Trait& x, const Trait& y) {
@@ -171,35 +176,28 @@ inline auto build_edges(std::vector<Trait>& traits)
     return std::nullopt;
   }
 
-  std::vector<std::vector<size_t>> edges(traits.size());
+  std::vector<std::vector<std::pair<std::size_t, bool>>> edges(traits.size());
 
-  for (size_t i = 0; i < traits.size(); ++i) {
+  for (std::size_t i = 0; i < traits.size(); ++i) {
     auto& trait = traits[i];
-    // Check duplicate dependencies
-    std::ranges::sort(trait.dependencies);
-    if (std::ranges::unique(trait.dependencies).end() != trait.dependencies.end()) {
-      // Found duplicate dependencies
-      return std::nullopt;
-    }
-
-    for (const auto& dep : trait.dependencies) {
-      auto it = std::ranges::lower_bound(traits, dep, std::less{}, &Trait::name);
+    for (const auto& [name, value] : trait.dependencies) {
+      auto it = std::ranges::lower_bound(traits, name, std::less{}, &Trait::name);
       // IMPORTANT: Check if the dependency was actually found and is an exact match.
-      if (it == traits.end() || it->name != dep) {
+      if (it == traits.end() || it->name != name) {
         return std::nullopt;
       }
       auto dep_id = it - traits.begin();
-      edges[dep_id].emplace_back(i);
+      edges[dep_id].emplace_back(i, value);
     }
   }
 
   return edges;
 }
 
-inline auto have_loop(const std::vector<std::vector<size_t>>& edges) -> bool {
-  std::vector<uint8_t> visited(edges.size(), 0);  // Never use std::vector<bool>
+inline auto have_loop(const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges) -> bool {
+  std::vector<std::uint8_t> visited(edges.size(), 0);  // Never use std::vector<bool>
 
-  topo_sort(edges, [&](size_t node) {
+  topo_sort(edges, true, [&](std::size_t node) {
     visited[node] = 1;
     return true;
   });
@@ -211,15 +209,14 @@ inline auto have_loop(const std::vector<std::vector<size_t>>& edges) -> bool {
 }
 
 inline auto validate_traits(const std::vector<Trait>& traits,
-                            const std::vector<std::vector<std::size_t>>& edges)
+                            const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges)
     -> std::map<std::string, bool> {
   std::map<std::string, bool> results;
-  for (const auto& trait : traits) results[trait.name] = false;
 
-  topo_sort(edges, [&](std::size_t id) {
+  topo_sort(edges, true, [&](std::size_t id) {
     auto& node = traits[id];
     auto result = node.check_func();
-    results.at(node.name) = result;
+    results.emplace(node.name, result);
     return result;
   });
 

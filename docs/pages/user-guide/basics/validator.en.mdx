@@ -30,8 +30,6 @@ Below is a example implementation of a validator:
 
 using namespace cplib;
 
-CPLIB_REGISTER_VALIDATOR(val);
-
 struct Edge {
   int u, v;
 
@@ -46,7 +44,8 @@ struct Input {
   std::vector<Edge> edges;
 
   static Input read(var::Reader& in) {
-    auto [n, _, m, __] = in(var::i32("n", 2, 1000), var::space, var::i32("m", 1, 1000), var::eoln);
+    auto [n, _sp1, m, _sp2] =
+        in(var::i32("n", 2, 1000), var::space, var::i32("m", 1, 1000), var::eoln);
     auto edges = in.read(var::Vec(var::ExtVar<Edge>("edges", n), m, var::eoln));
     in.read(var::eoln);
     return {n, m, edges};
@@ -56,7 +55,7 @@ struct Input {
 struct DSU {
   std::vector<int> fa, size;
 
-  DSU(int n) {
+  explicit DSU(int n) {
     fa.resize(n);
     size.resize(n);
     for (int i = 0; i < n; ++i) fa[i] = i, size[i] = 1;
@@ -89,27 +88,17 @@ bool is_connected(const Input& input) {
   return true;
 }
 
-void validator_main() {
-  Input input;
-
-  val.traits({
+std::vector<validator::Trait> traits(const Input& input) {
+  return {
       {"g_is_connected", [&]() { return is_connected(input); }},
-      {"g_is_tree", [&]() { return input.n == input.m + 1; }, {"g_is_connected"}},
-  });
-
-  input = val.inf.read(var::ExtVar<Input>("input"));
-
-  val.quit_valid();
+      {"g_is_tree", [&]() { return input.n == input.m + 1; }, {{"g_is_connected", true}}},
+  };
 }
+
+CPLIB_REGISTER_VALIDATOR(Input, traits);
 ```
 
 As you can see, the overall structure of the validator is similar to the checker. The following points highlight the differences from the checker.
-
-```cpp
-CPLIB_REGISTER_VALIDATOR(val);
-```
-
-Similar to the checker, validator needs to use the `CPLIB_REGISTER_VALIDATOR` macro to register the program as a CPLib checker and save the checker's state in a global variable, named `val` in this case.
 
 ```cpp
     auto [u, _, v] = in(var::i32(1, n, "u"), var::space, var::i32(1, n, "v"));
@@ -135,9 +124,16 @@ Validator not only checks the legality of the input, but can also check if the i
 The constructor of `cplib::validator::Trait` has two overloaded versions:
 
 - `Trait(std::string name, std::function(auto()->bool) check_func);`
-- `Trait(std::string name, std::function(auto()->bool) check_func, std::vector<std::string> dependencies);`
+- `Trait(std::string name, std::function(auto()->bool) check_func, std::map<std::string, bool> dependencies);`
 
-The second version can add dependencies for the current trait. The check for this trait will only be performed when all dependencies are `true`; otherwise, the trait will be set to `false`.
+The second version allows adding dependencies to the current trait. We can describe all dependencies using a "name to value" `std::map`. The trait will only be evaluated when all dependencies have been evaluated and their resulting values equal the specified value; otherwise, the trait will not be evaluated.
+
+```cpp
+CPLIB_REGISTER_VALIDATOR(val);
+```
+
+Similar to the checker, validator needs to use the `CPLIB_REGISTER_VALIDATOR` macro to register the program as a CPLib checker.
+
 
 <Callout type="warning">
 The dependency relationships between traits must form a directed acyclic graph, otherwise calling `val.traits` will panic and exit the program.

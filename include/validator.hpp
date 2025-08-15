@@ -23,6 +23,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 /* cplib_embed_ignore start */
@@ -111,8 +112,11 @@ struct Trait {
   /// The function used to check if the trait is satisfied.
   CheckFunc check_func;
 
-  /// The list of names of traits that this trait depends on.
-  std::vector<std::string> dependencies;
+  /// The map of traits that this trait depends on.
+  ///
+  /// `dependencies[name] = value` means that the current trait will only be evaluated when `name`
+  /// is evaluated and `name == value`.
+  std::map<std::string, bool> dependencies;
 
   /**
    * Constructor that takes the name and check function.
@@ -127,9 +131,9 @@ struct Trait {
    *
    * @param name The name of the trait.
    * @param check_func The function used to check if the trait is satisfied.
-   * @param dependencies The list of names of traits that this trait depends on.
+   * @param dependencies The map of traits that this trait depends on.
    */
-  Trait(std::string name, CheckFunc check_func, std::vector<std::string> dependencies);
+  Trait(std::string name, CheckFunc check_func, std::map<std::string, bool> dependencies);
 };
 
 struct State;
@@ -205,7 +209,7 @@ struct State {
   /**
    * Sets the traits of the validator.
    *
-   * **WARNING**: Calling this function multiple times will overwrite the last trait list.
+   * @warning Calling this function multiple times will overwrite the last trait list.
    *
    * @param traits The list of traits.
    */
@@ -238,7 +242,7 @@ struct State {
   std::vector<Trait> traits_;
 
   /// The edge set of a directed graph established based on the dependencies between traits.
-  std::vector<std::vector<std::size_t>> trait_edges_;
+  std::vector<std::vector<std::pair<std::size_t, bool>>> trait_edges_;
 };
 
 /**
@@ -278,30 +282,34 @@ struct ColoredTextReporter : Reporter {
 /**
  * Macro to register validator with custom initializer.
  *
- * @param var_ The variable name of state object to be initialized.
  * @param initializer_ The initializer function.
+ * @param traits_func_ The function returns a list of traits.
  */
-#define CPLIB_REGISTER_VALIDATOR_OPT(var_, initializer_)                                    \
-  auto var_ =                                                                               \
-      ::cplib::validator::State(std::unique_ptr<decltype(initializer_)>(new initializer_)); \
-  auto main(int argc, char** argv) -> int {                                                 \
-    std::vector<std::string> args;                                                          \
-    for (int i = 1; i < argc; ++i) {                                                        \
-      args.emplace_back(argv[i]);                                                           \
-    }                                                                                       \
-    var_.initializer->init(argv[0], args);                                                  \
-    auto validator_main(void) -> void;                                                      \
-    validator_main();                                                                       \
-    return 0;                                                                               \
+#define CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_, initializer_)                    \
+  static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
+  auto main(int argc, char** argv) -> int {                                                        \
+    ::std::vector<::std::string> args;                                                             \
+    args.reserve(argc);                                                                            \
+    for (int i = 1; i < argc; ++i) {                                                               \
+      args.emplace_back(argv[i]);                                                                  \
+    }                                                                                              \
+    auto state =                                                                                   \
+        ::cplib::validator::State(std::unique_ptr<decltype(initializer_)>(new initializer_));      \
+    state.initializer->init(argv[0], args);                                                        \
+    input_struct_ input{state.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};             \
+    std::function<auto(const input_struct_&)->::std::vector<::cplib::validator::Trait>>            \
+        traits_func = traits_func_;                                                                \
+    state.traits(traits_func(input));                                                              \
+    state.quit_valid();                                                                            \
+    return 0;                                                                                      \
   }
 
 /**
  * Macro to register validator with default initializer.
- *
- * @param var The variable name of state object to be initialized.
  */
-#define CPLIB_REGISTER_VALIDATOR(var) \
-  CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::DefaultInitializer())
+#define CPLIB_REGISTER_VALIDATOR(input_struct_, traits_func_) \
+  CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_,   \
+                               ::cplib::validator::DefaultInitializer())
 }  // namespace cplib::validator
 
 #include "validator.i.hpp"  // IWYU pragma: export

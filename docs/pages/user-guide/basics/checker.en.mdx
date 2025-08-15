@@ -74,7 +74,7 @@ struct Output {
 
 // Register the checker with CPLib, specifying the Input and Output structs.
 // This macro sets up the main checker logic behind the scenes.
-CPLIB_REGISTER_CHECKER(chk, Input, Output);
+CPLIB_REGISTER_CHECKER(Input, Output);
 ```
 
 We will explain each line of this code step by step.
@@ -131,10 +131,10 @@ Inside the `Output::evaluate` method, `evaluate::Evaluator& ev` is used to compa
 When an output file (participant's or jury's) does not meet the format or range constraints specified in its `read` method, CPLib will automatically exit the program and report an error. For participant's output, this results in "Wrong Answer". For jury's output, it results in "Internal Error", indicating a problem with the test data itself.
 
 ```cpp
-CPLIB_REGISTER_CHECKER(chk, Input, Output);
+CPLIB_REGISTER_CHECKER(Input, Output);
 ```
 
-The `CPLIB_REGISTER_CHECKER(name, InputStruct, OutputStruct)` macro registers the program as a CPLib checker. `name` (in the code, `chk`) is the name of the global state variable for the checker. `InputStruct` and `OutputStruct` are the names of the `struct`s that define how to read the problem input and how to read and evaluate the program output, respectively. CPLib will internally manage the `main` function and call the `read` and `evaluate` methods of these structs.
+The `CPLIB_REGISTER_CHECKER(InputStruct, OutputStruct)` macro registers the program as a CPLib checker. `InputStruct` and `OutputStruct` are the names of the `struct`s that define how to read the problem input and how to read and evaluate the program output, respectively. CPLib will internally manage the `main` function and call the `read` and `evaluate` methods of these structs.
 
 <Callout type="warning">
 Programs registered as CPLib programs must use the `evaluate::Evaluator` methods (like `ev.eq`, `ev.fail`) in `evaluate` methods, or `in.fail()` in `read` methods, to report errors and exit. It is **not allowed** to directly use functions like `std::exit` for normal error reporting. `panic` should only be used for unrecoverable internal errors, such as a critical bug in the checker logic itself or an invalid jury's answer that cannot be handled gracefully by `ev.fail()`.
@@ -354,7 +354,7 @@ struct Output {
 };
 
 // Register the checker
-CPLIB_REGISTER_CHECKER(chk, Input, Output);
+CPLIB_REGISTER_CHECKER(Input, Output);
 ```
 
 This example demonstrates how to use variable reading templates for custom types and how to structure the evaluation logic.

@@ -47,4 +47,4 @@ struct Output {
   }
 };
 
-CPLIB_REGISTER_CHECKER(chk, Input, Output);
+CPLIB_REGISTER_CHECKER(Input, Output);

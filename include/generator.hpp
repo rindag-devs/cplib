@@ -579,7 +579,8 @@ struct ColoredTextReporter : Reporter {
   CPLIB_REGISTER_GENERATOR_ARGS_(__VA_ARGS__);                                                 \
   namespace args_namespace_name_ = ::cplib_generator_args_;                                    \
   auto main(int argc, char** argv) -> int {                                                    \
-    std::vector<std::string> args;                                                             \
+    ::std::vector<::std::string> args;                                                         \
+    args.reserve(argc);                                                                        \
     for (int i = 1; i < argc; ++i) {                                                           \
       args.emplace_back(argv[i]);                                                              \
     }                                                                                          \

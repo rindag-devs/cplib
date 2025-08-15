@@ -9,7 +9,8 @@ Validator，即「校验器」，通常用于检验测试点输入文件的有�
 Validator 与 checker 主要体现于两点．其一是 validator 只需要处理测试点输入文件（`inf`）一个文件，其二是 validator 使用的输入流默认为「严格模式」．简要而言，在非严格模式下，`cplib::io::InStream` 和 `cplib::var::Reader` 在使用部分函数进行读入时会忽略空白字符之间的差异；而在该严格模式下，每个字节都将严格比对．
 
 <Callout type="info">
-本节的相关代码见 [GitHub 仓库](https://github.com/rindag-devs/cplib/tree/main/tests/validator/1-undirected-graph)．
+  本节的相关代码见 [GitHub
+  仓库](https://github.com/rindag-devs/cplib/tree/main/tests/validator/1-undirected-graph)．
 </Callout>
 
 让我们从一个示例开始介绍 validator：
@@ -30,8 +31,6 @@ Validator 与 checker 主要体现于两点．其一是 validator 只需要处�
 
 using namespace cplib;
 
-CPLIB_REGISTER_VALIDATOR(val);
-
 struct Edge {
   int u, v;
 
@@ -46,7 +45,8 @@ struct Input {
   std::vector<Edge> edges;
 
   static Input read(var::Reader& in) {
-    auto [n, _, m, __] = in(var::i32("n", 2, 1000), var::space, var::i32("m", 1, 1000), var::eoln);
+    auto [n, _sp1, m, _sp2] =
+        in(var::i32("n", 2, 1000), var::space, var::i32("m", 1, 1000), var::eoln);
     auto edges = in.read(var::Vec(var::ExtVar<Edge>("edges", n), m, var::eoln));
     in.read(var::eoln);
     return {n, m, edges};
@@ -56,7 +56,7 @@ struct Input {
 struct DSU {
   std::vector<int> fa, size;
 
-  DSU(int n) {
+  explicit DSU(int n) {
     fa.resize(n);
     size.resize(n);
     for (int i = 0; i < n; ++i) fa[i] = i, size[i] = 1;
@@ -89,30 +89,20 @@ bool is_connected(const Input& input) {
   return true;
 }
 
-void validator_main() {
-  Input input;
-
-  val.traits({
+std::vector<validator::Trait> traits(const Input& input) {
+  return {
       {"g_is_connected", [&]() { return is_connected(input); }},
-      {"g_is_tree", [&]() { return input.n == input.m + 1; }, {"g_is_connected"}},
-  });
-
-  input = val.inf.read(var::ExtVar<Input>("input"));
-
-  val.quit_valid();
+      {"g_is_tree", [&]() { return input.n == input.m + 1; }, {{"g_is_connected", true}}},
+  };
 }
+
+CPLIB_REGISTER_VALIDATOR(Input, traits);
 ```
 
 可以看到，validator 的大体结构与 checker 大致相同．以下重点说明与 checker 的不同点．
 
 ```cpp
-CPLIB_REGISTER_VALIDATOR(val);
-```
-
-类似于 checker，validator 需要调用 `CPLIB_REGISTER_VALIDATOR` 宏将程序注册成一个 CPLib validator，并将 validator 的状态保存至全局变量，此处变量名为 `val`．
-
-```cpp
-    auto [u, _, v] = in(var::i32(1, n, "u"), var::space, var::i32(1, n, "v"));
+    auto [u, _, v] = in(var::i32("u", 1, n), var::space, var::i32("v", 1, n));
 ```
 
 在严格模式下，使用 `cplib::var::Reader` 读入变量时将不会自动忽略中间的空白字符，我们需要显式读入空格．`cplib::var::space` 是一个常量，等价于 `cplib::var::Separator(' ', "space")`．
@@ -124,23 +114,32 @@ CPLIB_REGISTER_VALIDATOR(val);
 与前一处代码同理，此处读入 `std::vector` 时也不能直接使用 `var::ExtVar<Edge>("edges", n) * m`．因为 `cplib::var::Var::operator*` 默认生成的读入模版以空格为分隔符，而此处以换行为分隔符．在严格模式下，不同的空白字符之间互不等价．
 
 ```cpp
-  val.traits({
+std::vector<validator::Trait> traits(const Input& input) {
+  return {
       {"g_is_connected", [&]() { return is_connected(input); }},
-      {"g_is_tree", [&]() { return input.n == input.m + 1; }, {"g_is_connected"}},
-  });
+      {"g_is_tree", [&]() { return input.n == input.m + 1; }, {{"g_is_connected", true}}},
+  };
+}
 ```
 
-Validator 除了用于检测输入的合法之外，还可以检查输入文件是否满足一些「特性」（Trait）．在此处，我们添加了「图是否连通」和「图是否是一棵树」两种特性．
+Validator 除了用于检测输入的合法之外，还可以检查输入文件是否满足一些「特性」（trait）．在此处，我们添加了「图是否连通」和「图是否是一棵树」两种特性．
 
 `cplib::validator::Trait` 的一般构造函数有两个重载版本：
 
 - `Trait(std::string name, std::function(auto()->bool) check_func);`
-- `Trait(std::string name, std::function(auto()->bool) check_func, std::vector<std::string> dependencies);`
+- `Trait(std::string name, std::function(auto()->bool) check_func, std::map<std::string, bool> dependencies);`
 
-第二个版本可以为当前 trait 添加依赖．只有当全部依赖均为 `true` 时，才会进行对本 trait 的检查；否则，该 trait 将会被置为 `false`．
+第二个版本可以为当前 trait 添加依赖．我们可以用一个「name to value」的 `std::map` 描述所有依赖．只有当全部依赖均被求值，且求出的值等于 `value` 时，才会进行对本 trait 的检查；否则，该 trait 将不会被求值．
+
+```cpp
+CPLIB_REGISTER_VALIDATOR(Input, traits);
+```
+
+类似于 checker，validator 需要调用 `CPLIB_REGISTER_VALIDATOR` 宏将程序注册成一个 CPLib validator．
 
 <Callout type="warning">
-各 trait 之间的依赖关系必须形成一个有向无环图（DAG），否则会在调用 `val.traits` 时引发 panic 退出程序．
+  各 trait 之间的依赖关系必须形成一个有向无环图（DAG），否则会在调用 `val.traits` 时引发 panic
+  退出程序．
 </Callout>
 
 ## 使用

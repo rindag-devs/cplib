@@ -273,41 +273,38 @@ struct ColoredTextReporter : Reporter {
 /**
  * Macro to register checker with custom initializer.
  *
- * @param var_ The variable name of state object to be initialized.
  * @param initializer_ The initializer function.
  */
-#define CPLIB_REGISTER_CHECKER_OPT(var_, input_struct_, output_struct_, initializer_)              \
+#define CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, initializer_)                    \
   static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
   static_assert(::cplib::var::Readable<output_struct_, const input_struct_&>,                      \
                 "`" #output_struct_ "` should be Readable");                                       \
   static_assert(::cplib::evaluate::Evaluatable<output_struct_, const input_struct_&>,              \
                 "`" #output_struct_ "` should be Evaluatable");                                    \
-  auto var_ =                                                                                      \
-      ::cplib::checker::State(::std::unique_ptr<decltype(initializer_)>(new initializer_));        \
   auto main(int argc, char** argv) -> int {                                                        \
     ::std::vector<::std::string> args;                                                             \
+    args.reserve(argc);                                                                            \
     for (int i = 1; i < argc; ++i) {                                                               \
       args.emplace_back(argv[i]);                                                                  \
     }                                                                                              \
-    var_.initializer->init(argv[0], args);                                                         \
-    input_struct_ input{var_.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};              \
-    output_struct_ output{var_.ouf.read(::cplib::var::ExtVar<output_struct_>("output", input))};   \
-    output_struct_ answer{var_.ans.read(::cplib::var::ExtVar<output_struct_>("answer", input))};   \
-    ::cplib::evaluate::Result result = var_.evaluator("output", output, answer, input);            \
+    auto state =                                                                                   \
+        ::cplib::checker::State(::std::unique_ptr<decltype(initializer_)>(new initializer_));      \
+    state.initializer->init(argv[0], args);                                                        \
+    input_struct_ input{state.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};             \
+    output_struct_ output{state.ouf.read(::cplib::var::ExtVar<output_struct_>("output", input))};  \
+    output_struct_ answer{state.ans.read(::cplib::var::ExtVar<output_struct_>("answer", input))};  \
+    ::cplib::evaluate::Result result = state.evaluator("output", output, answer, input);           \
     ::cplib::checker::Report report{::cplib::checker::Report::Status(result.status), result.score, \
                                     ""};                                                           \
-    var_.quit(report);                                                                             \
+    state.quit(report);                                                                            \
     return 0;                                                                                      \
   }
 
 /**
  * Macro to register checker with default initializer.
- *
- * @param var The variable name of state object to be initialized.
  */
-#define CPLIB_REGISTER_CHECKER(var_, input_struct_, output_struct_) \
-  CPLIB_REGISTER_CHECKER_OPT(var_, input_struct_, output_struct_,   \
-                             ::cplib::checker::DefaultInitializer())
+#define CPLIB_REGISTER_CHECKER(input_struct_, output_struct_) \
+  CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, ::cplib::checker::DefaultInitializer())
 }  // namespace cplib::checker
 
 #include "checker.i.hpp"  // IWYU pragma: export

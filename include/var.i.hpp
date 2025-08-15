@@ -190,7 +190,7 @@ inline auto Var<T, D>::parse(std::string_view s) const -> T {
 }
 
 template <class T, class D>
-inline auto Var<T, D>::operator*(size_t len) const -> Vec<D> {
+inline auto Var<T, D>::operator*(std::size_t len) const -> Vec<D> {
   return Vec<D>(*static_cast<const D*>(this), len);
 }
 
@@ -567,7 +567,7 @@ inline Vec<T>::Vec(T element, size_t len, Separator sep)
 template <class T>
 inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::Target> {
   std::vector<typename T::Var::Target> result(len);
-  for (size_t i = 0; i < len; ++i) {
+  for (std::size_t i = 0; i < len; ++i) {
     if (i > 0) in.read(sep);
     result[i] = in.read(element.renamed(std::to_string(i)));
   }
@@ -595,10 +595,10 @@ inline auto Mat<T>::read_from(Reader& in) const
     -> std::vector<std::vector<typename T::Var::Target>> {
   std::vector<std::vector<typename T::Var::Target>> result(
       len0, std::vector<typename T::Var::Target>(len1));
-  for (size_t i = 0; i < len0; ++i) {
+  for (std::size_t i = 0; i < len0; ++i) {
     if (i > 0) in.read(sep0);
     auto name_prefix = std::to_string(i) + "_";
-    for (size_t j = 0; j < len1; ++j) {
+    for (std::size_t j = 0; j < len1; ++j) {
       if (j > 0) in.read(sep1);
       result[i][j] = in.read(element.renamed(name_prefix + std::to_string(j)));
     }
