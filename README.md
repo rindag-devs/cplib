@@ -8,7 +8,7 @@
 [badge.docs]: https://img.shields.io/github/deployments/rindag-devs/cplib/Production?label=docs
 [header]: https://github.com/rindag-devs/cplib/blob/single-header-snapshot/cplib.hpp
 [license]: https://github.com/rindag-devs/cplib/blob/main/COPYING.LESSER
-[docs]: https://cplib.vercel.app/
+[docs]: https://cplib.aberter0x3f.top/
 
 ## Getting Started
 

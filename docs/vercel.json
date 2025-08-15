@@ -1,8 +1,0 @@
-{
-  "git": {
-    "deploymentEnabled": {
-      "main": true,
-      "single-header-snapshot": false
-    }
-  }
-}

@@ -32,10 +32,6 @@ jobs:
         shell: bash
         working-directory: ./out/single-header/
 
-      - name: Skip Vercel build
-        run: mkdir ./out/single-header/docs/ && cp docs/vercel.json ./out/single-header/docs/
-        shell: bash
-
       - name: Commit single-header-snapshot
         uses: nicholasgriffintn/github-branch-deployment-action@1.0.0
         env:
