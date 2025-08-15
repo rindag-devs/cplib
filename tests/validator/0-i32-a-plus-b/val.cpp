@@ -28,10 +28,9 @@ struct Input {
 };
 
 std::vector<validator::Trait> traits(const Input& input) {
-  auto [n, m] = input;
   return {
-      {"n_positive", [&]() { return n > 0; }},
-      {"m_positive", [&]() { return m > 0; }},
+      {"n_positive", [&]() { return input.n > 0; }},
+      {"m_positive", [&]() { return input.m > 0; }},
   };
 }
 

@@ -1,1 +1,1 @@
-{"message":"","reader_trace_tree":[{"children":[{"tags":{"#t":"i","#v":1},"trace":{"b":0,"l":1,"n":"n"}},{"tags":{"#t":"i","#v":2},"trace":{"b":2,"l":1,"n":"m"}}],"tags":{"#t":"E"},"trace":{"b":0,"l":4,"n":"input"}}],"status":"valid","traits":{"m_positive":false,"n_positive":true}}
+{"message":"","reader_trace_tree":[{"children":[{"tags":{"#t":"i","#v":1},"trace":{"b":0,"l":1,"n":"n"}},{"tags":{"#t":"i","#v":2},"trace":{"b":2,"l":1,"n":"m"}}],"tags":{"#t":"E"},"trace":{"b":0,"l":4,"n":"input"}}],"status":"valid","traits":{"m_positive":true,"n_positive":true}}
