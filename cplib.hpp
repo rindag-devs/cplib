@@ -4135,7 +4135,7 @@ inline auto Var<T, D>::parse(std::string_view s) const -> T {
 }
 
 template <class T, class D>
-inline auto Var<T, D>::operator*(size_t len) const -> Vec<D> {
+inline auto Var<T, D>::operator*(std::size_t len) const -> Vec<D> {
   return Vec<D>(*static_cast<const D*>(this), len);
 }
 
@@ -4512,7 +4512,7 @@ inline Vec<T>::Vec(T element, size_t len, Separator sep)
 template <class T>
 inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::Target> {
   std::vector<typename T::Var::Target> result(len);
-  for (size_t i = 0; i < len; ++i) {
+  for (std::size_t i = 0; i < len; ++i) {
     if (i > 0) in.read(sep);
     result[i] = in.read(element.renamed(std::to_string(i)));
   }
@@ -4540,10 +4540,10 @@ inline auto Mat<T>::read_from(Reader& in) const
     -> std::vector<std::vector<typename T::Var::Target>> {
   std::vector<std::vector<typename T::Var::Target>> result(
       len0, std::vector<typename T::Var::Target>(len1));
-  for (size_t i = 0; i < len0; ++i) {
+  for (std::size_t i = 0; i < len0; ++i) {
     if (i > 0) in.read(sep0);
     auto name_prefix = std::to_string(i) + "_";
-    for (size_t j = 0; j < len1; ++j) {
+    for (std::size_t j = 0; j < len1; ++j) {
       if (j > 0) in.read(sep1);
       result[i][j] = in.read(element.renamed(name_prefix + std::to_string(j)));
     }
@@ -5069,41 +5069,38 @@ struct ColoredTextReporter : Reporter {
 /**
  * Macro to register checker with custom initializer.
  *
- * @param var_ The variable name of state object to be initialized.
  * @param initializer_ The initializer function.
  */
-#define CPLIB_REGISTER_CHECKER_OPT(var_, input_struct_, output_struct_, initializer_)              \
+#define CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, initializer_)                    \
   static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
   static_assert(::cplib::var::Readable<output_struct_, const input_struct_&>,                      \
                 "`" #output_struct_ "` should be Readable");                                       \
   static_assert(::cplib::evaluate::Evaluatable<output_struct_, const input_struct_&>,              \
                 "`" #output_struct_ "` should be Evaluatable");                                    \
-  auto var_ =                                                                                      \
-      ::cplib::checker::State(::std::unique_ptr<decltype(initializer_)>(new initializer_));        \
   auto main(int argc, char** argv) -> int {                                                        \
     ::std::vector<::std::string> args;                                                             \
+    args.reserve(argc);                                                                            \
     for (int i = 1; i < argc; ++i) {                                                               \
       args.emplace_back(argv[i]);                                                                  \
     }                                                                                              \
-    var_.initializer->init(argv[0], args);                                                         \
-    input_struct_ input{var_.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};              \
-    output_struct_ output{var_.ouf.read(::cplib::var::ExtVar<output_struct_>("output", input))};   \
-    output_struct_ answer{var_.ans.read(::cplib::var::ExtVar<output_struct_>("answer", input))};   \
-    ::cplib::evaluate::Result result = var_.evaluator("output", output, answer, input);            \
+    auto state =                                                                                   \
+        ::cplib::checker::State(::std::unique_ptr<decltype(initializer_)>(new initializer_));      \
+    state.initializer->init(argv[0], args);                                                        \
+    input_struct_ input{state.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};             \
+    output_struct_ output{state.ouf.read(::cplib::var::ExtVar<output_struct_>("output", input))};  \
+    output_struct_ answer{state.ans.read(::cplib::var::ExtVar<output_struct_>("answer", input))};  \
+    ::cplib::evaluate::Result result = state.evaluator("output", output, answer, input);           \
     ::cplib::checker::Report report{::cplib::checker::Report::Status(result.status), result.score, \
                                     ""};                                                           \
-    var_.quit(report);                                                                             \
+    state.quit(report);                                                                            \
     return 0;                                                                                      \
   }
 
 /**
  * Macro to register checker with default initializer.
- *
- * @param var The variable name of state object to be initialized.
  */
-#define CPLIB_REGISTER_CHECKER(var_, input_struct_, output_struct_) \
-  CPLIB_REGISTER_CHECKER_OPT(var_, input_struct_, output_struct_,   \
-                             ::cplib::checker::DefaultInitializer())
+#define CPLIB_REGISTER_CHECKER(input_struct_, output_struct_) \
+  CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, ::cplib::checker::DefaultInitializer())
 }  // namespace cplib::checker
 
 /*
@@ -5828,7 +5825,8 @@ struct ColoredTextReporter : Reporter {
   auto var_ =                                                                                \
       ::cplib::interactor::State(std::unique_ptr<decltype(initializer_)>(new initializer_)); \
   auto main(int argc, char** argv) -> int {                                                  \
-    std::vector<std::string> args;                                                           \
+    ::std::vector<::std::string> args;                                                       \
+    args.reserve(argc);                                                                      \
     for (int i = 1; i < argc; ++i) {                                                         \
       args.emplace_back(argv[i]);                                                            \
     }                                                                                        \
@@ -6258,6 +6256,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 
@@ -6346,8 +6345,11 @@ struct Trait {
   /// The function used to check if the trait is satisfied.
   CheckFunc check_func;
 
-  /// The list of names of traits that this trait depends on.
-  std::vector<std::string> dependencies;
+  /// The map of traits that this trait depends on.
+  ///
+  /// `dependencies[name] = value` means that the current trait will only be evaluated when `name`
+  /// is evaluated and `name == value`.
+  std::map<std::string, bool> dependencies;
 
   /**
    * Constructor that takes the name and check function.
@@ -6362,9 +6364,9 @@ struct Trait {
    *
    * @param name The name of the trait.
    * @param check_func The function used to check if the trait is satisfied.
-   * @param dependencies The list of names of traits that this trait depends on.
+   * @param dependencies The map of traits that this trait depends on.
    */
-  Trait(std::string name, CheckFunc check_func, std::vector<std::string> dependencies);
+  Trait(std::string name, CheckFunc check_func, std::map<std::string, bool> dependencies);
 };
 
 struct State;
@@ -6440,7 +6442,7 @@ struct State {
   /**
    * Sets the traits of the validator.
    *
-   * **WARNING**: Calling this function multiple times will overwrite the last trait list.
+   * @warning Calling this function multiple times will overwrite the last trait list.
    *
    * @param traits The list of traits.
    */
@@ -6473,7 +6475,7 @@ struct State {
   std::vector<Trait> traits_;
 
   /// The edge set of a directed graph established based on the dependencies between traits.
-  std::vector<std::vector<std::size_t>> trait_edges_;
+  std::vector<std::vector<std::pair<std::size_t, bool>>> trait_edges_;
 };
 
 /**
@@ -6513,30 +6515,34 @@ struct ColoredTextReporter : Reporter {
 /**
  * Macro to register validator with custom initializer.
  *
- * @param var_ The variable name of state object to be initialized.
  * @param initializer_ The initializer function.
+ * @param traits_func_ The function returns a list of traits.
  */
-#define CPLIB_REGISTER_VALIDATOR_OPT(var_, initializer_)                                    \
-  auto var_ =                                                                               \
-      ::cplib::validator::State(std::unique_ptr<decltype(initializer_)>(new initializer_)); \
-  auto main(int argc, char** argv) -> int {                                                 \
-    std::vector<std::string> args;                                                          \
-    for (int i = 1; i < argc; ++i) {                                                        \
-      args.emplace_back(argv[i]);                                                           \
-    }                                                                                       \
-    var_.initializer->init(argv[0], args);                                                  \
-    auto validator_main(void) -> void;                                                      \
-    validator_main();                                                                       \
-    return 0;                                                                               \
+#define CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_, initializer_)                    \
+  static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
+  auto main(int argc, char** argv) -> int {                                                        \
+    ::std::vector<::std::string> args;                                                             \
+    args.reserve(argc);                                                                            \
+    for (int i = 1; i < argc; ++i) {                                                               \
+      args.emplace_back(argv[i]);                                                                  \
+    }                                                                                              \
+    auto state =                                                                                   \
+        ::cplib::validator::State(std::unique_ptr<decltype(initializer_)>(new initializer_));      \
+    state.initializer->init(argv[0], args);                                                        \
+    input_struct_ input{state.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};             \
+    std::function<auto(const input_struct_&)->::std::vector<::cplib::validator::Trait>>            \
+        traits_func = traits_func_;                                                                \
+    state.traits(traits_func(input));                                                              \
+    state.quit_valid();                                                                            \
+    return 0;                                                                                      \
   }
 
 /**
  * Macro to register validator with default initializer.
- *
- * @param var The variable name of state object to be initialized.
  */
-#define CPLIB_REGISTER_VALIDATOR(var) \
-  CPLIB_REGISTER_VALIDATOR_OPT(var, ::cplib::validator::DefaultInitializer())
+#define CPLIB_REGISTER_VALIDATOR(input_struct_, traits_func_) \
+  CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_,   \
+                               ::cplib::validator::DefaultInitializer())
 }  // namespace cplib::validator
 
 /*
@@ -6617,7 +6623,8 @@ inline Report::Report(Report::Status status, std::string message)
 inline Trait::Trait(std::string name, CheckFunc check_func)
     : Trait(std::move(name), std::move(check_func), {}) {}
 
-inline Trait::Trait(std::string name, CheckFunc check_func, std::vector<std::string> dependencies)
+inline Trait::Trait(std::string name, CheckFunc check_func,
+                    std::map<std::string, bool> dependencies)
     : name(std::move(name)),
       check_func(std::move(check_func)),
       dependencies(std::move(dependencies)) {}
@@ -6673,27 +6680,31 @@ inline auto Reporter::attach_trait_status(const std::map<std::string, bool>& tra
 namespace detail {
 /**
  * In topological sorting, `callback` is called every time a new node is reached.
- * If `fn` returns false, nodes reachable by the current node will no longer be visited.
+ *
+ * If `follow_unmatched_edge` is false, outgoing edges with a value different from the value
+ * returned by the callback for the current node will not be visited.
  */
-inline auto topo_sort(const std::vector<std::vector<size_t>>& edges,
-                      const std::function<auto(size_t)->bool>& callback) -> void {
-  std::vector<size_t> degree(edges.size(), 0);
+inline auto topo_sort(const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges,
+                      const bool follow_unmatched_edge,
+                      const std::function<auto(std::size_t)->bool>& callback) -> void {
+  std::vector<std::size_t> degree(edges.size(), 0);
 
   for (const auto& edge : edges) {
-    for (auto to : edge) ++degree[to];
+    for (auto [to, v] : edge) ++degree[to];
   }
 
-  std::queue<size_t> queue;
+  std::queue<std::size_t> queue;
 
-  for (size_t i = 0; i < edges.size(); ++i) {
+  for (std::size_t i = 0; i < edges.size(); ++i) {
     if (degree[i] == 0) queue.push(i);
   }
 
   while (!queue.empty()) {
     auto front = queue.front();
     queue.pop();
-    if (!callback(front)) continue;
-    for (auto to : edges[front]) {
+    auto result = callback(front);
+    for (auto [to, v] : edges[front]) {
+      if (!follow_unmatched_edge && v != result) continue;
       --degree[to];
       if (!degree[to]) queue.push(to);
     }
@@ -6702,7 +6713,7 @@ inline auto topo_sort(const std::vector<std::vector<size_t>>& edges,
 
 // Returns std::nullopt if failed
 inline auto build_edges(std::vector<Trait>& traits)
-    -> std::optional<std::vector<std::vector<size_t>>> {
+    -> std::optional<std::vector<std::vector<std::pair<std::size_t, bool>>>> {
   // Check duplicate name
   std::ranges::sort(traits, [](const Trait& x, const Trait& y) { return x.name < y.name; });
   if (std::ranges::unique(traits, [](const Trait& x, const Trait& y) {
@@ -6712,35 +6723,28 @@ inline auto build_edges(std::vector<Trait>& traits)
     return std::nullopt;
   }
 
-  std::vector<std::vector<size_t>> edges(traits.size());
+  std::vector<std::vector<std::pair<std::size_t, bool>>> edges(traits.size());
 
-  for (size_t i = 0; i < traits.size(); ++i) {
+  for (std::size_t i = 0; i < traits.size(); ++i) {
     auto& trait = traits[i];
-    // Check duplicate dependencies
-    std::ranges::sort(trait.dependencies);
-    if (std::ranges::unique(trait.dependencies).end() != trait.dependencies.end()) {
-      // Found duplicate dependencies
-      return std::nullopt;
-    }
-
-    for (const auto& dep : trait.dependencies) {
-      auto it = std::ranges::lower_bound(traits, dep, std::less{}, &Trait::name);
+    for (const auto& [name, value] : trait.dependencies) {
+      auto it = std::ranges::lower_bound(traits, name, std::less{}, &Trait::name);
       // IMPORTANT: Check if the dependency was actually found and is an exact match.
-      if (it == traits.end() || it->name != dep) {
+      if (it == traits.end() || it->name != name) {
         return std::nullopt;
       }
       auto dep_id = it - traits.begin();
-      edges[dep_id].emplace_back(i);
+      edges[dep_id].emplace_back(i, value);
     }
   }
 
   return edges;
 }
 
-inline auto have_loop(const std::vector<std::vector<size_t>>& edges) -> bool {
-  std::vector<uint8_t> visited(edges.size(), 0);  // Never use std::vector<bool>
+inline auto have_loop(const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges) -> bool {
+  std::vector<std::uint8_t> visited(edges.size(), 0);  // Never use std::vector<bool>
 
-  topo_sort(edges, [&](size_t node) {
+  topo_sort(edges, true, [&](std::size_t node) {
     visited[node] = 1;
     return true;
   });
@@ -6752,15 +6756,14 @@ inline auto have_loop(const std::vector<std::vector<size_t>>& edges) -> bool {
 }
 
 inline auto validate_traits(const std::vector<Trait>& traits,
-                            const std::vector<std::vector<std::size_t>>& edges)
+                            const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges)
     -> std::map<std::string, bool> {
   std::map<std::string, bool> results;
-  for (const auto& trait : traits) results[trait.name] = false;
 
-  topo_sort(edges, [&](std::size_t id) {
+  topo_sort(edges, true, [&](std::size_t id) {
     auto& node = traits[id];
     auto result = node.check_func();
-    results.at(node.name) = result;
+    results.emplace(node.name, result);
     return result;
   });
 
@@ -7728,7 +7731,8 @@ struct ColoredTextReporter : Reporter {
   CPLIB_REGISTER_GENERATOR_ARGS_(__VA_ARGS__);                                                 \
   namespace args_namespace_name_ = ::cplib_generator_args_;                                    \
   auto main(int argc, char** argv) -> int {                                                    \
-    std::vector<std::string> args;                                                             \
+    ::std::vector<::std::string> args;                                                         \
+    args.reserve(argc);                                                                        \
     for (int i = 1; i < argc; ++i) {                                                           \
       args.emplace_back(argv[i]);                                                              \
     }                                                                                          \
