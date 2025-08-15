@@ -56,7 +56,7 @@ struct Output {
 
 // Register the checker with CPLib, specifying the Input and Output structs.
 // This macro sets up the main checker logic behind the scenes.
-CPLIB_REGISTER_CHECKER(chk, Input, Output);
+CPLIB_REGISTER_CHECKER(Input, Output);
 ```
 
 此示例展示了 CPLib 如何利用结构化数据类型 (`Input`, `Output`) 和专用的 `read`/`evaluate` 方法来清晰地分离关注点：输入解析、输出解析和结果评估．`evaluate::Evaluator` 提供强大灵活的结果比较、浮点精度处理及详细错误反馈机制．

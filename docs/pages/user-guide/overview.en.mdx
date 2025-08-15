@@ -58,7 +58,7 @@ struct Output {
 
 // Register the checker with CPLib, specifying the Input and Output structs.
 // This macro sets up the main checker logic behind the scenes.
-CPLIB_REGISTER_CHECKER(chk, Input, Output);
+CPLIB_REGISTER_CHECKER(Input, Output);
 ```
 
 This example demonstrates how CPLib now leverages structured data types (`Input`, `Output`) and dedicated `read`/`evaluate` methods to clearly separate concerns: input parsing, output parsing, and result evaluation. The `evaluate::Evaluator` provides a powerful and flexible way to compare results, handle floating-point precision, and provide detailed feedback in case of errors.
