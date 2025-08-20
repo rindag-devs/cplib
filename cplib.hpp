@@ -1912,7 +1912,14 @@ inline auto InStream::read_line() -> std::optional<std::string> {
   if (eof()) return std::nullopt;
   while (true) {
     int c = read();
-    if (c == EOF || c == '\n') break;
+    if (c == EOF) {
+      if (is_strict()) {
+        // In strict mode, read_line must end with '\n' and cannot end with EOF.
+        return std::nullopt;
+      }
+      break;
+    }
+    if (c == '\n') break;
     line.push_back(static_cast<char>(c));
   }
   return line;
