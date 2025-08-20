@@ -4486,7 +4486,7 @@ inline auto Line::read_from(Reader& in) const -> std::string {
     in.fail("Expected a line, got EOF");
   }
 
-  if (pat.has_value() && pat->match(*line)) {
+  if (pat.has_value() && !pat->match(*line)) {
     in.fail(cplib::format("Expected a line matching `{}`, got `{}`", compress(pat->src()),
                           compress(*line)));
   }
@@ -6990,7 +6990,7 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node,
 
     // value
     if (node->tags.count("#v")) {
-      os << " = " << node->tags.at("#v").to_string();
+      os << " = " << cplib::compress(node->tags.at("#v").to_string());
     }
     os << '\n';
   }
