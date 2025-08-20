@@ -443,7 +443,7 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node,
 
     // value
     if (node->tags.count("#v")) {
-      os << " = " << node->tags.at("#v").to_string();
+      os << " = " << cplib::compress(node->tags.at("#v").to_string());
     }
     os << '\n';
   }

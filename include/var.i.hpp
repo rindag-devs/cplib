@@ -541,7 +541,7 @@ inline auto Line::read_from(Reader& in) const -> std::string {
     in.fail("Expected a line, got EOF");
   }
 
-  if (pat.has_value() && pat->match(*line)) {
+  if (pat.has_value() && !pat->match(*line)) {
     in.fail(cplib::format("Expected a line matching `{}`, got `{}`", compress(pat->src()),
                           compress(*line)));
   }
