@@ -5103,11 +5103,15 @@ struct ColoredTextReporter : Reporter {
     return 0;                                                                                      \
   }
 
+#ifndef CPLIB_CHECKER_DEFAULT_INITIALIZER
+#define CPLIB_CHECKER_DEFAULT_INITIALIZER (::cplib::checker::DefaultInitializer())
+#endif
+
 /**
  * Macro to register checker with default initializer.
  */
 #define CPLIB_REGISTER_CHECKER(input_struct_, output_struct_) \
-  CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, ::cplib::checker::DefaultInitializer())
+  CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, CPLIB_CHECKER_DEFAULT_INITIALIZER)
 }  // namespace cplib::checker
 
 /*
@@ -5843,13 +5847,17 @@ struct ColoredTextReporter : Reporter {
     return 0;                                                                                \
   }
 
+#ifndef CPLIB_INTERACTOR_DEFAULT_INITIALIZER
+#define CPLIB_INTERACTOR_DEFAULT_INITIALIZER (::cplib::interactor::DefaultInitializer())
+#endif
+
 /**
  * Macro to register interactor with default initializer.
  *
  * @param var The variable name of state object to be initialized.
  */
 #define CPLIB_REGISTER_INTERACTOR(var) \
-  CPLIB_REGISTER_INTERACTOR_OPT(var, ::cplib::interactor::DefaultInitializer())
+  CPLIB_REGISTER_INTERACTOR_OPT(var, CPLIB_INTERACTOR_DEFAULT_INITIALIZER)
 }  // namespace cplib::interactor
 
 /*
@@ -6544,12 +6552,15 @@ struct ColoredTextReporter : Reporter {
     return 0;                                                                                      \
   }
 
+#ifndef CPLIB_VALIDATOR_DEFAULT_INITIALIZER
+#define CPLIB_VALIDATOR_DEFAULT_INITIALIZER (::cplib::validator::DefaultInitializer())
+#endif
+
 /**
  * Macro to register validator with default initializer.
  */
 #define CPLIB_REGISTER_VALIDATOR(input_struct_, traits_func_) \
-  CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_,   \
-                               ::cplib::validator::DefaultInitializer())
+  CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_, CPLIB_VALIDATOR_DEFAULT_INITIALIZER)
 }  // namespace cplib::validator
 
 /*
@@ -7749,6 +7760,10 @@ struct ColoredTextReporter : Reporter {
     return 0;                                                                                  \
   }
 
+#ifndef CPLIB_GENERATOR_DEFAULT_INITIALIZER
+#define CPLIB_GENERATOR_DEFAULT_INITIALIZER (::cplib::generator::DefaultInitializer())
+#endif
+
 /**
  * Macro to register generator with default initializer.
  *
@@ -7756,8 +7771,8 @@ struct ColoredTextReporter : Reporter {
  * @param args_namespace_name_ The name of the command-line arguments namespace.
  * @param ... The parsers of the command-line arguments.
  */
-#define CPLIB_REGISTER_GENERATOR(var_name_, args_namespace_name_, ...)              \
-  CPLIB_REGISTER_GENERATOR_OPT(var_name_, ::cplib::generator::DefaultInitializer(), \
+#define CPLIB_REGISTER_GENERATOR(var_name_, args_namespace_name_, ...)         \
+  CPLIB_REGISTER_GENERATOR_OPT(var_name_, CPLIB_GENERATOR_DEFAULT_INITIALIZER, \
                                args_namespace_name_, __VA_ARGS__)
 }  // namespace cplib::generator
 
