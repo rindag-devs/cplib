@@ -300,11 +300,15 @@ struct ColoredTextReporter : Reporter {
     return 0;                                                                                      \
   }
 
+#ifndef CPLIB_CHECKER_DEFAULT_INITIALIZER
+#define CPLIB_CHECKER_DEFAULT_INITIALIZER ::cplib::checker::DefaultInitializer()
+#endif
+
 /**
  * Macro to register checker with default initializer.
  */
 #define CPLIB_REGISTER_CHECKER(input_struct_, output_struct_) \
-  CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, ::cplib::checker::DefaultInitializer())
+  CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, CPLIB_CHECKER_DEFAULT_INITIALIZER)
 }  // namespace cplib::checker
 
 #include "checker.i.hpp"  // IWYU pragma: export

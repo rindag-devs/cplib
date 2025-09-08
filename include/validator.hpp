@@ -304,12 +304,15 @@ struct ColoredTextReporter : Reporter {
     return 0;                                                                                      \
   }
 
+#ifndef CPLIB_VALIDATOR_DEFAULT_INITIALIZER
+#define CPLIB_VALIDATOR_DEFAULT_INITIALIZER ::cplib::validator::DefaultInitializer()
+#endif
+
 /**
  * Macro to register validator with default initializer.
  */
 #define CPLIB_REGISTER_VALIDATOR(input_struct_, traits_func_) \
-  CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_,   \
-                               ::cplib::validator::DefaultInitializer())
+  CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_, CPLIB_VALIDATOR_DEFAULT_INITIALIZER)
 }  // namespace cplib::validator
 
 #include "validator.i.hpp"  // IWYU pragma: export

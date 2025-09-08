@@ -274,13 +274,17 @@ struct ColoredTextReporter : Reporter {
     return 0;                                                                                \
   }
 
+#ifndef CPLIB_INTERACTOR_DEFAULT_INITIALIZER
+#define CPLIB_INTERACTOR_DEFAULT_INITIALIZER ::cplib::interactor::DefaultInitializer()
+#endif
+
 /**
  * Macro to register interactor with default initializer.
  *
  * @param var The variable name of state object to be initialized.
  */
 #define CPLIB_REGISTER_INTERACTOR(var) \
-  CPLIB_REGISTER_INTERACTOR_OPT(var, ::cplib::interactor::DefaultInitializer())
+  CPLIB_REGISTER_INTERACTOR_OPT(var, CPLIB_INTERACTOR_DEFAULT_INITIALIZER)
 }  // namespace cplib::interactor
 
 #include "interactor.i.hpp"  // IWYU pragma: export

@@ -590,6 +590,10 @@ struct ColoredTextReporter : Reporter {
     return 0;                                                                                  \
   }
 
+#ifndef CPLIB_GENERATOR_DEFAULT_INITIALIZER
+#define CPLIB_GENERATOR_DEFAULT_INITIALIZER ::cplib::generator::DefaultInitializer()
+#endif
+
 /**
  * Macro to register generator with default initializer.
  *
@@ -597,8 +601,8 @@ struct ColoredTextReporter : Reporter {
  * @param args_namespace_name_ The name of the command-line arguments namespace.
  * @param ... The parsers of the command-line arguments.
  */
-#define CPLIB_REGISTER_GENERATOR(var_name_, args_namespace_name_, ...)              \
-  CPLIB_REGISTER_GENERATOR_OPT(var_name_, ::cplib::generator::DefaultInitializer(), \
+#define CPLIB_REGISTER_GENERATOR(var_name_, args_namespace_name_, ...)         \
+  CPLIB_REGISTER_GENERATOR_OPT(var_name_, CPLIB_GENERATOR_DEFAULT_INITIALIZER, \
                                args_namespace_name_, __VA_ARGS__)
 }  // namespace cplib::generator
 
