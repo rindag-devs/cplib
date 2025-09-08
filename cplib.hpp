@@ -5104,7 +5104,7 @@ struct ColoredTextReporter : Reporter {
   }
 
 #ifndef CPLIB_CHECKER_DEFAULT_INITIALIZER
-#define CPLIB_CHECKER_DEFAULT_INITIALIZER (::cplib::checker::DefaultInitializer())
+#define CPLIB_CHECKER_DEFAULT_INITIALIZER ::cplib::checker::DefaultInitializer()
 #endif
 
 /**
@@ -5848,7 +5848,7 @@ struct ColoredTextReporter : Reporter {
   }
 
 #ifndef CPLIB_INTERACTOR_DEFAULT_INITIALIZER
-#define CPLIB_INTERACTOR_DEFAULT_INITIALIZER (::cplib::interactor::DefaultInitializer())
+#define CPLIB_INTERACTOR_DEFAULT_INITIALIZER ::cplib::interactor::DefaultInitializer()
 #endif
 
 /**
@@ -6553,7 +6553,7 @@ struct ColoredTextReporter : Reporter {
   }
 
 #ifndef CPLIB_VALIDATOR_DEFAULT_INITIALIZER
-#define CPLIB_VALIDATOR_DEFAULT_INITIALIZER (::cplib::validator::DefaultInitializer())
+#define CPLIB_VALIDATOR_DEFAULT_INITIALIZER ::cplib::validator::DefaultInitializer()
 #endif
 
 /**
@@ -7761,7 +7761,7 @@ struct ColoredTextReporter : Reporter {
   }
 
 #ifndef CPLIB_GENERATOR_DEFAULT_INITIALIZER
-#define CPLIB_GENERATOR_DEFAULT_INITIALIZER (::cplib::generator::DefaultInitializer())
+#define CPLIB_GENERATOR_DEFAULT_INITIALIZER ::cplib::generator::DefaultInitializer()
 #endif
 
 /**
