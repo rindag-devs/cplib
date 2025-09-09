@@ -236,7 +236,7 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
     // * ec == std::errc::invalid_argument: String is not a valid integer format (e.g. "abc",
     //   "NaN", "Inf")
     // * ptr != last: The string is not fully parsed (for example "123abc")
-    in.fail(cplib::format("Expected a integer, got `{}`", compress(token)));
+    in.fail(cplib::format("Expected an integer, got `{}`", compress(token)));
   } else if (ec == std::errc::result_out_of_range) {
     // The parsing is successful, but the value exceeds the range of T
     in.fail(cplib::format("Integer value `{}` is out of range for type `{}`", compress(token),
