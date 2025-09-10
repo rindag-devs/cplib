@@ -293,7 +293,8 @@ struct ColoredTextReporter : Reporter {
     for (int i = 1; i < argc; ++i) {                                                               \
       args.emplace_back(argv[i]);                                                                  \
     }                                                                                              \
-    auto state =                                                                                   \
+    /* std::exit only destroys static objects */                                                   \
+    static auto state =                                                                            \
         ::cplib::validator::State(std::unique_ptr<decltype(initializer_)>(new initializer_));      \
     state.initializer->init(argv[0], args);                                                        \
     input_struct_ input{state.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};             \
