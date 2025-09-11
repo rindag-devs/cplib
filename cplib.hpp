@@ -4954,6 +4954,8 @@ struct Reporter {
   auto attach_reader_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
   auto attach_evaluator_trace_stack(trace::TraceStack<evaluate::EvaluatorTrace> trace_stack)
       -> void;
+  [[nodiscard]] auto get_evaluator_trace_stacks() const
+      -> const std::vector<trace::TraceStack<evaluate::EvaluatorTrace>>&;
 
  protected:
   std::vector<trace::TraceStack<var::ReaderTrace>> reader_trace_stacks_{};
@@ -5098,8 +5100,17 @@ struct ColoredTextReporter : Reporter {
     output_struct_ output{state.ouf.read(::cplib::var::ExtVar<output_struct_>("output", input))};  \
     output_struct_ answer{state.ans.read(::cplib::var::ExtVar<output_struct_>("answer", input))};  \
     ::cplib::evaluate::Result result = state.evaluator("output", output, answer, input);           \
+    ::std::string report_message;                                                                  \
+    auto evaluator_trace_stacks = state.reporter->get_evaluator_trace_stacks();                    \
+    auto it = ::std::ranges::find_if(evaluator_trace_stacks, [](const auto& x) {                   \
+      return !x.stack.empty() && x.stack.back().result.has_value() &&                              \
+             !x.stack.back().result->message.empty();                                              \
+    });                                                                                            \
+    if (it != evaluator_trace_stacks.end()) {                                                      \
+      report_message = it->stack.back().result->message;                                           \
+    }                                                                                              \
     ::cplib::checker::Report report{::cplib::checker::Report::Status(result.status), result.score, \
-                                    ""};                                                           \
+                                    report_message};                                               \
     state.quit(report);                                                                            \
     return 0;                                                                                      \
   }
@@ -5305,6 +5316,11 @@ inline auto Reporter::attach_reader_trace_stack(trace::TraceStack<var::ReaderTra
 inline auto Reporter::attach_evaluator_trace_stack(
     trace::TraceStack<evaluate::EvaluatorTrace> trace_stack) -> void {
   evaluator_trace_stacks_.emplace_back(std::move(trace_stack));
+}
+
+inline auto Reporter::get_evaluator_trace_stacks() const
+    -> const std::vector<trace::TraceStack<evaluate::EvaluatorTrace>>& {
+  return evaluator_trace_stacks_;
 }
 
 // Impl State {{{
