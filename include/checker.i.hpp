@@ -190,6 +190,11 @@ inline auto Reporter::attach_evaluator_trace_stack(
   evaluator_trace_stacks_.emplace_back(std::move(trace_stack));
 }
 
+inline auto Reporter::get_evaluator_trace_stacks() const
+    -> const std::vector<trace::TraceStack<evaluate::EvaluatorTrace>>& {
+  return evaluator_trace_stacks_;
+}
+
 // Impl State {{{
 
 inline State::State(std::unique_ptr<Initializer> initializer)
