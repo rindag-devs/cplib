@@ -85,8 +85,18 @@ struct Result {
   };
 
   Status status;
+
+  // Between [0, 1].
   double score;
+
   std::string message;
+
+  /**
+   * Used to ensure that messages are merged correctly.
+   *
+   * Only the message from an unnamed result can be merged to the previous level.
+   */
+  bool named{false};
 
   /// Creates a Result representing zero score and ACCEPTED status, for additive accumulation.
   /// @return A Result object with ACCEPTED status and 0.0 score.
@@ -265,7 +275,7 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
   EvaluationHook evaluation_hook_;
 
   auto pre_evaluate(std::string_view var_name) -> void;
-  auto post_evaluate(const Result& result) -> void;
+  auto post_evaluate(Result& result) -> void;
 };
 
 }  // namespace cplib::evaluate
