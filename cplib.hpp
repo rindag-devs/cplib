@@ -2597,8 +2597,18 @@ struct Result {
   };
 
   Status status;
+
+  // Between [0, 1].
   double score;
+
   std::string message;
+
+  /**
+   * Used to ensure that messages are merged correctly.
+   *
+   * Only the message from an unnamed result can be merged to the previous level.
+   */
+  bool named{false};
 
   /// Creates a Result representing zero score and ACCEPTED status, for additive accumulation.
   /// @return A Result object with ACCEPTED status and 0.0 score.
@@ -2777,7 +2787,7 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
   EvaluationHook evaluation_hook_;
 
   auto pre_evaluate(std::string_view var_name) -> void;
-  auto post_evaluate(const Result& result) -> void;
+  auto post_evaluate(Result& result) -> void;
 };
 
 }  // namespace cplib::evaluate
@@ -2845,6 +2855,31 @@ inline constexpr auto Result::Status::to_string() const -> std::string_view {
   }
 }
 
+// Impl Result {{{
+namespace detail {
+inline auto merge_message(const std::string& a, const std::string& b) -> std::string {
+  if (a.empty()) {
+    return b;
+  }
+  if (b.empty()) {
+    return a;
+  }
+  return a + '\n' + b;
+}
+
+inline auto convert_to_strong_ordering(std::partial_ordering po) -> std::strong_ordering {
+  if (po == std::partial_ordering::equivalent) {
+    return std::strong_ordering::equal;
+  } else if (po == std::partial_ordering::less) {
+    return std::strong_ordering::less;
+  } else if (po == std::partial_ordering::greater) {
+    return std::strong_ordering::greater;
+  } else {
+    panic("Cannot convert partial_ordering to strong_ordering: comparison is not total");
+  }
+}
+}  // namespace detail
+
 inline Result::Result(Status status, double score, std::string message)
     : status(status), message({std::move(message)}) {
   if (!std::isfinite(score)) {
@@ -2867,20 +2902,6 @@ inline auto Result::wa(std::string message) -> Result {
 inline auto Result::pc(double score, std::string message) -> Result {
   return {Status::PARTIALLY_CORRECT, score, std::move(message)};
 }
-
-namespace detail {
-inline auto convert_to_strong_ordering(std::partial_ordering po) -> std::strong_ordering {
-  if (po == std::partial_ordering::equivalent) {
-    return std::strong_ordering::equal;
-  } else if (po == std::partial_ordering::less) {
-    return std::strong_ordering::less;
-  } else if (po == std::partial_ordering::greater) {
-    return std::strong_ordering::greater;
-  } else {
-    panic("Cannot convert partial_ordering to strong_ordering: comparison is not total");
-  }
-}
-}  // namespace detail
 
 inline constexpr auto Result::operator<=>(const Result& other) const -> std::strong_ordering {
   if (status != other.status) {
@@ -2908,7 +2929,11 @@ inline auto Result::operator+(const Result& other) const -> Result {
   res.status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
   res.score = score + other.score;
-  res.message = message;
+  if (other.named) {
+    res.message = message;
+  } else {
+    res.message = detail::merge_message(message, other.message);
+  }
   return res;
 }
 
@@ -2916,6 +2941,9 @@ inline auto Result::operator+=(const Result& other) -> Result& {
   status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
   score += other.score;
+  if (!other.named) {
+    message = detail::merge_message(message, other.message);
+  }
   return *this;
 }
 
@@ -2924,7 +2952,11 @@ inline auto Result::operator&(const Result& other) const -> Result {
   res.status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
   res.score = std::min(score, other.score);
-  res.message = message;
+  if (other.named) {
+    res.message = message;
+  } else {
+    res.message = detail::merge_message(message, other.message);
+  }
   return res;
 }
 
@@ -2932,6 +2964,9 @@ inline auto Result::operator&=(const Result& other) -> Result& {
   status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
   score = std::min(score, other.score);
+  if (!other.named) {
+    message = detail::merge_message(message, other.message);
+  }
   return *this;
 }
 
@@ -2942,6 +2977,8 @@ inline auto Result::operator&=(const Result& other) -> Result& {
       {"message", json::Value(message)},
   };
 }
+
+// /Impl Result }}}
 
 namespace detail {
 inline auto status_to_title_string(Result::Status status) -> std::string {
@@ -3033,7 +3070,9 @@ inline auto Evaluator::pre_evaluate(std::string_view var_name) -> void {
   }
 }
 
-inline auto Evaluator::post_evaluate(const Result& result) -> void {
+inline auto Evaluator::post_evaluate(Result& result) -> void {
+  result.named = true;
+
   auto trace_level = get_trace_level();
   if (trace_level >= trace::Level::STACK_ONLY) {
     auto trace = get_current_trace();
