@@ -5383,7 +5383,7 @@ inline State::~State() {
   if (!exited_) panic("Checker must exit by calling method `State::quit*`");
 }
 
-inline auto State::disable_check_dirt() -> void { check_dirt_ = true; }
+inline auto State::disable_check_dirt() -> void { check_dirt_ = false; }
 
 inline auto State::quit(Report report) -> void {
   exited_ = true;
