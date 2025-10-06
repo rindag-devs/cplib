@@ -6,7 +6,7 @@ Trace 是 CPLib 的特色功能，它可以记录变量读入时的包含关系�
 
 ## 简介
 
-Trace 的原理是在使用 `cplib::var::Reader::read` 读取变量时维护一个变量包含关系组成的栈（或同时有树），在即将读入变量时将输入流当前的行列位置、字节序数、变量名称等信息入栈（或在树上当前结点添加叶子），在变量读入结束时候出栈（或回溯至树上的父亲结点）．
+Trace 的原理是在使用 `cplib::var::Reader::read` 读取变量时维护一个变量包含关系组成的栈（或同时有树）．在即将读入变量时将输入流当前的行列位置、字节序数、变量名称等信息入栈（或在树上当前结点添加叶子），在变量读入结束时候出栈（或回溯至树上的父亲结点）．
 
 CPLib 中具有两种形式的 trace：trace stack 和 trace tree，分别对应栈和树．其中，trace stack 仅包含变量基本信息，而 trace tree 允许在结点上添加附加 tag 来描述附加信息．
 
@@ -57,7 +57,7 @@ CPLib 中与 trace 相关的接口如下．
 
 你可以使用 `cplib::var::Reader::get_trace_level()` 方法获取当前 Reader 的 trace level．
 
-### `cplib::var::Reader::Trace`
+### `cplib::var::ReaderTrace`
 
 包含一个变量的基本信息：
 
@@ -67,7 +67,7 @@ CPLib 中与 trace 相关的接口如下．
 - `pos.byte`：读入开始时的字节序数，从 0 编号．
 - `byte_length`：变量对应原始内容的字节长度．特别地，未完成读入的变量为 0．
 
-提供 `to_json_incomplete` 和 `to_json_complete` 两个函数来将自身内容编码为 JSON，分别适用于未完成读入的变量和已完成读入的变量．其中，`to_json_incomplete` 会使用原有名称导出除 `byte_length` 所有字段；而 `to_json_complete` 仅会导出 `var_name`、`byte_num`、`byte_length` 三个字段，且为了避免生成的 JSON 过长，三个字段会被重命名为 `n`、`b`、`l`．
+它提供 `to_stack_json` 和 `to_tree_json` 两个函数来将自身内容编码为 JSON．`to_stack_json` 用于 trace stack，会导出 `var_name` 和 `pos` 等字段．`to_tree_json` 用于 trace tree，会导出 `var_name`、`pos.byte` 和 `byte_length` 三个字段，并使用缩短的键名（`n`、`b`、`l`）以保持生成的 JSON 紧凑．
 
 ### `cplib::trace::TraceStack`
 
@@ -75,7 +75,7 @@ CPLib 中与 trace 相关的接口如下．
 
 提供 `to_json()`、`to_plain_text_lines()`、`to_colored_text_lines()` 三个方法来将其转换为对应格式．
 
-对于开启了 `STACK_ONLY` 及以上级别的 Reader，你可以使用 `cplib::var::Reader::get_trace_stack()` 方法获取当前读入的变量的 trace stack．
+对于开启了 `STACK_ONLY` 及以上级别的 Reader，你可以使用 `cplib::var::Reader::make_trace_stack(bool fatal)` 方法获取当前读入的变量的 trace stack．
 
 ### `cplib::trace::TraceTreeNode`
 
