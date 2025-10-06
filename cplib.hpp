@@ -144,13 +144,13 @@ concept formattable = requires(T &v, std::format_context ctx) {
  * Determine whether the two floating-point values are equals within the accuracy range.
  *
  * @tparam T The type of the values.
- * @param expected The expected floating-point value.
  * @param result The actual floating-point value.
+ * @param expected The expected floating-point value.
  * @param max_err The maximum allowable error.
  * @return True if the values are equal within the accuracy range, false otherwise.
  */
 template <class T>
-auto float_equals(T expected, T result, T max_err) -> bool;
+auto float_equals(T result, T expected, T max_err) -> bool;
 
 /**
  * Calculate the minimum relative and absolute error between two floating-point values.
@@ -445,7 +445,7 @@ template <class... Args>
 #endif
 
 template <class T>
-inline auto float_equals(T expected, T result, T max_err) -> bool {
+inline auto float_equals(T result, T expected, T max_err) -> bool {
   if (bool x_nan = std::isnan(expected), y_nan = std::isnan(result); x_nan || y_nan) {
     return x_nan && y_nan;
   }
@@ -453,6 +453,14 @@ inline auto float_equals(T expected, T result, T max_err) -> bool {
     return x_inf && y_inf && (expected > 0) == (result > 0);
   }
 
+  /*
+    Consider:
+    result = 331997342.4970105
+    expected = 331997010.5000000
+    max_err = 1e-6
+    The verdict will be WA while the ratio result/expected is exactly 1.000001.
+    We can fix this by enlarging `max_err` by 1e-15 as for absolute error.
+  */
   max_err += 1e-15;
 
   if (std::abs(expected - result) <= max_err) return true;
@@ -1633,7 +1641,7 @@ struct InStream {
   auto eoln() -> bool;
 
   /**
-   * Moves the pointer to the first non-space and non-tab character and calls [`eoln()`].
+   * Moves the pointer to the first non-whitespace character and calls [`eoln()`].
    *
    * @return True if the pointer is at '\n', false otherwise.
    */
@@ -2604,9 +2612,18 @@ struct Result {
   std::string message;
 
   /**
-   * Used to ensure that messages are merged correctly.
+   * Controls how messages are aggregated in hierarchical evaluations.
    *
-   * Only the message from an unnamed result can be merged to the previous level.
+   * In a complex evaluation, multiple sub-results (e.g., from `ev.eq`, `ev.approx`) are
+   * combined. This flag ensures that the messages from these sub-results are correctly
+   * merged into the final result of the parent evaluation, and not propagated further up
+   * the evaluation stack.
+   *
+   * - `false` (default, "unnamed"): The result is from a sub-evaluation. Its message can be
+   *   merged into a parent result when combined using operators like `+=` or `&=`.
+   * - `true` ("named"): The result is the final outcome of a top-level `Evaluator::operator()`
+   *   call. Its message is considered final for its corresponding node in the trace
+   *   stack/tree and will not be merged into parent results.
    */
   bool named{false};
 
@@ -2977,7 +2994,6 @@ inline auto Result::operator&=(const Result& other) -> Result& {
       {"message", json::Value(message)},
   };
 }
-
 // /Impl Result }}}
 
 namespace detail {
@@ -3127,7 +3143,7 @@ inline auto Evaluator::approx(std::string_view var_name, const T& pans, const T&
                               const T& max_err) -> Result {
   pre_evaluate(var_name);
   Result result = Result::ac();
-  if (!float_equals(jans, pans, max_err)) {
+  if (!float_equals(pans, jans, max_err)) {
     T delta = float_delta(jans, pans);
     result = Result::wa(cplib::format(
         "`{}` is not approximately equal: expected {:.10g}, got {:.10g}, delta {:.10g}", var_name,
@@ -3883,6 +3899,23 @@ struct Tuple : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
    * @return The tuple of elements.
    */
   auto read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> override;
+
+ private:
+  /**
+   * @brief Implementation detail for reading a tuple with separators.
+   *
+   * This helper function uses a fold expression over an index sequence to read each
+   * element of the tuple. It correctly inserts a separator read operation
+   * before each element except the first one.
+   *
+   * @tparam Is The compile-time sequence of indices for the tuple elements.
+   * @param in The reader object.
+   * @param seq An empty `std::index_sequence` object to deduce the indices `Is`.
+   * @return The tuple of elements read from the stream.
+   */
+  template <std::size_t... Is>
+  auto read_from_impl(Reader& in, std::index_sequence<Is...>) const
+      -> std::tuple<typename T::Var::Target...>;
 };
 
 /**
@@ -4420,7 +4453,7 @@ inline YesNo::YesNo(std::string name) : Var<bool, YesNo>(std::move(name)) {}
 
 inline auto YesNo::read_from(Reader& in) const -> bool {
   auto token = in.inner().read_token();
-  auto lower_token = in.inner().read_token();
+  auto lower_token = token;
   std::ranges::transform(lower_token, lower_token.begin(), ::tolower);
 
   bool result;
@@ -4429,7 +4462,7 @@ inline auto YesNo::read_from(Reader& in) const -> bool {
   } else if (lower_token == "no") {
     result = false;
   } else {
-    panic("Expected `Yes` or `No`, got " + token);
+    in.fail("Expected `Yes` or `No`, got " + token);
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -4646,13 +4679,35 @@ inline auto Tuple<T...>::read_from(Reader& in) const -> std::tuple<typename T::V
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#t", json::Value("t"));
   }
-  return std::apply(
-      [&in](const auto&... args) {
-        size_t cnt = 0;
-        auto renamed_inc = [&cnt](auto var) { return var.renamed(std::to_string(cnt++)); };
-        return std::tuple{in.read(renamed_inc(args))...};
-      },
-      elements);
+  // Delegate to the implementation helper with a generated index sequence.
+  return read_from_impl(in, std::index_sequence_for<T...>{});
+}
+
+template <class... T>
+template <std::size_t... Is>
+inline auto Tuple<T...>::read_from_impl(Reader& in, std::index_sequence<Is...>) const
+    -> std::tuple<typename T::Var::Target...> {
+  // Create the result tuple that will be populated.
+  std::tuple<typename T::Var::Target...> result;
+  std::size_t cnt = 0;
+  auto renamed_inc = [&cnt](auto var) { return var.renamed(std::to_string(cnt++)); };
+
+  // Use a C++17 fold expression over the comma operator to process each element sequentially.
+  // This is a concise way to apply an operation to each element of a parameter pack.
+  ((void)([&] {
+     // For every element after the first one (where index Is > 0), read the separator.
+     // `if constexpr` ensures this check is done at compile-time, so there is no
+     // runtime overhead for the first element.
+     if constexpr (Is > 0) {
+       in.read(sep);
+     }
+     // Read the current element using its corresponding Var template from the `elements`
+     // tuple and assign it to the correct position in the `result` tuple.
+     std::get<Is>(result) = in.read(renamed_inc(std::get<Is>(elements)));
+   }()),
+   ...);
+
+  return result;
 }
 
 template <class F>
