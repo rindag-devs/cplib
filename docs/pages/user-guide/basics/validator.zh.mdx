@@ -138,8 +138,7 @@ CPLIB_REGISTER_VALIDATOR(Input, traits);
 类似于 checker，validator 需要调用 `CPLIB_REGISTER_VALIDATOR` 宏将程序注册成一个 CPLib validator．
 
 <Callout type="warning">
-  各 trait 之间的依赖关系必须形成一个有向无环图（DAG），否则会在调用 `val.traits` 时引发 panic
-  退出程序．
+  各 trait 之间的依赖关系必须形成一个有向无环图（DAG），否则引发 panic 退出程序．
 </Callout>
 
 ## 使用

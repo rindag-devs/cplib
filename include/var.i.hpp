@@ -429,7 +429,7 @@ inline YesNo::YesNo(std::string name) : Var<bool, YesNo>(std::move(name)) {}
 
 inline auto YesNo::read_from(Reader& in) const -> bool {
   auto token = in.inner().read_token();
-  auto lower_token = in.inner().read_token();
+  auto lower_token = token;
   std::ranges::transform(lower_token, lower_token.begin(), ::tolower);
 
   bool result;
@@ -438,7 +438,7 @@ inline auto YesNo::read_from(Reader& in) const -> bool {
   } else if (lower_token == "no") {
     result = false;
   } else {
-    panic("Expected `Yes` or `No`, got " + token);
+    in.fail("Expected `Yes` or `No`, got " + token);
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -655,13 +655,35 @@ inline auto Tuple<T...>::read_from(Reader& in) const -> std::tuple<typename T::V
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#t", json::Value("t"));
   }
-  return std::apply(
-      [&in](const auto&... args) {
-        size_t cnt = 0;
-        auto renamed_inc = [&cnt](auto var) { return var.renamed(std::to_string(cnt++)); };
-        return std::tuple{in.read(renamed_inc(args))...};
-      },
-      elements);
+  // Delegate to the implementation helper with a generated index sequence.
+  return read_from_impl(in, std::index_sequence_for<T...>{});
+}
+
+template <class... T>
+template <std::size_t... Is>
+inline auto Tuple<T...>::read_from_impl(Reader& in, std::index_sequence<Is...>) const
+    -> std::tuple<typename T::Var::Target...> {
+  // Create the result tuple that will be populated.
+  std::tuple<typename T::Var::Target...> result;
+  std::size_t cnt = 0;
+  auto renamed_inc = [&cnt](auto var) { return var.renamed(std::to_string(cnt++)); };
+
+  // Use a C++17 fold expression over the comma operator to process each element sequentially.
+  // This is a concise way to apply an operation to each element of a parameter pack.
+  ((void)([&] {
+     // For every element after the first one (where index Is > 0), read the separator.
+     // `if constexpr` ensures this check is done at compile-time, so there is no
+     // runtime overhead for the first element.
+     if constexpr (Is > 0) {
+       in.read(sep);
+     }
+     // Read the current element using its corresponding Var template from the `elements`
+     // tuple and assign it to the correct position in the `result` tuple.
+     std::get<Is>(result) = in.read(renamed_inc(std::get<Is>(elements)));
+   }()),
+   ...);
+
+  return result;
 }
 
 template <class F>

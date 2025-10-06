@@ -719,6 +719,23 @@ struct Tuple : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
    * @return The tuple of elements.
    */
   auto read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> override;
+
+ private:
+  /**
+   * @brief Implementation detail for reading a tuple with separators.
+   *
+   * This helper function uses a fold expression over an index sequence to read each
+   * element of the tuple. It correctly inserts a separator read operation
+   * before each element except the first one.
+   *
+   * @tparam Is The compile-time sequence of indices for the tuple elements.
+   * @param in The reader object.
+   * @param seq An empty `std::index_sequence` object to deduce the indices `Is`.
+   * @return The tuple of elements read from the stream.
+   */
+  template <std::size_t... Is>
+  auto read_from_impl(Reader& in, std::index_sequence<Is...>) const
+      -> std::tuple<typename T::Var::Target...>;
 };
 
 /**

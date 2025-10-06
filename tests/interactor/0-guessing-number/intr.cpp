@@ -19,7 +19,7 @@ CPLIB_REGISTER_INTERACTOR(intr);
 struct Input {
   int n, m;
   static Input read(var::Reader& in) {
-    auto [n, m] = in(var::i32("n"), var::i32("A"));
+    auto [n, m] = in(var::i32("n"), var::i32("m"));
     return {n, m};
   }
 };
