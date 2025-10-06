@@ -114,7 +114,7 @@ template <class... Args>
 #endif
 
 template <class T>
-inline auto float_equals(T expected, T result, T max_err) -> bool {
+inline auto float_equals(T result, T expected, T max_err) -> bool {
   if (bool x_nan = std::isnan(expected), y_nan = std::isnan(result); x_nan || y_nan) {
     return x_nan && y_nan;
   }
@@ -122,6 +122,14 @@ inline auto float_equals(T expected, T result, T max_err) -> bool {
     return x_inf && y_inf && (expected > 0) == (result > 0);
   }
 
+  /*
+    Consider:
+    result = 331997342.4970105
+    expected = 331997010.5000000
+    max_err = 1e-6
+    The verdict will be WA while the ratio result/expected is exactly 1.000001.
+    We can fix this by enlarging `max_err` by 1e-15 as for absolute error.
+  */
   max_err += 1e-15;
 
   if (std::abs(expected - result) <= max_err) return true;

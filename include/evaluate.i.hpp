@@ -333,7 +333,7 @@ inline auto Evaluator::approx(std::string_view var_name, const T& pans, const T&
                               const T& max_err) -> Result {
   pre_evaluate(var_name);
   Result result = Result::ac();
-  if (!float_equals(jans, pans, max_err)) {
+  if (!float_equals(pans, jans, max_err)) {
     T delta = float_delta(jans, pans);
     result = Result::wa(cplib::format(
         "`{}` is not approximately equal: expected {:.10g}, got {:.10g}, delta {:.10g}", var_name,

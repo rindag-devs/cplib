@@ -171,7 +171,7 @@ struct InStream {
   auto eoln() -> bool;
 
   /**
-   * Moves the pointer to the first non-space and non-tab character and calls [`eoln()`].
+   * Moves the pointer to the first non-whitespace character and calls [`eoln()`].
    *
    * @return True if the pointer is at '\n', false otherwise.
    */

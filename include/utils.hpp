@@ -73,13 +73,13 @@ concept formattable = requires(T &v, std::format_context ctx) {
  * Determine whether the two floating-point values are equals within the accuracy range.
  *
  * @tparam T The type of the values.
- * @param expected The expected floating-point value.
  * @param result The actual floating-point value.
+ * @param expected The expected floating-point value.
  * @param max_err The maximum allowable error.
  * @return True if the values are equal within the accuracy range, false otherwise.
  */
 template <class T>
-auto float_equals(T expected, T result, T max_err) -> bool;
+auto float_equals(T result, T expected, T max_err) -> bool;
 
 /**
  * Calculate the minimum relative and absolute error between two floating-point values.
