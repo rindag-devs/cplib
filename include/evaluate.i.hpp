@@ -183,7 +183,6 @@ inline auto Result::operator&=(const Result& other) -> Result& {
       {"message", json::Value(message)},
   };
 }
-
 // /Impl Result }}}
 
 namespace detail {

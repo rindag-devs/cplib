@@ -92,9 +92,18 @@ struct Result {
   std::string message;
 
   /**
-   * Used to ensure that messages are merged correctly.
+   * Controls how messages are aggregated in hierarchical evaluations.
    *
-   * Only the message from an unnamed result can be merged to the previous level.
+   * In a complex evaluation, multiple sub-results (e.g., from `ev.eq`, `ev.approx`) are
+   * combined. This flag ensures that the messages from these sub-results are correctly
+   * merged into the final result of the parent evaluation, and not propagated further up
+   * the evaluation stack.
+   *
+   * - `false` (default, "unnamed"): The result is from a sub-evaluation. Its message can be
+   *   merged into a parent result when combined using operators like `+=` or `&=`.
+   * - `true` ("named"): The result is the final outcome of a top-level `Evaluator::operator()`
+   *   call. Its message is considered final for its corresponding node in the trace
+   *   stack/tree and will not be merged into parent results.
    */
   bool named{false};
 
