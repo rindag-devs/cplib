@@ -48,7 +48,7 @@ struct Input {
         in(var::i32("n", 2, 1000), var::space, var::i32("m", 1, 1000), var::eoln);
     auto edges = in.read(var::Vec(var::ExtVar<Edge>("edges", n), m, var::eoln));
     in.read(var::eoln);
-    return {n, m, edges};
+    return {n, m, std::move(edges)};
   }
 };
 

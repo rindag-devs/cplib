@@ -14,6 +14,7 @@
  */
 
 /* cplib_embed_ignore start */
+#include <ranges>
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
 #include "var.hpp"  // IWYU pragma: associated
@@ -486,33 +487,40 @@ inline auto String::read_from(Reader& in) const -> std::string {
 }
 
 // Impl Separator {{{
-inline Separator::Separator(char sep) : Separator(std::string(detail::VAR_DEFAULT_NAME), sep) {}
+inline Separator::Separator(std::optional<unsigned char> sep)
+    : Separator(std::string(detail::VAR_DEFAULT_NAME), sep) {}
 
-inline Separator::Separator(std::string name, char sep)
+inline Separator::Separator(std::string name, std::optional<unsigned char> sep)
     : Var<std::nullopt_t, Separator>(std::move(name)), sep(sep) {}
 
 inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
+  if (!sep.has_value()) {
+    return std::nullopt;
+  }
+
+  unsigned char s = *sep;
+
   if (in.inner().eof()) {
-    in.fail(cplib::format("Expected a separator `{}`, got EOF", cplib::detail::hex_encode(sep)));
+    in.fail(cplib::format("Expected a separator `{}`, got EOF", cplib::detail::hex_encode(s)));
   }
 
   if (in.inner().is_strict()) {
     auto got = in.inner().read();
-    if (got != sep) {
-      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(sep),
+    if (got != s) {
+      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
-  } else if (std::isspace(sep)) {
+  } else if (std::isspace(s)) {
     auto got = in.inner().read();
     if (!std::isspace(got)) {
-      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(sep),
+      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
   } else {
     in.inner().skip_blanks();
     auto got = in.inner().read();
-    if (got != sep) {
-      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(sep),
+    if (got != s) {
+      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
   }
@@ -727,6 +735,51 @@ template <class T>
 auto ExtVar<T>::read_from(Reader& in) const -> T {
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#t", json::Value("E"));
+  }
+  return inner_function_(in);
+}
+
+template <class T>
+template <std::ranges::range Range, class... Args>
+inline ExtVec<T>::ExtVec(std::string name, Range&& range, Separator sep, Args... args)
+  requires Readable<T, Args..., std::ranges::range_value_t<Range>>
+    : Var<std::vector<T>, ExtVec<T>>(std::move(name)),
+      inner_function_([range = std::forward<Range>(range), sep,
+                       captured_args = std::make_tuple(std::forward<Args>(args)...)](
+                          Reader& in) -> std::vector<T> {
+        std::vector<T> result;
+        if constexpr (std::ranges::sized_range<Range>) {
+          result.reserve(std::ranges::size(range));
+        }
+
+        std::size_t i = 0;
+        for (const auto& range_element : range) {
+          if (i > 0) {
+            in.read(sep);
+          }
+
+          // Use std::apply to construct an ExtVar for each element.
+          // This unpacks the tuple of fixed arguments and passes them, along with the
+          // current range_element, to the ExtVar constructor. This correctly sets up
+          // the call to T::read with all necessary arguments and handles tracing.
+          auto element = std::apply(
+              [&](auto&&... fixed_args) {
+                return in.read(ExtVar<T>(std::to_string(i),
+                                         std::forward<decltype(fixed_args)>(fixed_args)...,
+                                         range_element));
+              },
+              captured_args);
+
+          result.push_back(std::move(element));
+          ++i;
+        }
+        return result;
+      }) {}
+
+template <class T>
+inline auto ExtVec<T>::read_from(Reader& in) const -> std::vector<T> {
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#t", json::Value("vE"));  // vE for "Vector of Extended"
   }
   return inner_function_(in);
 }

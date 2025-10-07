@@ -46,7 +46,7 @@ struct Input {
       graph[{v, u}] = w;  // Undirected graph
     }
 
-    return {n, m, graph};
+    return {n, m, std::move(graph)};
   }
 };
 
@@ -80,7 +80,7 @@ struct Output {
       in.fail(format("Calculated path sum ({}) from plan does not match reported sum ({})",
                      result_sum, sum));
 
-    return {sum, len, plan};
+    return {sum, len, std::move(plan)};
   }
 
   // Output::evaluate compares participant's output with jury's output

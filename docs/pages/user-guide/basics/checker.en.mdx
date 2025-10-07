@@ -286,7 +286,7 @@ struct Input {
       graph[{v, u}] = w; // Undirected graph
     }
 
-    return {n, m, graph};
+    return {n, m, std::move(graph)};
   }
 };
 
@@ -369,6 +369,16 @@ This example demonstrates how to use variable reading templates for custom types
   - Checking if all edges in the path exist in the graph.
   - Confirming that the reported `sum` matches the sum calculated from the `plan`.
   - If any validity check fails, `in.fail(message)` is called, which immediately reports "Wrong Answer" (for participant's output) or "Internal Error" (for jury's output) with a detailed stack trace.
+
+For reading collections of custom types where each element's parsing depends on contextual information (like its index or a corresponding element from another collection), CPLib provides `cplib::var::ExtVec<T>`. It iterates over a given range (e.g., `std::views::iota` or another `std::vector`) and, for each element in the range, calls `T::read`, passing the range element as an additional argument. This avoids manual loops and makes the code more declarative. For example, to read `T` test cases where each `TestCaseInput::read` needs its index:
+
+```cpp copy
+auto test_cases = in.read(cplib::var::ExtVec<TestCaseInput>(
+    "test_cases",
+    std::views::iota(0, T),
+    cplib::var::Separator(std::nullopt) // No separator between test cases
+));
+```
 
 **Evaluation with `evaluate::Evaluator`:**
 

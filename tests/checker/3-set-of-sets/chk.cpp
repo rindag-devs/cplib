@@ -51,7 +51,7 @@ struct Output {
     auto sets = in.read(var::ExtVar<Set>("sets", input) * len);
 
     std::sort(sets.begin(), sets.end());
-    return {len, sets};
+    return {len, std::move(sets)};
   }
 
   static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,

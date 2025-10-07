@@ -23,6 +23,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -442,20 +443,22 @@ struct String : Var<std::string, String> {
 /**
  * `Separator` is a variable reading template, indicating to read a character as a separator.
  *
- * - If it is in strict mode, read exact one character determine whether it is same as `sep`.
+ *- If `sep` is `std::nullopt`, it does noting.
+ * - Otherwise, if it is in strict mode, read exact one character determine whether it is same as
+ *`sep`.
  * - Otherwise, if `std::isspace(sep)`, read the next consecutive whitespaces.
  * - Otherwise, try skipping blanks and read exact one character `sep`.
  */
 struct Separator : Var<std::nullopt_t, Separator> {
  public:
-  char sep;
+  std::optional<unsigned char> sep;
 
   /**
    * Constructs a `Separator` object with the specified separator character.
    *
    * @param sep The separator character.
    */
-  explicit Separator(char sep);
+  explicit Separator(std::optional<unsigned char> sep);
 
   /**
    * Constructs a `Separator` object with the specified separator character and name.
@@ -463,7 +466,7 @@ struct Separator : Var<std::nullopt_t, Separator> {
    * @param name The name of the `Separator`.
    * @param sep The separator character.
    */
-  explicit Separator(std::string name, char sep);
+  explicit Separator(std::string name, std::optional<unsigned char> sep);
 
   /**
    * Reads the separator character from the input reader.
@@ -820,6 +823,46 @@ struct ExtVar : Var<T, ExtVar<T>> {
  private:
   /// The inner function that encapsulates the call to T::read.
   std::function<T(Reader&)> inner_function_;
+};
+
+/**
+ * `ExtVec` is a variable reading template that reads a sequence of variables of a custom
+ * readable type `T` and returns them as a `std::vector<T>`. It iterates over a provided
+ * range, and for each element in the range, it calls `T::read`, passing the range element
+ * as an additional argument. This is useful for reading collections where each element's
+ * parsing depends on its index or corresponding data.
+ *
+ * @tparam T The readable type of the elements in the vector. Must satisfy the `Readable` concept.
+ */
+template <class T>
+struct ExtVec : Var<std::vector<T>, ExtVec<T>> {
+ public:
+  /**
+   * Constructor.
+   *
+   * @tparam Range The type of the range-like object to iterate over.
+   * @tparam Args The types of the fixed arguments to pass to `T::read`.
+   * @param name The name of the variable.
+   * @param range The range-like object (e.g., `std::vector`, `std::views::iota`) whose elements
+   *              will be passed as the final argument to `T::read`.
+   * @param sep The separator between elements.
+   * @param args The fixed arguments to be passed to `T::read` before the range element.
+   */
+  template <std::ranges::range Range, class... Args>
+  explicit ExtVec(std::string name, Range&& range, Separator sep, Args... args)
+    requires Readable<T, Args..., std::ranges::range_value_t<Range>>;
+
+  /**
+   * Read from reader.
+   *
+   * @param in The reader object.
+   * @return The vector of elements.
+   */
+  auto read_from(Reader& in) const -> std::vector<T> override;
+
+ private:
+  /// The inner function that encapsulates the call to T::read for each element.
+  std::function<std::vector<T>(Reader&)> inner_function_;
 };
 
 using i8 = Int<std::int8_t>;

@@ -286,7 +286,7 @@ struct Input {
       graph[{v, u}] = w; // Undirected graph
     }
 
-    return {n, m, graph};
+    return {n, m, std::move(graph)};
   }
 };
 
@@ -369,6 +369,16 @@ CPLIB_REGISTER_CHECKER(Input, Output);
   - 检查路径中的所有边是否存在于图中．
   - 确认报告的 `sum` 与从 `plan` 计算出的总和匹配．
   - 如果任何有效性检查失败，将调用 `in.fail(message)`，这将立即报告「Wrong Answer」（对于选手输出）或「Internal Error」（对于评测方输出），并附带详细的堆栈跟踪．
+
+对于读取自定义类型的集合，且每个元素的解析都依赖于上下文信息（如其索引或来自另一个集合的对应元素）的场景，CPLib 提供了 `cplib::var::ExtVec<T>`．它会遍历一个给定的范围（例如 `std::views::iota` 或另一个 `std::vector`），并对范围中的每个元素调用 `T::read`，同时将该范围元素作为额外参数传递．这避免了手动循环，使代码更具声明性．例如，要读取 `T` 个测试用例，其中每个 `TestCaseInput::read` 都需要其索引：
+
+```cpp copy
+auto test_cases = in.read(cplib::var::ExtVec<TestCaseInput>(
+    "test_cases",
+    std::views::iota(0, T),
+    cplib::var::Separator(std::nullopt) // 测试用例之间没有分隔符
+));
+```
 
 **使用 `evaluate::Evaluator` 进行评估：**
 

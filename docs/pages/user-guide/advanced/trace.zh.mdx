@@ -32,6 +32,7 @@ CPLib 内置变量读入模版（`cplib::var::Separator` 除外）在读入变�
 | Tuple       | t   |
 | FnVar       | F   |
 | ExtVar      | E   |
+| ExtVec      | vE  |
 
 `#hidden` 是一个特殊的键，若一个结点的 JSON tag 中存在这个键（无论值如何），当前结点的子树内结点会在编码为 JSON 时被忽略．变量读入模版`cplib::var::Separator` 会在读入完成时为当前结点添加 `#hidden`．
 
