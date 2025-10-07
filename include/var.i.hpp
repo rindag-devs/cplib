@@ -494,6 +494,10 @@ inline Separator::Separator(std::string name, std::optional<unsigned char> sep)
     : Var<std::nullopt_t, Separator>(std::move(name)), sep(sep) {}
 
 inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#hidden", json::Value(true));
+  }
+
   if (!sep.has_value()) {
     return std::nullopt;
   }
@@ -523,10 +527,6 @@ inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
       in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
-  }
-
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#hidden", json::Value(true));
   }
 
   return std::nullopt;

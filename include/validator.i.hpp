@@ -450,7 +450,7 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node,
 
   std::size_t n_visible_children = 0;
   for (const auto& child : node->get_children()) {
-    if (!!child->tags.count("#hidden")) {
+    if (!child->tags.count("#hidden")) {
       ++n_visible_children;
     }
   }
