@@ -89,10 +89,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <initializer_list>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #ifdef CPLIB_USE_FMT_LIB
@@ -124,19 +128,19 @@ template <class... Args>
  */
 #ifdef CPLIB_USE_FMT_LIB
 template <class... Args>
-[[nodiscard]] auto format(fmt::format_string<Args...> fmt, Args &&...args) -> std::string;
+[[nodiscard]] auto format(fmt::format_string<Args...> fmt, Args&&... args) -> std::string;
 
 template <typename T>
-concept formattable = requires(T &v, fmt::format_context ctx) {
-  fmt::formatter<std::remove_cvref_t<T> >().format(v, ctx);
+concept formattable = requires(T& v, fmt::format_context ctx) {
+  fmt::formatter<std::remove_cvref_t<T>>().format(v, ctx);
 };
 #else
 template <class... Args>
-[[nodiscard]] auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string;
+[[nodiscard]] auto format(std::format_string<Args...> fmt, Args&&... args) -> std::string;
 
 template <typename T>
-concept formattable = requires(T &v, std::format_context ctx) {
-  std::formatter<std::remove_cvref_t<T> >().format(v, ctx);
+concept formattable = requires(T& v, std::format_context ctx) {
+  std::formatter<std::remove_cvref_t<T>>().format(v, ctx);
 };
 #endif
 
@@ -284,7 +288,7 @@ struct UniqueFunction<Ret(Args...)> {
      * @param args The arguments to be passed to the derived function.
      * @return The return value of the derived function.
      */
-    virtual auto operator()(Args &&...args) -> Ret = 0;
+    virtual auto operator()(Args&&... args) -> Ret = 0;
   };
 
   /**
@@ -296,7 +300,7 @@ struct UniqueFunction<Ret(Args...)> {
   struct Data : Base {
     T func;
 
-    explicit Data(T &&t);
+    explicit Data(T&& t);
 
     /**
      * Function call operator implementation.
@@ -304,10 +308,152 @@ struct UniqueFunction<Ret(Args...)> {
      * @param args The arguments to be passed to the stored function.
      * @return The return value of the stored function.
      */
-    auto operator()(Args &&...args) -> Ret override;
+    auto operator()(Args&&... args) -> Ret override;
   };
 
   std::unique_ptr<Base> ptr{nullptr};
+};
+
+/**
+ * @brief A map-like container implemented as a sorted std::vector of pairs.
+ *
+ * @details This container provides an interface similar to std::map but with
+ * different performance characteristics. Lookups (find, lower_bound, etc.) are
+ * O(log n), while insertions and deletions are O(n) due to the underlying
+ * vector. It is cache-friendly and can be faster than std::map for small
+ * datasets or when lookups dominate the workload.
+ *
+ * @tparam Key The key type.
+ * @tparam T The mapped type.
+ * @tparam Compare The comparison function object type.
+ */
+template <typename Key, typename T, typename Compare = std::less<Key>>
+struct FlatMap {
+ public:
+  // Member Types
+  using key_type = Key;
+  using mapped_type = T;
+  using value_type = std::pair<Key, T>;
+  using key_compare = Compare;
+  using reference = value_type&;
+  using const_reference = const value_type&;
+  using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
+  using iterator = typename std::vector<value_type>::iterator;
+  using const_iterator = typename std::vector<value_type>::const_iterator;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+  using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+ private:
+  // Data Members
+  std::vector<value_type> data_;
+  [[no_unique_address]] key_compare comp_;
+
+ public:
+  // Constructors & Assignment
+
+  /** @brief Default constructor. */
+  FlatMap() = default;
+
+  /** @brief Constructs with a specific comparator. */
+  explicit FlatMap(const Compare& comp);
+
+  /** @brief Constructs from a range of elements. */
+  template <std::input_iterator It>
+  explicit FlatMap(It first, It last, const Compare& comp = Compare{});
+
+  /** @brief Constructs from an initializer list. */
+  FlatMap(std::initializer_list<value_type> ilist, const Compare& comp = Compare{});
+
+  // Defaulted copy/move constructors and assignment operators are sufficient.
+  FlatMap(const FlatMap&) = default;
+  FlatMap(FlatMap&&) = default;
+  auto operator=(const FlatMap&) -> FlatMap& = default;
+  auto operator=(FlatMap&&) -> FlatMap& = default;
+
+  // Comparison Operators
+  auto operator==(const FlatMap& other) const -> bool;
+  auto operator<=>(const FlatMap& other) const;
+
+  // Element Access
+  /** @brief Access specified element with bounds checking. */
+  auto at(const key_type& key) -> mapped_type&;
+  auto at(const key_type& key) const -> const mapped_type&;
+
+  /** @brief Access or insert specified element. */
+  auto operator[](const key_type& key) -> mapped_type&;
+  auto operator[](key_type&& key) -> mapped_type&;
+
+  // Iterators
+
+  auto begin() -> iterator;
+  auto begin() const -> const_iterator;
+  auto cbegin() const -> const_iterator;
+
+  auto end() -> iterator;
+  auto end() const -> const_iterator;
+  auto cend() const -> const_iterator;
+
+  auto rbegin() -> reverse_iterator;
+  auto rbegin() const -> const_reverse_iterator;
+  auto crbegin() const -> const_reverse_iterator;
+
+  auto rend() -> reverse_iterator;
+  auto rend() const -> const_reverse_iterator;
+  auto crend() const -> const_reverse_iterator;
+
+  // Capacity
+
+  /** @brief Checks if the container is empty. */
+  [[nodiscard]] auto empty() const -> bool;
+
+  /** @brief Returns the number of elements. */
+  [[nodiscard]] auto size() const -> size_type;
+
+  /** @brief Returns the maximum possible number of elements. */
+  [[nodiscard]] auto max_size() const -> size_type;
+
+  // Modifiers
+
+  /** @brief Inserts a new element into the container. */
+  auto insert(const value_type& value) -> std::pair<iterator, bool>;
+  auto insert(value_type&& value) -> std::pair<iterator, bool>;
+
+  /** @brief Constructs an element in-place. */
+  template <typename... Args>
+  auto emplace(Args&&... args) -> std::pair<iterator, bool>;
+
+  /** @brief Erases an element at a specific position. */
+  auto erase(const_iterator pos) -> iterator;
+
+  /** @brief Erases an element with a specific key. */
+  auto erase(const key_type& key) -> size_type;
+
+  // Lookup
+
+  /** @brief Finds an element with a specific key. */
+  auto find(const key_type& key) -> iterator;
+  auto find(const key_type& key) const -> const_iterator;
+
+  /** @brief Checks if the container contains an element with a specific key. */
+  auto contains(const key_type& key) const -> bool;
+
+  /** @brief Returns an iterator to the first element not less than the given key. */
+  auto lower_bound(const key_type& key) -> iterator;
+  auto lower_bound(const key_type& key) const -> const_iterator;
+
+  /** @brief Returns an iterator to the first element greater than the given key. */
+  auto upper_bound(const key_type& key) -> iterator;
+  auto upper_bound(const key_type& key) const -> const_iterator;
+
+ private:
+  /**
+   * @brief A helper to sort and unique the underlying vector.
+   * @details This is used by constructors that take a range of elements.
+   * It sorts the data and removes duplicate keys, keeping the first
+   * occurrence, which matches the behavior of std::map's range constructor.
+   */
+  auto sort_and_unique() -> void;
 };
 
 /**
@@ -362,7 +508,9 @@ auto get_work_mode() -> WorkMode;
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
+#include <initializer_list>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -583,6 +731,318 @@ auto UniqueFunction<Ret(Args...)>::Data<T>::operator()(Args&&... args) -> Ret {
   return func(std::forward<Args>(args)...);
 }
 
+// Impl FlatMap {{{
+namespace detail {
+/**
+ * @brief A comparator for comparing a value_type (pair) with a key.
+ * @tparam Compare The original key comparison function.
+ */
+template <typename Compare>
+struct PairKeyCompare {
+  [[no_unique_address]] Compare key_comp;
+
+  // Compare pair with key
+  template <typename Pair, typename Key>
+  auto operator()(const Pair& p, const Key& k) const -> bool {
+    return key_comp(p.first, k);
+  }
+};
+
+}  // namespace detail
+
+// Constructors & Assignment
+
+template <typename Key, typename T, typename Compare>
+inline FlatMap<Key, T, Compare>::FlatMap(const Compare& comp) : comp_(comp) {}
+
+template <typename Key, typename T, typename Compare>
+template <std::input_iterator It>
+inline FlatMap<Key, T, Compare>::FlatMap(It first, It last, const Compare& comp)
+    : data_(first, last), comp_(comp) {
+  sort_and_unique();
+}
+
+template <typename Key, typename T, typename Compare>
+inline FlatMap<Key, T, Compare>::FlatMap(std::initializer_list<value_type> ilist,
+                                         const Compare& comp)
+    : data_(ilist), comp_(comp) {
+  sort_and_unique();
+}
+
+// Comparison Operators
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::operator==(const FlatMap& other) const -> bool {
+  return data_ == other.data_;
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::operator<=>(const FlatMap& other) const {
+  return data_ <=> other.data_;
+}
+
+// Element Access
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::at(const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type& {
+  auto it = find(key);
+  if (it == end()) {
+    cplib::panic(cplib::format("FlatMap::at: key not found"));
+  }
+  return it->second;
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::at(const key_type& key) const -> const
+    typename FlatMap<Key, T, Compare>::mapped_type& {
+  auto it = find(key);
+  if (it == end()) {
+    cplib::panic(cplib::format("FlatMap::at: key not found"));
+  }
+  return it->second;
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::operator[](const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type& {
+  auto it = lower_bound(key);
+  if (it != end() && !comp_(key, it->first)) {
+    // Key already exists
+    return it->second;
+  }
+  // Key does not exist, insert it
+  auto new_it = data_.emplace(it, key, mapped_type{});
+  return new_it->second;
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::operator[](key_type&& key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type& {
+  auto it = lower_bound(key);
+  if (it != end() && !comp_(key, it->first)) {
+    // Key already exists
+    return it->second;
+  }
+  // Key does not exist, insert it
+  auto new_it = data_.emplace(it, std::move(key), mapped_type{});
+  return new_it->second;
+}
+
+// Iterators
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::begin() -> typename FlatMap<Key, T, Compare>::iterator {
+  return data_.begin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::begin() const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return data_.begin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::cbegin() const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return data_.cbegin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::end() -> typename FlatMap<Key, T, Compare>::iterator {
+  return data_.end();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::end() const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return data_.end();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::cend() const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return data_.cend();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::rbegin() ->
+    typename FlatMap<Key, T, Compare>::reverse_iterator {
+  return data_.rbegin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::rbegin() const ->
+    typename FlatMap<Key, T, Compare>::const_reverse_iterator {
+  return data_.rbegin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::crbegin() const ->
+    typename FlatMap<Key, T, Compare>::const_reverse_iterator {
+  return data_.crbegin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::rend() ->
+    typename FlatMap<Key, T, Compare>::reverse_iterator {
+  return data_.rend();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::rend() const ->
+    typename FlatMap<Key, T, Compare>::const_reverse_iterator {
+  return data_.rend();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::crend() const ->
+    typename FlatMap<Key, T, Compare>::const_reverse_iterator {
+  return data_.crend();
+}
+
+// Capacity
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::empty() const -> bool {
+  return data_.empty();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::size() const -> typename FlatMap<Key, T, Compare>::size_type {
+  return data_.size();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::max_size() const ->
+    typename FlatMap<Key, T, Compare>::size_type {
+  return data_.max_size();
+}
+
+// Modifiers
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::insert(const value_type& value)
+    -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
+  auto it = lower_bound(value.first);
+  if (it != end() && !comp_(value.first, it->first)) {
+    return {it, false};  // Key exists
+  }
+  auto new_it = data_.insert(it, value);
+  return {new_it, true};
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::insert(value_type&& value)
+    -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
+  auto it = lower_bound(value.first);
+  if (it != end() && !comp_(value.first, it->first)) {
+    return {it, false};  // Key exists
+  }
+  auto new_it = data_.insert(it, std::move(value));
+  return {new_it, true};
+}
+
+template <typename Key, typename T, typename Compare>
+template <typename... Args>
+inline auto FlatMap<Key, T, Compare>::emplace(Args&&... args)
+    -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
+  value_type temp_val(std::forward<Args>(args)...);
+  auto it = lower_bound(temp_val.first);
+  if (it != end() && !comp_(temp_val.first, it->first)) {
+    return {it, false};  // Key exists
+  }
+  auto new_it = data_.emplace(it, std::move(temp_val));
+  return {new_it, true};
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::erase(const_iterator pos) ->
+    typename FlatMap<Key, T, Compare>::iterator {
+  return data_.erase(pos);
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::erase(const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::size_type {
+  auto it = find(key);
+  if (it == end()) {
+    return 0;
+  }
+  data_.erase(it);
+  return 1;
+}
+
+// Lookup
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::find(const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::iterator {
+  auto it = lower_bound(key);
+  if (it != end() && !comp_(key, it->first)) {
+    return it;  // Key found
+  }
+  return end();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::find(const key_type& key) const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  auto it = lower_bound(key);
+  if (it != end() && !comp_(key, it->first)) {
+    return it;  // Key found
+  }
+  return end();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::contains(const key_type& key) const -> bool {
+  return find(key) != end();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::iterator {
+  return std::lower_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type& key) const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return std::lower_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::iterator {
+  return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type& key) const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+}
+
+// Private Helpers
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::sort_and_unique() -> void {
+  // Sort by key
+  std::sort(data_.begin(), data_.end(),
+            [this](const value_type& a, const value_type& b) { return comp_(a.first, b.first); });
+
+  // Remove duplicate keys. std::unique keeps the first element in a group of duplicates.
+  auto last =
+      std::unique(data_.begin(), data_.end(), [this](const value_type& a, const value_type& b) {
+        // Two keys are equivalent if !(a < b) && !(b < a)
+        return !comp_(a.first, b.first) && !comp_(b.first, a.first);
+      });
+
+  data_.erase(last, data_.end());
+}
+// /Impl FlatMap }}}
+
 // Impl get_work_mode {{{
 namespace detail {
 inline WorkMode work_mode = WorkMode::NONE;
@@ -670,27 +1130,41 @@ srand(unsigned int) CPLIB_RAND_THROW_STATEMENT -> void {
 #define CPLIB_JSON_HPP_
 
 #include <cstdint>
-#include <map>
+#include <optional>
+#include <streambuf>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
+
+
+
+
 
 namespace cplib::json {
 
 struct Value;
 
+using Null = std::nullopt_t;
 using String = std::string;
 using Int = std::int64_t;
 using Real = double;
 using Bool = bool;
 using List = std::vector<Value>;
-using Map = std::map<std::string, Value>;
+using Map = FlatMap<std::string, Value>;
+
+struct Raw {
+  std::string inner;
+  explicit Raw(std::string inner);
+};
 
 struct Value {
-  std::variant<String, Int, Real, Bool, List, Map> inner;
+  std::variant<Null, String, Int, Real, Bool, List, Map, Raw> inner;
 
+  auto write_string(std::streambuf &buf) const -> void;
   [[nodiscard]] auto to_string() const -> std::string;
 
+  [[nodiscard]] auto is_null() const -> bool;
   [[nodiscard]] auto is_string() const -> bool;
   [[nodiscard]] auto is_int() const -> bool;
   [[nodiscard]] auto is_real() const -> bool;
@@ -715,6 +1189,10 @@ struct Value {
 
   [[nodiscard]] auto as_map() -> Map &;
   [[nodiscard]] auto as_map() const -> const Map &;
+
+  static auto encode_list(std::streambuf &buf, const List &inner) -> void;
+  static auto encode_map(std::streambuf &buf, const Map &inner) -> void;
+  static auto encode_string(std::streambuf &buf, std::string_view inner) -> void;
 };
 
 }  // namespace cplib::json
@@ -735,9 +1213,6 @@ struct Value {
  */
 
 
-#include <string_view>
-#include <type_traits>
-#include <variant>
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
   
@@ -750,8 +1225,12 @@ struct Value {
 
 #include <ios>
 #include <sstream>
+#include <streambuf>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <utility>
+#include <variant>
 
 
 
@@ -759,9 +1238,9 @@ struct Value {
 
 namespace cplib::json {
 
-namespace detail {
-inline auto encode_string(std::string_view inner) -> std::string {
-  std::stringbuf buf(std::ios_base::out);
+inline Raw::Raw(std::string inner) : inner(std::move(inner)) {}
+
+inline auto Value::encode_string(std::streambuf& buf, std::string_view inner) -> void {
   buf.sputc('\"');
   for (char c : inner) {
     switch (c) {
@@ -807,73 +1286,70 @@ inline auto encode_string(std::string_view inner) -> std::string {
     }
   }
   buf.sputc('\"');
-  return buf.str();
 }
 
-inline auto encode_list(const List &inner) -> std::string {
-  std::stringbuf buf(std::ios_base::out);
+inline auto Value::encode_list(std::streambuf& buf, const List& inner) -> void {
   buf.sputc('[');
   if (!inner.empty()) {
     auto it = inner.begin();
-    auto tmp = it->to_string();
-    buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
+    it->write_string(buf);
     ++it;
     for (; it != inner.end(); ++it) {
       buf.sputc(',');
-      tmp = it->to_string();
-      buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
+      it->write_string(buf);
     }
   }
   buf.sputc(']');
-  return buf.str();
 }
 
-inline auto encode_map(const Map &inner) -> std::string {
-  std::stringbuf buf(std::ios_base::out);
+inline auto Value::encode_map(std::streambuf& buf, const Map& inner) -> void {
   buf.sputc('{');
   if (!inner.empty()) {
     auto it = inner.begin();
-    buf.sputc('\"');
-    auto tmp = it->first;
-    buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
-    buf.sputc('\"');
+    encode_string(buf, it->first);
     buf.sputc(':');
-    tmp = it->second.to_string();
-    buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
+    it->second.write_string(buf);
     ++it;
     for (; it != inner.end(); ++it) {
       buf.sputc(',');
-      buf.sputc('\"');
-      tmp = it->first;
-      buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
-      buf.sputc('\"');
+      encode_string(buf, it->first);
       buf.sputc(':');
-      tmp = it->second.to_string();
-      buf.sputn(tmp.c_str(), static_cast<std::streamsize>(tmp.size()));
+      it->second.write_string(buf);
     }
   }
   buf.sputc('}');
-  return buf.str();
 }
-}  // namespace detail
 
-[[nodiscard]] inline auto Value::to_string() const -> std::string {
-  return std::visit(
-      [](const auto &arg) -> std::string {
+inline auto Value::write_string(std::streambuf& buf) const -> void {
+  std::visit(
+      [&buf](const auto& arg) {
         using T = std::decay_t<decltype(arg)>;
 
-        if constexpr (std::is_same_v<T, String>) {
-          return detail::encode_string(arg);
+        if constexpr (std::is_same_v<T, Null>) {
+          constexpr std::string_view NULL_STR = "null";
+          buf.sputn(NULL_STR.data(), NULL_STR.size());
+        } else if constexpr (std::is_same_v<T, String>) {
+          encode_string(buf, arg);
         } else if constexpr (std::is_same_v<T, Int>) {
-          return std::to_string(arg);
+          auto str = std::to_string(arg);
+          buf.sputn(str.c_str(), str.length());
         } else if constexpr (std::is_same_v<T, Real>) {
-          return cplib::format("{:.10g}", arg);
+          auto str = cplib::format("{:.10g}", arg);
+          buf.sputn(str.c_str(), str.length());
         } else if constexpr (std::is_same_v<T, Bool>) {
-          return arg ? "true" : "false";
+          if (arg) {
+            constexpr std::string_view TRUE_STR = "true";
+            buf.sputn(TRUE_STR.data(), TRUE_STR.size());
+          } else {
+            constexpr std::string_view FALSE_STR = "false";
+            buf.sputn(FALSE_STR.data(), FALSE_STR.size());
+          }
         } else if constexpr (std::is_same_v<T, List>) {
-          return detail::encode_list(arg);
+          encode_list(buf, arg);
         } else if constexpr (std::is_same_v<T, Map>) {
-          return detail::encode_map(arg);
+          encode_map(buf, arg);
+        } else if constexpr (std::is_same_v<T, Raw>) {
+          buf.sputn(arg.inner.data(), arg.inner.size());
         } else {
           panic("JSON value to string failed: unknown type");
         }
@@ -881,6 +1357,13 @@ inline auto encode_map(const Map &inner) -> std::string {
       inner);
 }
 
+[[nodiscard]] inline auto Value::to_string() const -> std::string {
+  std::stringbuf buf(std::ios_base::out);
+  write_string(buf);
+  return buf.str();
+}
+
+[[nodiscard]] auto Value::is_null() const -> bool { return std::holds_alternative<Null>(inner); }
 [[nodiscard]] auto Value::is_string() const -> bool {
   return std::holds_alternative<String>(inner);
 }
@@ -890,23 +1373,23 @@ inline auto encode_map(const Map &inner) -> std::string {
 [[nodiscard]] auto Value::is_list() const -> bool { return std::holds_alternative<List>(inner); }
 [[nodiscard]] auto Value::is_map() const -> bool { return std::holds_alternative<Map>(inner); }
 
-[[nodiscard]] auto Value::as_string() -> String & { return std::get<String>(inner); }
-[[nodiscard]] auto Value::as_string() const -> const String & { return std::get<String>(inner); }
+[[nodiscard]] auto Value::as_string() -> String& { return std::get<String>(inner); }
+[[nodiscard]] auto Value::as_string() const -> const String& { return std::get<String>(inner); }
 
-[[nodiscard]] auto Value::as_int() -> Int & { return std::get<Int>(inner); }
-[[nodiscard]] auto Value::as_int() const -> const Int & { return std::get<Int>(inner); }
+[[nodiscard]] auto Value::as_int() -> Int& { return std::get<Int>(inner); }
+[[nodiscard]] auto Value::as_int() const -> const Int& { return std::get<Int>(inner); }
 
-[[nodiscard]] auto Value::as_real() -> Real & { return std::get<Real>(inner); }
-[[nodiscard]] auto Value::as_real() const -> const Real & { return std::get<Real>(inner); }
+[[nodiscard]] auto Value::as_real() -> Real& { return std::get<Real>(inner); }
+[[nodiscard]] auto Value::as_real() const -> const Real& { return std::get<Real>(inner); }
 
-[[nodiscard]] auto Value::as_bool() -> Bool & { return std::get<Bool>(inner); }
-[[nodiscard]] auto Value::as_bool() const -> const Bool & { return std::get<Bool>(inner); }
+[[nodiscard]] auto Value::as_bool() -> Bool& { return std::get<Bool>(inner); }
+[[nodiscard]] auto Value::as_bool() const -> const Bool& { return std::get<Bool>(inner); }
 
-[[nodiscard]] auto Value::as_list() -> List & { return std::get<List>(inner); }
-[[nodiscard]] auto Value::as_list() const -> const List & { return std::get<List>(inner); }
+[[nodiscard]] auto Value::as_list() -> List& { return std::get<List>(inner); }
+[[nodiscard]] auto Value::as_list() const -> const List& { return std::get<List>(inner); }
 
-[[nodiscard]] auto Value::as_map() -> Map & { return std::get<Map>(inner); }
-[[nodiscard]] auto Value::as_map() const -> const Map & { return std::get<Map>(inner); }
+[[nodiscard]] auto Value::as_map() -> Map& { return std::get<Map>(inner); }
+[[nodiscard]] auto Value::as_map() const -> const Map& { return std::get<Map>(inner); }
 
 }  // namespace cplib::json
   
@@ -2022,6 +2505,8 @@ inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf>& 
 #include <concepts>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -2121,11 +2606,14 @@ struct TraceTreeNode {
   /**
    * Convert to JSON value.
    *
-   * If node has tag `#hidden`, return `nullptr`.
+   * If node has tag `#hidden`, return `std::nullopt`.
    *
-   * @return The JSON value or nullptr.
+   * For performance reasons, returning a modifiable map will create a lot of objects, so we choose
+   * to return the `json::Raw` type.
+   *
+   * @return The JSON value or `std::nullopt`.
    */
-  [[nodiscard]] auto to_json() const -> json::Map;
+  [[nodiscard]] auto to_json() const -> std::optional<json::Raw>;
 
   /**
    * Convert a node to its child and return it again (as reference).
@@ -2138,6 +2626,8 @@ struct TraceTreeNode {
  private:
   std::vector<std::unique_ptr<TraceTreeNode>> children_{};
   TraceTreeNode* parent_{nullptr};
+
+  auto write_json(std::streambuf& buf) const -> void;
 };
 
 /**
@@ -2247,14 +2737,17 @@ struct Traced {
 #endif
 
 
+#include <algorithm>
+#include <cassert>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <ios>
-#include <map>
 #include <memory>
+#include <optional>
 #include <sstream>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -2382,32 +2875,13 @@ template <Trace T>
 }
 
 template <Trace T>
-[[nodiscard]] inline auto TraceTreeNode<T>::to_json() const -> json::Map {
-  json::Map map;
-
-  if (tags.count("#hidden")) {
-    return {};
+[[nodiscard]] inline auto TraceTreeNode<T>::to_json() const -> std::optional<json::Raw> {
+  if (tags.contains("#hidden")) {
+    return std::nullopt;
   }
-
-  map.emplace("trace", trace.to_tree_json());
-  if (!tags.empty()) {
-    map.emplace("tags", tags);
-  }
-
-  const auto& children = get_children();
-  json::List children_list;
-  children_list.reserve(children.size());
-  for (const auto& child : children) {
-    auto child_value = child->to_json();
-    if (!child_value.empty()) {
-      children_list.emplace_back(std::move(child_value));
-    }
-  }
-  if (!children_list.empty()) {
-    map.emplace("children", std::move(children_list));
-  }
-
-  return map;
+  std::stringbuf buf(std::ios::out);
+  write_json(buf);
+  return json::Raw(buf.str());
 }
 
 template <Trace T>
@@ -2415,6 +2889,40 @@ inline auto TraceTreeNode<T>::add_child(std::unique_ptr<TraceTreeNode> child)
     -> std::unique_ptr<TraceTreeNode>& {
   child->parent_ = this;
   return children_.emplace_back(std::move(child));
+}
+
+template <Trace T>
+inline auto TraceTreeNode<T>::write_json(std::streambuf& buf) const -> void {
+  assert(!tags.contains("#hidden"));
+
+  constexpr std::string_view TRACE_HEADER = "{\"trace\":";
+  buf.sputn(TRACE_HEADER.data(), TRACE_HEADER.size());
+  trace.to_tree_json().write_string(buf);
+
+  if (!tags.empty()) {
+    constexpr std::string_view TAGS_HEADER = ",\"tags\":";
+    buf.sputn(TAGS_HEADER.data(), TAGS_HEADER.size());
+    json::Value::encode_map(buf, tags);
+  }
+
+  if (const auto& children = get_children();
+      std::ranges::any_of(children, [](const auto& c) { return !c->tags.contains("#hidden"); })) {
+    constexpr std::string_view CHILDREN_HEADER = ",\"children\":[";
+    buf.sputn(CHILDREN_HEADER.data(), CHILDREN_HEADER.size());
+    bool first = true;
+    for (const auto& child : children) {
+      if (child->tags.contains("#hidden")) continue;
+      if (first) {
+        first = false;
+      } else {
+        buf.sputc(',');
+      }
+      child->write_json(buf);
+    }
+    buf.sputc(']');
+  }
+
+  buf.sputc('}');
 }
 
 template <Trace T>
@@ -3082,7 +3590,7 @@ inline auto Evaluator::pre_evaluate(std::string_view var_name) -> void {
   auto trace_level = get_trace_level();
   if (trace_level >= trace::Level::STACK_ONLY) {
     EvaluatorTrace trace{std::string(var_name)};
-    push_trace(trace);
+    push_trace(std::move(trace));
   }
 }
 
@@ -4178,7 +4686,7 @@ inline auto Reader::read(const Var<T, D>& v) -> T {
 
   if (trace_level >= trace::Level::STACK_ONLY) {
     ReaderTrace trace{std::string(v.name()), inner().pos()};
-    push_trace(trace);
+    push_trace(std::move(trace));
   }
 
   auto result = v.read_from(*this);
@@ -4323,7 +4831,6 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(static_cast<json::Int>(result)));
-    in.attach_tag("#t", json::Value("i"));
   }
 
   return result;
@@ -4388,7 +4895,6 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
-    in.attach_tag("#t", json::Value("f"));
   }
 
   return result;
@@ -4485,7 +4991,6 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
-    in.attach_tag("#t", json::Value("sf"));
   }
 
   return result;
@@ -4511,7 +5016,6 @@ inline auto YesNo::read_from(Reader& in) const -> bool {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(result));
-    in.attach_tag("#t", json::Value("yn"));
   }
 
   return result;
@@ -4547,7 +5051,6 @@ inline auto String::read_from(Reader& in) const -> std::string {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(token));
-    in.attach_tag("#t", json::Value("s"));
   }
 
   return token;
@@ -4561,6 +5064,10 @@ inline Separator::Separator(std::string name, std::optional<unsigned char> sep)
     : Var<std::nullopt_t, Separator>(std::move(name)), sep(sep) {}
 
 inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
+  if (in.get_trace_level() >= trace::Level::FULL) {
+    in.attach_tag("#hidden", json::Value(true));
+  }
+
   if (!sep.has_value()) {
     return std::nullopt;
   }
@@ -4592,10 +5099,6 @@ inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
     }
   }
 
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#hidden", json::Value(true));
-  }
-
   return std::nullopt;
 }
 // /Impl Separator }}}
@@ -4623,7 +5126,6 @@ inline auto Line::read_from(Reader& in) const -> std::string {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(*line));
-    in.attach_tag("#t", json::Value("l"));
   }
 
   return *line;
@@ -4645,9 +5147,6 @@ inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::
   for (std::size_t i = 0; i < len; ++i) {
     if (i > 0) in.read(sep);
     result[i] = in.read(element.renamed(std::to_string(i)));
-  }
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("v"));
   }
   return result;
 }
@@ -4678,9 +5177,6 @@ inline auto Mat<T>::read_from(Reader& in) const
       result[i][j] = in.read(element.renamed(name_prefix + std::to_string(j)));
     }
   }
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("m"));
-  }
   return result;
 }
 
@@ -4705,9 +5201,6 @@ inline auto Pair<F, S>::read_from(Reader& in) const
   auto result_first = in.read(first.renamed("first"));
   in.read(sep);
   auto result_second = in.read(second.renamed("second"));
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("p"));
-  }
   return {result_first, result_second};
 }
 
@@ -4727,9 +5220,6 @@ inline Tuple<T...>::Tuple(std::string name, std::tuple<T...> elements, Separator
 
 template <class... T>
 inline auto Tuple<T...>::read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> {
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("t"));
-  }
   // Delegate to the implementation helper with a generated index sequence.
   return read_from_impl(in, std::index_sequence_for<T...>{});
 }
@@ -4776,9 +5266,6 @@ inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args... args)
 
 template <class F>
 inline auto FnVar<F>::read_from(Reader& in) const -> typename std::function<F>::result_type {
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("F"));
-  }
   return inner_function_(in);
 }
 
@@ -4799,10 +5286,7 @@ inline ExtVar<T>::ExtVar(std::string name, Args... args)
       }) {}
 
 template <class T>
-auto ExtVar<T>::read_from(Reader& in) const -> T {
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("E"));
-  }
+inline auto ExtVar<T>::read_from(Reader& in) const -> T {
   return inner_function_(in);
 }
 
@@ -4845,9 +5329,6 @@ inline ExtVec<T>::ExtVec(std::string name, Range&& range, Separator sep, Args...
 
 template <class T>
 inline auto ExtVec<T>::read_from(Reader& in) const -> std::vector<T> {
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("vE"));  // vE for "Vector of Extended"
-  }
   return inner_function_(in);
 }
 }  // namespace cplib::var
@@ -7054,7 +7535,8 @@ inline auto State::quit_invalid(std::string_view message) -> void {
 
 // Impl DefaultInitializer {{{
 namespace detail {
-constexpr std::string_view ARGS_USAGE = "[<input_file>] [--report-format={auto|json|text}]";
+constexpr std::string_view ARGS_USAGE =
+    "[<input_file>] [--report-format={auto|json|text}] [--reader-trace-level={0|1|2}]";
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
@@ -7108,12 +7590,18 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   detail::detect_reporter(state);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
+  auto reader_trace_level = trace::Level::STACK_ONLY;
 
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
         panic(cplib::format("Unknown {} option: {}", key, value));
       }
+    } else if (key == "reader-trace-level") {
+      auto level = var::u8("reader-trace-level", static_cast<std::uint8_t>(trace::Level::NONE),
+                           static_cast<std::uint8_t>(trace::Level::FULL))
+                       .parse(value);
+      reader_trace_level = trace::Level(level);
     } else {
       panic("Unknown command-line argument variable: " + key);
     }
@@ -7133,9 +7621,9 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   }
 
   if (parsed_args.ordered.empty()) {
-    set_inf_fileno(fileno(stdin), trace::Level::FULL);
+    set_inf_fileno(fileno(stdin), reader_trace_level);
   } else {
-    set_inf_path(parsed_args.ordered[0], trace::Level::FULL);
+    set_inf_path(parsed_args.ordered[0], reader_trace_level);
   }
 }
 // /Impl DefaultInitializer }}}
@@ -7181,7 +7669,7 @@ inline auto trait_status_to_json(const std::map<std::string, bool>& traits) -> j
 inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node, std::size_t depth,
                              std::size_t& n_remaining_node, bool colored_output, std::ostream& os)
     -> void {
-  if (!node || depth >= 8 || (node->tags.count("#hidden"))) {
+  if (!node || depth >= 8 || (node->tags.contains("#hidden"))) {
     return;
   }
 
@@ -7203,19 +7691,8 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node,
       os << "\x1b[0m";
     }
 
-    // type
-    if (node->tags.count("#t")) {
-      if (colored_output) {
-        os << "\x1b[0;90m";
-      }
-      os << ": " << node->tags.at("#t").to_string();
-      if (colored_output) {
-        os << "\x1b[0m";
-      }
-    }
-
     // value
-    if (node->tags.count("#v")) {
+    if (node->tags.contains("#v")) {
       os << " = " << cplib::compress(node->tags.at("#v").to_string());
     }
     os << '\n';
@@ -7223,13 +7700,13 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node,
 
   std::size_t n_visible_children = 0;
   for (const auto& child : node->get_children()) {
-    if (!!child->tags.count("#hidden")) {
+    if (!child->tags.contains("#hidden")) {
       ++n_visible_children;
     }
   }
 
   for (const auto& child : node->get_children()) {
-    if (child->tags.count("#hidden")) {
+    if (child->tags.contains("#hidden")) {
       continue;
     }
     if (!n_remaining_node) {
@@ -7265,9 +7742,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
 
   if (trace_tree_) {
     auto json = trace_tree_->to_json();
-    if (json.count("children")) {
-      map.emplace("reader_trace_tree", std::move(json.at("children")));
-    }
+    map.emplace("reader_trace_tree", std::move(*json));
   }
 
   std::ostream stream(std::clog.rdbuf());
