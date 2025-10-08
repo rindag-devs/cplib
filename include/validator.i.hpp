@@ -281,7 +281,8 @@ inline auto State::quit_invalid(std::string_view message) -> void {
 
 // Impl DefaultInitializer {{{
 namespace detail {
-constexpr std::string_view ARGS_USAGE = "[<input_file>] [--report-format={auto|json|text}]";
+constexpr std::string_view ARGS_USAGE =
+    "[<input_file>] [--report-format={auto|json|text}] [--reader-trace-level={0|1|2}]";
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
@@ -335,12 +336,18 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   detail::detect_reporter(state);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
+  auto reader_trace_level = trace::Level::STACK_ONLY;
 
   for (const auto& [key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
         panic(cplib::format("Unknown {} option: {}", key, value));
       }
+    } else if (key == "reader-trace-level") {
+      auto level = var::u8("reader-trace-level", static_cast<std::uint8_t>(trace::Level::NONE),
+                           static_cast<std::uint8_t>(trace::Level::FULL))
+                       .parse(value);
+      reader_trace_level = trace::Level(level);
     } else {
       panic("Unknown command-line argument variable: " + key);
     }
@@ -360,9 +367,9 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   }
 
   if (parsed_args.ordered.empty()) {
-    set_inf_fileno(fileno(stdin), trace::Level::FULL);
+    set_inf_fileno(fileno(stdin), reader_trace_level);
   } else {
-    set_inf_path(parsed_args.ordered[0], trace::Level::FULL);
+    set_inf_path(parsed_args.ordered[0], reader_trace_level);
   }
 }
 // /Impl DefaultInitializer }}}
@@ -408,7 +415,7 @@ inline auto trait_status_to_json(const std::map<std::string, bool>& traits) -> j
 inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node, std::size_t depth,
                              std::size_t& n_remaining_node, bool colored_output, std::ostream& os)
     -> void {
-  if (!node || depth >= 8 || (node->tags.count("#hidden"))) {
+  if (!node || depth >= 8 || (node->tags.contains("#hidden"))) {
     return;
   }
 
@@ -430,19 +437,8 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node,
       os << "\x1b[0m";
     }
 
-    // type
-    if (node->tags.count("#t")) {
-      if (colored_output) {
-        os << "\x1b[0;90m";
-      }
-      os << ": " << node->tags.at("#t").to_string();
-      if (colored_output) {
-        os << "\x1b[0m";
-      }
-    }
-
     // value
-    if (node->tags.count("#v")) {
+    if (node->tags.contains("#v")) {
       os << " = " << cplib::compress(node->tags.at("#v").to_string());
     }
     os << '\n';
@@ -450,13 +446,13 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node,
 
   std::size_t n_visible_children = 0;
   for (const auto& child : node->get_children()) {
-    if (!child->tags.count("#hidden")) {
+    if (!child->tags.contains("#hidden")) {
       ++n_visible_children;
     }
   }
 
   for (const auto& child : node->get_children()) {
-    if (child->tags.count("#hidden")) {
+    if (child->tags.contains("#hidden")) {
       continue;
     }
     if (!n_remaining_node) {
@@ -492,9 +488,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
 
   if (trace_tree_) {
     auto json = trace_tree_->to_json();
-    if (json.count("children")) {
-      map.emplace("reader_trace_tree", std::move(json.at("children")));
-    }
+    map.emplace("reader_trace_tree", std::move(*json));
   }
 
   std::ostream stream(std::clog.rdbuf());

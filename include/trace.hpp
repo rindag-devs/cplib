@@ -19,6 +19,8 @@
 #include <concepts>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -118,11 +120,14 @@ struct TraceTreeNode {
   /**
    * Convert to JSON value.
    *
-   * If node has tag `#hidden`, return `nullptr`.
+   * If node has tag `#hidden`, return `std::nullopt`.
    *
-   * @return The JSON value or nullptr.
+   * For performance reasons, returning a modifiable map will create a lot of objects, so we choose
+   * to return the `json::Raw` type.
+   *
+   * @return The JSON value or `std::nullopt`.
    */
-  [[nodiscard]] auto to_json() const -> json::Map;
+  [[nodiscard]] auto to_json() const -> std::optional<json::Raw>;
 
   /**
    * Convert a node to its child and return it again (as reference).
@@ -135,6 +140,8 @@ struct TraceTreeNode {
  private:
   std::vector<std::unique_ptr<TraceTreeNode>> children_{};
   TraceTreeNode* parent_{nullptr};
+
+  auto write_json(std::streambuf& buf) const -> void;
 };
 
 /**

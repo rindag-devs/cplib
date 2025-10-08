@@ -31,7 +31,9 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
+#include <initializer_list>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -251,6 +253,318 @@ template <class T>
 auto UniqueFunction<Ret(Args...)>::Data<T>::operator()(Args&&... args) -> Ret {
   return func(std::forward<Args>(args)...);
 }
+
+// Impl FlatMap {{{
+namespace detail {
+/**
+ * @brief A comparator for comparing a value_type (pair) with a key.
+ * @tparam Compare The original key comparison function.
+ */
+template <typename Compare>
+struct PairKeyCompare {
+  [[no_unique_address]] Compare key_comp;
+
+  // Compare pair with key
+  template <typename Pair, typename Key>
+  auto operator()(const Pair& p, const Key& k) const -> bool {
+    return key_comp(p.first, k);
+  }
+};
+
+}  // namespace detail
+
+// Constructors & Assignment
+
+template <typename Key, typename T, typename Compare>
+inline FlatMap<Key, T, Compare>::FlatMap(const Compare& comp) : comp_(comp) {}
+
+template <typename Key, typename T, typename Compare>
+template <std::input_iterator It>
+inline FlatMap<Key, T, Compare>::FlatMap(It first, It last, const Compare& comp)
+    : data_(first, last), comp_(comp) {
+  sort_and_unique();
+}
+
+template <typename Key, typename T, typename Compare>
+inline FlatMap<Key, T, Compare>::FlatMap(std::initializer_list<value_type> ilist,
+                                         const Compare& comp)
+    : data_(ilist), comp_(comp) {
+  sort_and_unique();
+}
+
+// Comparison Operators
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::operator==(const FlatMap& other) const -> bool {
+  return data_ == other.data_;
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::operator<=>(const FlatMap& other) const {
+  return data_ <=> other.data_;
+}
+
+// Element Access
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::at(const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type& {
+  auto it = find(key);
+  if (it == end()) {
+    cplib::panic(cplib::format("FlatMap::at: key not found"));
+  }
+  return it->second;
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::at(const key_type& key) const -> const
+    typename FlatMap<Key, T, Compare>::mapped_type& {
+  auto it = find(key);
+  if (it == end()) {
+    cplib::panic(cplib::format("FlatMap::at: key not found"));
+  }
+  return it->second;
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::operator[](const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type& {
+  auto it = lower_bound(key);
+  if (it != end() && !comp_(key, it->first)) {
+    // Key already exists
+    return it->second;
+  }
+  // Key does not exist, insert it
+  auto new_it = data_.emplace(it, key, mapped_type{});
+  return new_it->second;
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::operator[](key_type&& key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type& {
+  auto it = lower_bound(key);
+  if (it != end() && !comp_(key, it->first)) {
+    // Key already exists
+    return it->second;
+  }
+  // Key does not exist, insert it
+  auto new_it = data_.emplace(it, std::move(key), mapped_type{});
+  return new_it->second;
+}
+
+// Iterators
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::begin() -> typename FlatMap<Key, T, Compare>::iterator {
+  return data_.begin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::begin() const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return data_.begin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::cbegin() const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return data_.cbegin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::end() -> typename FlatMap<Key, T, Compare>::iterator {
+  return data_.end();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::end() const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return data_.end();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::cend() const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return data_.cend();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::rbegin() ->
+    typename FlatMap<Key, T, Compare>::reverse_iterator {
+  return data_.rbegin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::rbegin() const ->
+    typename FlatMap<Key, T, Compare>::const_reverse_iterator {
+  return data_.rbegin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::crbegin() const ->
+    typename FlatMap<Key, T, Compare>::const_reverse_iterator {
+  return data_.crbegin();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::rend() ->
+    typename FlatMap<Key, T, Compare>::reverse_iterator {
+  return data_.rend();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::rend() const ->
+    typename FlatMap<Key, T, Compare>::const_reverse_iterator {
+  return data_.rend();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::crend() const ->
+    typename FlatMap<Key, T, Compare>::const_reverse_iterator {
+  return data_.crend();
+}
+
+// Capacity
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::empty() const -> bool {
+  return data_.empty();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::size() const -> typename FlatMap<Key, T, Compare>::size_type {
+  return data_.size();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::max_size() const ->
+    typename FlatMap<Key, T, Compare>::size_type {
+  return data_.max_size();
+}
+
+// Modifiers
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::insert(const value_type& value)
+    -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
+  auto it = lower_bound(value.first);
+  if (it != end() && !comp_(value.first, it->first)) {
+    return {it, false};  // Key exists
+  }
+  auto new_it = data_.insert(it, value);
+  return {new_it, true};
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::insert(value_type&& value)
+    -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
+  auto it = lower_bound(value.first);
+  if (it != end() && !comp_(value.first, it->first)) {
+    return {it, false};  // Key exists
+  }
+  auto new_it = data_.insert(it, std::move(value));
+  return {new_it, true};
+}
+
+template <typename Key, typename T, typename Compare>
+template <typename... Args>
+inline auto FlatMap<Key, T, Compare>::emplace(Args&&... args)
+    -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
+  value_type temp_val(std::forward<Args>(args)...);
+  auto it = lower_bound(temp_val.first);
+  if (it != end() && !comp_(temp_val.first, it->first)) {
+    return {it, false};  // Key exists
+  }
+  auto new_it = data_.emplace(it, std::move(temp_val));
+  return {new_it, true};
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::erase(const_iterator pos) ->
+    typename FlatMap<Key, T, Compare>::iterator {
+  return data_.erase(pos);
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::erase(const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::size_type {
+  auto it = find(key);
+  if (it == end()) {
+    return 0;
+  }
+  data_.erase(it);
+  return 1;
+}
+
+// Lookup
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::find(const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::iterator {
+  auto it = lower_bound(key);
+  if (it != end() && !comp_(key, it->first)) {
+    return it;  // Key found
+  }
+  return end();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::find(const key_type& key) const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  auto it = lower_bound(key);
+  if (it != end() && !comp_(key, it->first)) {
+    return it;  // Key found
+  }
+  return end();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::contains(const key_type& key) const -> bool {
+  return find(key) != end();
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::iterator {
+  return std::lower_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type& key) const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return std::lower_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type& key) ->
+    typename FlatMap<Key, T, Compare>::iterator {
+  return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type& key) const ->
+    typename FlatMap<Key, T, Compare>::const_iterator {
+  return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+}
+
+// Private Helpers
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::sort_and_unique() -> void {
+  // Sort by key
+  std::sort(data_.begin(), data_.end(),
+            [this](const value_type& a, const value_type& b) { return comp_(a.first, b.first); });
+
+  // Remove duplicate keys. std::unique keeps the first element in a group of duplicates.
+  auto last =
+      std::unique(data_.begin(), data_.end(), [this](const value_type& a, const value_type& b) {
+        // Two keys are equivalent if !(a < b) && !(b < a)
+        return !comp_(a.first, b.first) && !comp_(b.first, a.first);
+      });
+
+  data_.erase(last, data_.end());
+}
+// /Impl FlatMap }}}
 
 // Impl get_work_mode {{{
 namespace detail {

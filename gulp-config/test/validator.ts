@@ -34,7 +34,7 @@ function test(testName: string): gulp.TaskFunction {
       .pipe(
         gulpCplibTest({
           prog: `out/tests/validator/${testName}/val`,
-          progArgs: ["--report-format=json"],
+          progArgs: ["--report-format=json", "--reader-trace-level=2"],
           stdinExt: "in",
           expectedStderrExt: "json",
         }),

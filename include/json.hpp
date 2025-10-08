@@ -17,27 +17,41 @@
 #define CPLIB_JSON_HPP_
 
 #include <cstdint>
-#include <map>
+#include <optional>
+#include <streambuf>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
+
+/* cplib_embed_ignore start */
+#include "utils.hpp"
+/* cplib_embed_ignore end */
 
 namespace cplib::json {
 
 struct Value;
 
+using Null = std::nullopt_t;
 using String = std::string;
 using Int = std::int64_t;
 using Real = double;
 using Bool = bool;
 using List = std::vector<Value>;
-using Map = std::map<std::string, Value>;
+using Map = FlatMap<std::string, Value>;
+
+struct Raw {
+  std::string inner;
+  explicit Raw(std::string inner);
+};
 
 struct Value {
-  std::variant<String, Int, Real, Bool, List, Map> inner;
+  std::variant<Null, String, Int, Real, Bool, List, Map, Raw> inner;
 
+  auto write_string(std::streambuf &buf) const -> void;
   [[nodiscard]] auto to_string() const -> std::string;
 
+  [[nodiscard]] auto is_null() const -> bool;
   [[nodiscard]] auto is_string() const -> bool;
   [[nodiscard]] auto is_int() const -> bool;
   [[nodiscard]] auto is_real() const -> bool;
@@ -62,6 +76,10 @@ struct Value {
 
   [[nodiscard]] auto as_map() -> Map &;
   [[nodiscard]] auto as_map() const -> const Map &;
+
+  static auto encode_list(std::streambuf &buf, const List &inner) -> void;
+  static auto encode_map(std::streambuf &buf, const Map &inner) -> void;
+  static auto encode_string(std::streambuf &buf, std::string_view inner) -> void;
 };
 
 }  // namespace cplib::json

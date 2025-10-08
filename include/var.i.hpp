@@ -111,7 +111,7 @@ inline auto Reader::read(const Var<T, D>& v) -> T {
 
   if (trace_level >= trace::Level::STACK_ONLY) {
     ReaderTrace trace{std::string(v.name()), inner().pos()};
-    push_trace(trace);
+    push_trace(std::move(trace));
   }
 
   auto result = v.read_from(*this);
@@ -256,7 +256,6 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(static_cast<json::Int>(result)));
-    in.attach_tag("#t", json::Value("i"));
   }
 
   return result;
@@ -321,7 +320,6 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
-    in.attach_tag("#t", json::Value("f"));
   }
 
   return result;
@@ -418,7 +416,6 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
-    in.attach_tag("#t", json::Value("sf"));
   }
 
   return result;
@@ -444,7 +441,6 @@ inline auto YesNo::read_from(Reader& in) const -> bool {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(result));
-    in.attach_tag("#t", json::Value("yn"));
   }
 
   return result;
@@ -480,7 +476,6 @@ inline auto String::read_from(Reader& in) const -> std::string {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(token));
-    in.attach_tag("#t", json::Value("s"));
   }
 
   return token;
@@ -556,7 +551,6 @@ inline auto Line::read_from(Reader& in) const -> std::string {
 
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#v", json::Value(*line));
-    in.attach_tag("#t", json::Value("l"));
   }
 
   return *line;
@@ -578,9 +572,6 @@ inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::
   for (std::size_t i = 0; i < len; ++i) {
     if (i > 0) in.read(sep);
     result[i] = in.read(element.renamed(std::to_string(i)));
-  }
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("v"));
   }
   return result;
 }
@@ -611,9 +602,6 @@ inline auto Mat<T>::read_from(Reader& in) const
       result[i][j] = in.read(element.renamed(name_prefix + std::to_string(j)));
     }
   }
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("m"));
-  }
   return result;
 }
 
@@ -638,9 +626,6 @@ inline auto Pair<F, S>::read_from(Reader& in) const
   auto result_first = in.read(first.renamed("first"));
   in.read(sep);
   auto result_second = in.read(second.renamed("second"));
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("p"));
-  }
   return {result_first, result_second};
 }
 
@@ -660,9 +645,6 @@ inline Tuple<T...>::Tuple(std::string name, std::tuple<T...> elements, Separator
 
 template <class... T>
 inline auto Tuple<T...>::read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> {
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("t"));
-  }
   // Delegate to the implementation helper with a generated index sequence.
   return read_from_impl(in, std::index_sequence_for<T...>{});
 }
@@ -709,9 +691,6 @@ inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args... args)
 
 template <class F>
 inline auto FnVar<F>::read_from(Reader& in) const -> typename std::function<F>::result_type {
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("F"));
-  }
   return inner_function_(in);
 }
 
@@ -732,10 +711,7 @@ inline ExtVar<T>::ExtVar(std::string name, Args... args)
       }) {}
 
 template <class T>
-auto ExtVar<T>::read_from(Reader& in) const -> T {
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("E"));
-  }
+inline auto ExtVar<T>::read_from(Reader& in) const -> T {
   return inner_function_(in);
 }
 
@@ -778,9 +754,6 @@ inline ExtVec<T>::ExtVec(std::string name, Range&& range, Separator sep, Args...
 
 template <class T>
 inline auto ExtVec<T>::read_from(Reader& in) const -> std::vector<T> {
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#t", json::Value("vE"));  // vE for "Vector of Extended"
-  }
   return inner_function_(in);
 }
 }  // namespace cplib::var

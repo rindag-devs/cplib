@@ -16,28 +16,13 @@ You can add tags to the nodes of the trace tree to describe more detailed inform
 
 When implementing custom types (such as `FnVar` or `ExtVar`), you can call `in.attach_tag(key, value)` to customize a key-value pair of additional information (where `in` is the current Reader being read). The `key` should not be repeated, otherwise the later defined one will overwrite the earlier one.
 
-The built-in variable read-in templates (except `cplib::var::Separator`) in CPLib will add a key `#t` at the end of the variable reading to indicate the type of the variable. If the read-in type is a basic type or a string, an additional key `#v` will be added to indicate the value read-in. The variable read-in templates and the corresponding values of `#t` are as follows:
-
-| Var         | #t  |
-| ----------- | --- |
-| Int         | i   |
-| Float       | f   |
-| StrictFloat | sf  |
-| YesNo       | yn  |
-| String      | s   |
-| Line        | l   |
-| Vec         | v   |
-| Mat         | m   |
-| Pair        | p   |
-| Tuple       | t   |
-| FnVar       | F   |
-| ExtVar      | E   |
-| ExtVec      | vE  |
+For the built-in variable read-in templates in CPLib, if the read-in type is a basic type or a string, the `#v` will be added to indicate the value read-in.
 
 `#hidden` is a special key, and if this key (regardless of the value) exists in the tag of a node, the nodes in the subtree of the current node will be ignored when encoded as JSON. The variable read-in template `cplib::var::Separator` will add `#hidden` to the current node when the reading is completed.
 
 <Callout type="warning">
-  Key names starting with `#` are all considered reserved or have special purposes by CPLib. It is best not to use special prefixes when customizing additional information.
+  Key names starting with `#` are all considered reserved or have special purposes by CPLib. It is
+  best not to use special prefixes when customizing additional information.
 </Callout>
 
 ## Interface

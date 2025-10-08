@@ -16,23 +16,7 @@ CPLib 中具有两种形式的 trace：trace stack 和 trace tree，分别对应
 
 在实现自定义类型（如 `FnVar` 或 `ExtVar`）时，可以调用 `in.attach_tag(key, value)` 来自定义一个键名为 `key`，值为 `value` 附加信息（`in` 是当前读入的 Reader）．`key` 不要重复，否则后定义的会覆盖先定义的．
 
-CPLib 内置变量读入模版（`cplib::var::Separator` 除外）在读入变量结束时会添加一个键 `#t` 表示变量的类型．若读入的类型属于基本类型或字符串，还会额外添加一个键 `#v` 表示变量读入到的值．变量读入模版和 `#t` 的值对应如下：
-
-| Var         | #t  |
-| ----------- | --- |
-| Int         | i   |
-| Float       | f   |
-| StrictFloat | sf  |
-| YesNo       | yn  |
-| String      | s   |
-| Line        | l   |
-| Vec         | v   |
-| Mat         | m   |
-| Pair        | p   |
-| Tuple       | t   |
-| FnVar       | F   |
-| ExtVar      | E   |
-| ExtVec      | vE  |
+CPLib 内置变量读入模版，若读入的类型属于基本类型或字符串，会添加一个键 `#v` 表示变量读入到的值．
 
 `#hidden` 是一个特殊的键，若一个结点的 JSON tag 中存在这个键（无论值如何），当前结点的子树内结点会在编码为 JSON 时被忽略．变量读入模版`cplib::var::Separator` 会在读入完成时为当前结点添加 `#hidden`．
 

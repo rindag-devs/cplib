@@ -271,7 +271,7 @@ inline auto Evaluator::pre_evaluate(std::string_view var_name) -> void {
   auto trace_level = get_trace_level();
   if (trace_level >= trace::Level::STACK_ONLY) {
     EvaluatorTrace trace{std::string(var_name)};
-    push_trace(trace);
+    push_trace(std::move(trace));
   }
 }
 

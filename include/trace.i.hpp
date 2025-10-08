@@ -24,14 +24,17 @@
 #endif
 /* cplib_embed_ignore end */
 
+#include <algorithm>
+#include <cassert>
 #include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <ios>
-#include <map>
 #include <memory>
+#include <optional>
 #include <sstream>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -159,32 +162,13 @@ template <Trace T>
 }
 
 template <Trace T>
-[[nodiscard]] inline auto TraceTreeNode<T>::to_json() const -> json::Map {
-  json::Map map;
-
-  if (tags.count("#hidden")) {
-    return {};
+[[nodiscard]] inline auto TraceTreeNode<T>::to_json() const -> std::optional<json::Raw> {
+  if (tags.contains("#hidden")) {
+    return std::nullopt;
   }
-
-  map.emplace("trace", trace.to_tree_json());
-  if (!tags.empty()) {
-    map.emplace("tags", tags);
-  }
-
-  const auto& children = get_children();
-  json::List children_list;
-  children_list.reserve(children.size());
-  for (const auto& child : children) {
-    auto child_value = child->to_json();
-    if (!child_value.empty()) {
-      children_list.emplace_back(std::move(child_value));
-    }
-  }
-  if (!children_list.empty()) {
-    map.emplace("children", std::move(children_list));
-  }
-
-  return map;
+  std::stringbuf buf(std::ios::out);
+  write_json(buf);
+  return json::Raw(buf.str());
 }
 
 template <Trace T>
@@ -192,6 +176,40 @@ inline auto TraceTreeNode<T>::add_child(std::unique_ptr<TraceTreeNode> child)
     -> std::unique_ptr<TraceTreeNode>& {
   child->parent_ = this;
   return children_.emplace_back(std::move(child));
+}
+
+template <Trace T>
+inline auto TraceTreeNode<T>::write_json(std::streambuf& buf) const -> void {
+  assert(!tags.contains("#hidden"));
+
+  constexpr std::string_view TRACE_HEADER = "{\"trace\":";
+  buf.sputn(TRACE_HEADER.data(), TRACE_HEADER.size());
+  trace.to_tree_json().write_string(buf);
+
+  if (!tags.empty()) {
+    constexpr std::string_view TAGS_HEADER = ",\"tags\":";
+    buf.sputn(TAGS_HEADER.data(), TAGS_HEADER.size());
+    json::Value::encode_map(buf, tags);
+  }
+
+  if (const auto& children = get_children();
+      std::ranges::any_of(children, [](const auto& c) { return !c->tags.contains("#hidden"); })) {
+    constexpr std::string_view CHILDREN_HEADER = ",\"children\":[";
+    buf.sputn(CHILDREN_HEADER.data(), CHILDREN_HEADER.size());
+    bool first = true;
+    for (const auto& child : children) {
+      if (child->tags.contains("#hidden")) continue;
+      if (first) {
+        first = false;
+      } else {
+        buf.sputc(',');
+      }
+      child->write_json(buf);
+    }
+    buf.sputc(']');
+  }
+
+  buf.sputc('}');
 }
 
 template <Trace T>
