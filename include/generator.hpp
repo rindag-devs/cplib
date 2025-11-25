@@ -233,7 +233,8 @@ struct ColoredTextReporter : Reporter {
       state_var_name_.required_flag_args.emplace_back(name);                                     \
       auto name = this->name;                                                                    \
       state_var_name_.flag_parsers.emplace_back([name](const std::set<std::string>& flag_args) { \
-        value_map_[name] = static_cast<ResultType>(flag_args.count(name));                       \
+        *std::any_cast<ResultType>(&value_map_[name]) =                                          \
+            static_cast<ResultType>(flag_args.count(name));                                      \
       });                                                                                        \
     }                                                                                            \
     inline auto operator|(AsResultTag_) const -> const ResultType& {                             \
@@ -252,7 +253,7 @@ struct ColoredTextReporter : Reporter {
       state_var_name_.var_parsers.emplace_back(                                                  \
           [var](const std::map<std::string, std::string>& var_args) {                            \
             auto name = std::string(var.name());                                                 \
-            value_map_[name] = var.parse(var_args.at(name));                                     \
+            *std::any_cast<ResultType>(&value_map_[name]) = var.parse(var_args.at(name));        \
           });                                                                                    \
     }                                                                                            \
     inline auto operator|(AsResultTag_) const -> const ResultType& {                             \
