@@ -16,14 +16,25 @@
 #ifndef CPLIB_RANDOM_HPP_
 #define CPLIB_RANDOM_HPP_
 
+#include <concepts>
 #include <cstdint>
 #include <initializer_list>
+#include <iterator>
 #include <random>
+#include <ranges>
 #include <string>
-#include <type_traits>
 #include <vector>
 
 namespace cplib {
+
+// Concept to check if a type behaves like a map for weighted choice.
+// It must be a range, and its elements must have a 'second' member we can use as a weight.
+template <typename T>
+concept MapLike = std::ranges::range<T> && requires(const std::ranges::range_value_t<T>& value) {
+  typename T::mapped_type;
+  { value.second } -> std::convertible_to<const typename T::mapped_type&>;
+};
+
 /**
  * Random number generator that provides various methods to generate random numbers and perform
  * random operations.
@@ -80,8 +91,8 @@ struct Random {
    * @param to The upper bound of the range.
    * @return The randomly generated integer.
    */
-  template <class T>
-  auto next(T from, T to) -> std::enable_if_t<std::is_integral_v<T>, T>;
+  template <std::integral T>
+  auto next(T from, T to) -> T;
 
   /**
    * Generate a random floating-point number in the range [from, to].
@@ -91,27 +102,37 @@ struct Random {
    * @param to The upper bound of the range.
    * @return The randomly generated floating-point number.
    */
-  template <class T>
-  auto next(T from, T to) -> std::enable_if_t<std::is_floating_point_v<T>, T>;
+  template <std::floating_point T>
+  auto next(T from, T to) -> T;
 
   /**
-   * Generate a random boolean value.
+   * Generate a random boolean value with 50% probability of being true.
    *
-   * @tparam T The type of the boolean.
    * @return The randomly generated boolean value.
    */
-  template <class T>
-  auto next() -> std::enable_if_t<std::is_same_v<T, bool>, bool>;
+  auto next_bool() -> bool;
 
   /**
    * Generate a random boolean value with a given probability of being true.
    *
-   * @tparam T The type of the boolean.
    * @param true_prob The probability of the boolean being true.
    * @return The randomly generated boolean value.
    */
-  template <class T>
-  auto next(double true_prob) -> std::enable_if_t<std::is_same_v<T, bool>, bool>;
+  auto next_bool(double true_prob) -> bool;
+
+  /**
+   * Generate a weighted random number in the range [from, to] with specified weighting type.
+   *
+   * @tparam T The type of the number (must be integral or floating-point).
+   * @param from The lower bound of the range.
+   * @param to The upper bound of the range.
+   * @param type The weighting type. Positive values prefer higher numbers, negative values prefer
+   * lower numbers.
+   * @return The weighted random number.
+   */
+  template <typename T>
+    requires std::integral<T> || std::floating_point<T>
+  auto wnext(T from, T to, int type) -> T;
 
   /**
    * Return a random value from the given initializer_list.
@@ -131,7 +152,7 @@ struct Random {
    * @param last The end of the range.
    * @return A random iterator from the range.
    */
-  template <class It>
+  template <std::forward_iterator It>
   auto choice(It first, It last) -> It;
 
   /**
@@ -141,8 +162,8 @@ struct Random {
    * @param container The container to choose from.
    * @return A random iterator from the container.
    */
-  template <class Container>
-  auto choice(Container& container) -> decltype(std::begin(container));
+  template <std::ranges::forward_range Container>
+  auto choice(Container& container);
 
   /**
    * Return a random iterator from the given map container by utilizing the values of the map
@@ -152,8 +173,8 @@ struct Random {
    * @param map The map container to choose from.
    * @return A random iterator from the map container.
    */
-  template <class Map>
-  auto weighted_choice(const Map& map) -> decltype(std::begin(map));
+  template <MapLike Map>
+  auto weighted_choice(const Map& map);
 
   /**
    * Shuffle the elements in the given range.
@@ -162,7 +183,7 @@ struct Random {
    * @param first The beginning of the range.
    * @param last The end of the range.
    */
-  template <class RandomIt>
+  template <std::random_access_iterator RandomIt>
   auto shuffle(RandomIt first, RandomIt last) -> void;
 
   /**
@@ -171,7 +192,7 @@ struct Random {
    * @tparam Container The type of the container.
    * @param container The container to shuffle.
    */
-  template <class Container>
+  template <std::ranges::random_access_range Container>
   auto shuffle(Container& container) -> void;
 
  private:

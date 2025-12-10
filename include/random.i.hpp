@@ -25,10 +25,15 @@
 /* cplib_embed_ignore end */
 
 #include <algorithm>
+#include <bit>
+#include <cmath>
+#include <concepts>
 #include <cstdint>
+#include <cstdlib>
 #include <initializer_list>
 #include <iterator>
 #include <limits>
+#include <ranges>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -39,35 +44,17 @@
 
 namespace cplib {
 namespace detail {
-#ifdef __GNUC__
-#define CPLIB_CLZ_CONSTEXPR constexpr
-#else
-#define CPLIB_CLZ_CONSTEXPR
-#endif
 
-inline CPLIB_CLZ_CONSTEXPR auto int_log2(std::uint64_t x) noexcept -> std::uint32_t {
-#ifdef __GNUC__
-  return 8 * sizeof(x) - __builtin_clzll(x) - 1;
-#else
-  constexpr static std::uint32_t tab64[64] = {
-      63, 0,  58, 1,  59, 47, 53, 2,  60, 39, 48, 27, 54, 33, 42, 3,  61, 51, 37, 40, 49, 18,
-      28, 20, 55, 30, 34, 11, 43, 14, 22, 4,  62, 57, 46, 52, 38, 26, 32, 41, 50, 36, 17, 19,
-      29, 10, 13, 21, 56, 45, 25, 31, 35, 16, 9,  12, 44, 24, 15, 8,  23, 7,  6,  5};
-  x |= x >> 1;
-  x |= x >> 2;
-  x |= x >> 4;
-  x |= x >> 8;
-  x |= x >> 16;
-  x |= x >> 32;
-  return tab64[(static_cast<std::uint64_t>((x - (x >> 1)) * 0x07EDD5E59A4E28C2ULL)) >> 58];
-#endif
+inline constexpr auto int_log2(std::uint64_t x) noexcept -> std::uint32_t {
+  if (x == 0) return 0;
+  return std::numeric_limits<std::uint64_t>::digits - 1 - std::countl_zero(x);
 }
 
 template <class T>
-inline CPLIB_CLZ_CONSTEXPR auto scale_int(std::uint64_t x, T size) -> T {
+inline constexpr auto scale_int(std::uint64_t x, T size) -> T {
   auto lg = int_log2(size);
-  if (x == (x & -x)) {
-    return x & ((T(1) << lg) - 1);
+  if (std::has_single_bit(static_cast<std::make_unsigned_t<T>>(size))) {
+    return x & (size - 1);
   }
   if (lg >= 8 * sizeof(T) - 1) {
     return static_cast<T>(x);
@@ -76,7 +63,7 @@ inline CPLIB_CLZ_CONSTEXPR auto scale_int(std::uint64_t x, T size) -> T {
 }
 
 /// Get random integer in [0, size).
-template <class T>
+template <std::integral T>
 inline auto rand_int_range(Random::Engine& rnd, T size) -> T {
   T result;
   do {
@@ -86,13 +73,13 @@ inline auto rand_int_range(Random::Engine& rnd, T size) -> T {
 }
 
 /// Get random integer in [l,r].
-template <class T>
+template <std::integral T>
 inline auto rand_int_between(Random::Engine& rnd, T l, T r) -> T {
   using UnsignedT = std::make_unsigned_t<T>;
 
-  if (l > r) panic("Rand_int_between failed: l must be <= r");
+  if (l > r) panic("rand_int_between failed: l must be <= r");
 
-  UnsignedT size = r - l;
+  UnsignedT size = static_cast<UnsignedT>(r) - static_cast<UnsignedT>(l);
   if (size == std::numeric_limits<UnsignedT>::max()) {
     return static_cast<T>(static_cast<UnsignedT>(rnd()));
   }
@@ -102,15 +89,15 @@ inline auto rand_int_between(Random::Engine& rnd, T l, T r) -> T {
 }
 
 /// Get random float in [0,1).
-template <class T>
+template <std::floating_point T>
 inline auto rand_float(Random::Engine& rnd) -> T {
-  return T(rnd()) / rnd.max();
+  return static_cast<T>(rnd()) / rnd.max();
 }
 
 /// Get random float in [l,r).
-template <class T>
+template <std::floating_point T>
 inline auto rand_float_between(Random::Engine& rnd, T l, T r) -> T {
-  if (l > r) panic("Rand_float_between failed: l must be <= r");
+  if (l > r) panic("rand_float_between failed: l must be <= r");
 
   T size = r - l;
   if (float_delta(l, r) <= 1E-9) return l;
@@ -145,33 +132,94 @@ inline auto Random::reseed(const std::vector<std::string>& args) -> void {
 
 inline auto Random::engine() -> Engine& { return engine_; }
 
-template <class T>
-inline auto Random::next(T from, T to) -> std::enable_if_t<std::is_integral_v<T>, T> {
-  // Allow range from higher to lower
+template <std::integral T>
+inline auto Random::next(T from, T to) -> T {
   if (from <= to) {
     return detail::rand_int_between<T>(engine(), from, to);
   }
-  return detail::rand_int_between<T>(engine(), to, from);
+  panic("Random::next failed: from must be <= to");
 }
 
-template <class T>
-inline auto Random::next(T from, T to) -> std::enable_if_t<std::is_floating_point_v<T>, T> {
+template <std::floating_point T>
+inline auto Random::next(T from, T to) -> T {
   // Allow range from higher to lower
   if (from <= to) {
     return detail::rand_float_between<T>(engine(), from, to);
   }
-  return detail::rand_float_between<T>(engine(), to, from);
+  panic("Random::next failed: from must be <= to");
 }
 
-template <class T>
-inline auto Random::next() -> std::enable_if_t<std::is_same_v<T, bool>, bool> {
-  return next<bool>(0.5);
-}
+inline auto Random::next_bool() -> bool { return next_bool(0.5); }
 
-template <class T>
-inline auto Random::next(double true_prob) -> std::enable_if_t<std::is_same_v<T, bool>, bool> {
-  if (true_prob < 0 || true_prob > 1) panic("Random::next failed: true_prob must be in [0, 1]");
+inline auto Random::next_bool(double true_prob) -> bool {
+  if (true_prob < 0 || true_prob > 1) {
+    panic("Random::next_bool failed: true_prob must be in [0, 1]");
+  }
   return detail::rand_float<double>(engine()) < true_prob;
+}
+
+template <typename T>
+  requires std::integral<T> || std::floating_point<T>
+inline auto Random::wnext(T from, T to, int type) -> T {
+  constexpr int BRUTE_FORCE_LIMIT = 25;
+
+  if constexpr (std::is_integral_v<T>) {
+    if (from > to) {
+      panic("Random::wnext failed: from must be <= to for integral types");
+    }
+    if (from == to) return from;
+
+    if (std::abs(type) < BRUTE_FORCE_LIMIT) {
+      T result = next(from, to);
+      if (type > 0) {
+        for (int i = 0; i < type; ++i) {
+          result = std::max(result, next(from, to));
+        }
+      } else if (type < 0) {
+        for (int i = 0; i < -type; ++i) {
+          result = std::min(result, next(from, to));
+        }
+      }
+      return result;
+    } else {
+      double p;
+      if (type > 0) {
+        p = std::pow(next(0.0, 1.0), 1.0 / (type + 1));
+      } else {
+        p = 1.0 - std::pow(next(0.0, 1.0), 1.0 / (-type + 1));
+      }
+      T result = static_cast<T>(from + p * static_cast<double>(to - from + 1));
+      if (result > to) result = to;
+      if (result < from) result = from;
+      return result;
+    }
+  } else {  // floating_point
+    if (from >= to) {
+      panic("Random::wnext failed: from must be < to for floating-point types");
+    }
+
+    if (std::abs(type) < BRUTE_FORCE_LIMIT) {
+      T result = next(from, to);
+      if (type > 0) {
+        for (int i = 0; i < type; ++i) {
+          result = std::max(result, next(from, to));
+        }
+      } else if (type < 0) {
+        for (int i = 0; i < -type; ++i) {
+          result = std::min(result, next(from, to));
+        }
+      }
+      return result;
+    } else {
+      double p;
+      if (type > 0) {
+        p = std::pow(next(0.0, 1.0), 1.0 / (type + 1));
+      } else {
+        p = 1.0 - std::pow(next(0.0, 1.0), 1.0 / (-type + 1));
+      }
+      return from + static_cast<T>(p) * (to - from);
+    }
+  }
 }
 
 template <class T>
@@ -180,46 +228,46 @@ inline auto Random::choice(std::initializer_list<T> init_list) -> T {
   return *choice(init_list.begin(), init_list.end());
 }
 
-template <class It>
+template <std::forward_iterator It>
 inline auto Random::choice(It first, It last) -> It {
   const auto size = std::distance(first, last);
-  if (0 == size) return last;
-  using diff_t = typename std::iterator_traits<It>::difference_type;
-  return std::next(first, next<diff_t>(0, size - 1));
+  if (size == 0) return last;
+  using diff_t = std::iter_difference_t<It>;
+  std::advance(first, next<diff_t>(0, size - 1));
+  return first;
 }
 
-template <class Container>
-inline auto Random::choice(Container& container) -> decltype(std::begin(container)) {
+template <std::ranges::forward_range Container>
+inline auto Random::choice(Container& container) {
   return choice(std::begin(container), std::end(container));
 }
 
-template <class Map>
-inline auto Random::weighted_choice(const Map& map) -> decltype(std::begin(map)) {
+template <MapLike Map>
+inline auto Random::weighted_choice(const Map& map) {
   using MappedType = typename Map::mapped_type;
-  using IteratorType = decltype(std::begin(map));
 
-  MappedType total_weight = 0;
-  for (IteratorType it = std::begin(map); it != std::end(map); ++it) {
-    total_weight += it->second;
+  MappedType total_weight{};
+  for (const auto& pair : map) {
+    total_weight += pair.second;
   }
   if (total_weight == MappedType(0)) return std::end(map);
 
   MappedType random_weight = next(MappedType(0), total_weight - 1);
-  MappedType sum = 0;
+  MappedType cumulative_weight{};
 
-  for (IteratorType it = std::begin(map); it != std::end(map); ++it) {
-    sum += it->second;
-    if (sum > random_weight) return it;
+  for (auto it = std::begin(map); it != std::end(map); ++it) {
+    cumulative_weight += it->second;
+    if (cumulative_weight > random_weight) return it;
   }
-  return std::end(map);
+  return std::end(map);  // Should not be reached if total_weight > 0
 }
 
-template <class RandomIt>
+template <std::random_access_iterator RandomIt>
 inline auto Random::shuffle(RandomIt first, RandomIt last) -> void {
   std::shuffle(first, last, engine());
 }
 
-template <class Container>
+template <std::ranges::random_access_range Container>
 inline auto Random::shuffle(Container& container) -> void {
   shuffle(std::begin(container), std::end(container));
 }
