@@ -398,38 +398,65 @@ struct YesNo : Var<bool, YesNo> {
 };
 
 /**
- * `String` is a variable reading template, indicating to read a whitespace separated string.
+ * `String` is a variable reading template, indicating to read a string.
  */
 struct String : Var<std::string, String> {
  public:
+  /**
+   * `Mode` represents the reading mode of the string.
+   */
+  struct Mode {
+   public:
+    enum Value : std::uint8_t {
+      /// Reads a blank-separated token.
+      TOKEN,
+      /// Reads a sequence of alphanumeric characters.
+      WORD,
+      /// Reads until the end of the line.
+      LINE,
+    };
+
+    /**
+     * Default constructor for Mode.
+     */
+    Mode() = default;
+
+    /**
+     * Constructor for Mode with a given value.
+     *
+     * @param value The value of the mode.
+     */
+    constexpr Mode(Value value);  // NOLINT(google-explicit-constructor)
+
+    /**
+     * Implicit conversion operator to Value.
+     *
+     * @return The value of the mode.
+     */
+    constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
+
+    /**
+     * Deleted conversion operator to bool.
+     *
+     * @return Deleted conversion operator to bool.
+     */
+    explicit operator bool() const = delete;
+
+   private:
+    Value value_;
+  };
+
   std::optional<Pattern> pat;
+  Mode mode;
 
-  /**
-   * Default constructor.
-   */
   explicit String();
-
-  /**
-   * Constructor with pattern parameter.
-   *
-   * @param pat The pattern of the String variable.
-   */
+  explicit String(Mode mode);
   explicit String(Pattern pat);
-
-  /**
-   * Constructor with name parameter.
-   *
-   * @param name The name of the String variable.
-   */
+  explicit String(Mode mode, Pattern pat);
   explicit String(std::string name);
-
-  /**
-   * Constructor with pattern and name parameters.
-   *
-   * @param name The name of the String variable.
-   * @param pat The pattern of the String variable.
-   * */
+  explicit String(std::string name, Mode mode);
   explicit String(std::string name, Pattern pat);
+  explicit String(std::string name, Mode mode, Pattern pat);
 
   /**
    * Read the value from the input reader.
@@ -475,49 +502,6 @@ struct Separator : Var<std::nullopt_t, Separator> {
    * @return `std::nullopt` to indicate that no value is read.
    */
   auto read_from(Reader& in) const -> std::nullopt_t override;
-};
-
-/**
- * `Line` is a variable reading template, indicating to read a end-of-line separated string.
- */
-struct Line : Var<std::string, Line> {
- public:
-  std::optional<Pattern> pat;
-
-  /**
-   * Constructs a `Line` object.
-   */
-  explicit Line();
-
-  /**
-   * Constructs a `Line` object with the specified pattern.
-   *
-   * @param pat The pattern to match for the line.
-   */
-  explicit Line(Pattern pat);
-
-  /**
-   * Constructs a `Line` object with the specified name.
-   *
-   * @param name The name of the `Line`.
-   */
-  explicit Line(std::string name);
-
-  /**
-   * Constructs a `Line` object with the specified pattern and name.
-   *
-   * @param name The name of the `Line`.
-   * @param pat The pattern to match for the line.
-   */
-  explicit Line(std::string name, Pattern pat);
-
-  /**
-   * Reads the line from the input reader.
-   *
-   * @param in The input reader.
-   * @return The read line as a string.
-   */
-  auto read_from(Reader& in) const -> std::string override;
 };
 
 /**

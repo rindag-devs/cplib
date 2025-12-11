@@ -215,6 +215,20 @@ inline auto InStream::read_token() -> std::string {
   return token;
 }
 
+inline auto InStream::read_word() -> std::string {
+  if (!strict_) skip_blanks();
+
+  std::string word;
+  while (true) {
+    if (int c = seek();
+        c == EOF || (!std::isalnum(c) && c != '+' && c != '-' && c != '_' && c != '.')) {
+      break;
+    }
+    word.push_back(static_cast<char>(read()));
+  }
+  return word;
+}
+
 inline auto InStream::read_line() -> std::optional<std::string> {
   std::string line;
   if (eof()) return std::nullopt;

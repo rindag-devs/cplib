@@ -180,7 +180,7 @@ template <class T, class D>
 inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
   auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
-                       trace::Level::NONE, [](const Reader&, std::string_view msg) {
+                       trace::Level::NONE, [](const Reader&, std::string_view msg) -> void {
                          panic(std::string("Var::parse failed: ") + msg.data());
                        });
   T result = reader.read(*this);
@@ -217,7 +217,7 @@ inline Int<T>::Int(std::string name, std::optional<T> min, std::optional<T> max)
 
 template <std::integral T>
 inline auto Int<T>::read_from(Reader& in) const -> T {
-  auto token = in.inner().read_token();
+  auto token = in.inner().read_word();
 
   if (token.empty()) {
     if (in.inner().eof()) {
@@ -363,7 +363,7 @@ inline StrictFloat<T>::StrictFloat(std::string name, T min, T max, size_t min_n_
 
 template <std::floating_point T>
 inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
-  auto token = in.inner().read_token();
+  auto token = in.inner().read_word();
 
   if (token.empty()) {
     if (in.inner().eof()) {
@@ -426,8 +426,8 @@ inline YesNo::YesNo() : YesNo(std::string(detail::VAR_DEFAULT_NAME)) {}
 inline YesNo::YesNo(std::string name) : Var<bool, YesNo>(std::move(name)) {}
 
 inline auto YesNo::read_from(Reader& in) const -> bool {
-  auto token = in.inner().read_token();
-  auto lower_token = token;
+  auto word = in.inner().read_word();
+  auto lower_token = word;
   std::ranges::transform(lower_token, lower_token.begin(), ::tolower);
 
   bool result;
@@ -436,7 +436,7 @@ inline auto YesNo::read_from(Reader& in) const -> bool {
   } else if (lower_token == "no") {
     result = false;
   } else {
-    in.fail("Expected `Yes` or `No`, got " + token);
+    in.fail("Expected `Yes` or `No`, got " + word);
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -446,39 +446,90 @@ inline auto YesNo::read_from(Reader& in) const -> bool {
   return result;
 }
 
-inline String::String() : String(std::string(detail::VAR_DEFAULT_NAME)) {}
+inline constexpr String::Mode::Mode(Value value) : value_(value) {}
 
+inline constexpr String::Mode::operator Value() const { return value_; }
+
+inline String::String()
+    : Var<std::string, String>(std::string(detail::VAR_DEFAULT_NAME)),
+      pat(std::nullopt),
+      mode(Mode::TOKEN) {}
+inline String::String(Mode mode)
+    : Var<std::string, String>(std::string(detail::VAR_DEFAULT_NAME)),
+      pat(std::nullopt),
+      mode(mode) {}
 inline String::String(Pattern pat)
-    : String(std::string(detail::VAR_DEFAULT_NAME), std::move(pat)) {}
-
+    : Var<std::string, String>(std::string(detail::VAR_DEFAULT_NAME)),
+      pat(std::move(pat)),
+      mode(Mode::TOKEN) {}
+inline String::String(Mode mode, Pattern pat)
+    : Var<std::string, String>(std::string(detail::VAR_DEFAULT_NAME)),
+      pat(std::move(pat)),
+      mode(mode) {}
 inline String::String(std::string name)
-    : Var<std::string, String>(std::move(name)), pat(std::nullopt) {}
-
+    : Var<std::string, String>(std::move(name)), pat(std::nullopt), mode(Mode::TOKEN) {}
+inline String::String(std::string name, Mode mode)
+    : Var<std::string, String>(std::move(name)), pat(std::nullopt), mode(mode) {}
 inline String::String(std::string name, Pattern pat)
-    : Var<std::string, String>(std::move(name)), pat(std::move(pat)) {}
+    : Var<std::string, String>(std::move(name)), pat(std::move(pat)), mode(Mode::TOKEN) {}
+inline String::String(std::string name, Mode mode, Pattern pat)
+    : Var<std::string, String>(std::move(name)), pat(std::move(pat)), mode(mode) {}
 
 inline auto String::read_from(Reader& in) const -> std::string {
-  auto token = in.inner().read_token();
+  std::string result;
+  std::string kind;
 
-  if (token.empty()) {
-    if (in.inner().eof()) {
-      in.fail("Expected a string, got EOF");
-    } else {
-      in.fail(cplib::format("Expected a string, got whitespace `{}`",
-                            cplib::detail::hex_encode(in.inner().seek())));
+  switch (mode) {
+    case Mode::TOKEN: {
+      kind = "token";
+      result = in.inner().read_token();
+      if (result.empty()) {
+        if (in.inner().eof()) {
+          in.fail("Expected a " + kind + ", got EOF");
+        } else {
+          in.fail(cplib::format("Expected a {}, got whitespace `{}`", kind,
+                                cplib::detail::hex_encode(in.inner().seek())));
+        }
+      }
+      break;
+    }
+    case Mode::WORD: {
+      kind = "word";
+      result = in.inner().read_word();
+      if (result.empty()) {
+        if (in.inner().eof()) {
+          in.fail("Expected a " + kind + ", got EOF");
+        } else {
+          in.fail(cplib::format("Expected a {}, got whitespace `{}`", kind,
+                                cplib::detail::hex_encode(in.inner().seek())));
+        }
+      }
+      break;
+    }
+    case Mode::LINE: {
+      kind = "line";
+      auto line = in.inner().read_line();
+      if (!line.has_value()) {
+        in.fail("Expected a " + kind + ", got EOF");
+      }
+      result = *line;
+      break;
+    }
+    default: {
+      in.fail("Unexpected var::String:Mode");
     }
   }
 
-  if (pat.has_value() && !pat->match(token)) {
-    in.fail(cplib::format("Expected a string matching `{}`, got `{}`", compress(pat->src()),
-                          compress(token)));
+  if (pat.has_value() && !pat->match(result)) {
+    in.fail(cplib::format("Expected a {} matching `{}`, got `{}`", kind, compress(pat->src()),
+                          compress(result)));
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(token));
+    in.attach_tag("#v", json::Value(result));
   }
 
-  return token;
+  return result;
 }
 
 // Impl Separator {{{
@@ -527,34 +578,6 @@ inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
   return std::nullopt;
 }
 // /Impl Separator }}}
-
-inline Line::Line() : Line(std::string(detail::VAR_DEFAULT_NAME)) {}
-
-inline Line::Line(Pattern pat) : Line(std::string(detail::VAR_DEFAULT_NAME), std::move(pat)) {}
-
-inline Line::Line(std::string name) : Var<std::string, Line>(std::move(name)), pat(std::nullopt) {}
-
-inline Line::Line(std::string name, Pattern pat)
-    : Var<std::string, Line>(std::move(name)), pat(std::move(pat)) {}
-
-inline auto Line::read_from(Reader& in) const -> std::string {
-  auto line = in.inner().read_line();
-
-  if (!line.has_value()) {
-    in.fail("Expected a line, got EOF");
-  }
-
-  if (pat.has_value() && !pat->match(*line)) {
-    in.fail(cplib::format("Expected a line matching `{}`, got `{}`", compress(pat->src()),
-                          compress(*line)));
-  }
-
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(*line));
-  }
-
-  return *line;
-}
 
 template <class T>
 inline Vec<T>::Vec(T element, size_t len) : Vec<T>(element, len, var::space) {}

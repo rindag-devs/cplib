@@ -184,11 +184,21 @@ struct InStream {
 
   /**
    * Reads a new token from the stream.
-   * Ignores whitespaces in non-strict mode (strict mode is used in validators usually).
+   * Skip the previous blanks in non-strict mode.
    *
    * @return The read token as a string.
    */
   auto read_token() -> std::string;
+
+  /**
+   * Reads a new "word" from the stream.
+   * Skip the previous blanks in non-strict mode.
+   *
+   * A "word" is defined as a string consisting only of characters from [A-Za-z0-9+\-_\.].
+   *
+   * @return The read word as a string.
+   */
+  auto read_word() -> std::string;
 
   /**
    * If the current position contains EOF, do nothing and return `std::nullopt`.
@@ -221,7 +231,7 @@ struct OutBuf : std::streambuf {
   /// Write one character
   auto overflow(int_type c) -> int_type override;
   /// Write multiple characters
-  auto xsputn(const char *s, std::streamsize num) -> std::streamsize override;
+  auto xsputn(const char* s, std::streamsize num) -> std::streamsize override;
 
   int fd_;  // File descriptor
   bool need_close_;
