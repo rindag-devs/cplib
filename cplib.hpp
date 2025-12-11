@@ -18,6 +18,7 @@
 
 // clang-format off
 
+// --- Start embedded: macros.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -68,7 +69,8 @@
 #endif
 
 #endif
-
+// --- End embedded: macros.hpp ---
+// --- Start embedded: utils.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -475,6 +477,7 @@ enum struct WorkMode : std::uint8_t {
 auto get_work_mode() -> WorkMode;
 }  // namespace cplib
 
+// --- Start embedded: utils.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -489,16 +492,6 @@ auto get_work_mode() -> WorkMode;
  * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
  * not, see <https://www.gnu.org/licenses/>.
  */
-
-
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_UTILS_HPP_
-#error "Must be included from utils.hpp"
-#endif
-#endif
 
 
 #include <algorithm>
@@ -524,9 +517,6 @@ auto get_work_mode() -> WorkMode;
 #else
 #include <format>
 #endif
-
-
-
 
 
 namespace cplib {
@@ -1051,10 +1041,11 @@ inline WorkMode work_mode = WorkMode::NONE;
 inline auto get_work_mode() -> WorkMode { return detail::work_mode; }
 // /Impl get_work_mode }}}
 }  // namespace cplib
-  
+// --- End embedded: utils.i.hpp ---
 
 #endif
-
+// --- End embedded: utils.hpp ---
+// --- Start embedded: no_rand.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -1076,9 +1067,6 @@ inline auto get_work_mode() -> WorkMode { return detail::work_mode; }
 
 
 #include <cstdlib>
-
-
-
 
 
 #ifdef __GLIBC__
@@ -1110,7 +1098,8 @@ srand(unsigned int) CPLIB_RAND_THROW_STATEMENT -> void {
 }
 
 #endif
-
+// --- End embedded: no_rand.hpp ---
+// --- Start embedded: json.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -1136,9 +1125,6 @@ srand(unsigned int) CPLIB_RAND_THROW_STATEMENT -> void {
 #include <string_view>
 #include <variant>
 #include <vector>
-
-
-
 
 
 namespace cplib::json {
@@ -1197,6 +1183,7 @@ struct Value {
 
 }  // namespace cplib::json
 
+// --- Start embedded: json.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -1213,16 +1200,6 @@ struct Value {
  */
 
 
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_JSON_HPP_
-#error "Must be included from json.hpp"
-#endif
-#endif
-
-
 #include <ios>
 #include <sstream>
 #include <streambuf>
@@ -1231,9 +1208,6 @@ struct Value {
 #include <type_traits>
 #include <utility>
 #include <variant>
-
-
-
 
 
 namespace cplib::json {
@@ -1363,39 +1337,54 @@ inline auto Value::write_string(std::streambuf& buf) const -> void {
   return buf.str();
 }
 
-[[nodiscard]] auto Value::is_null() const -> bool { return std::holds_alternative<Null>(inner); }
-[[nodiscard]] auto Value::is_string() const -> bool {
+[[nodiscard]] inline auto Value::is_null() const -> bool {
+  return std::holds_alternative<Null>(inner);
+}
+[[nodiscard]] inline auto Value::is_string() const -> bool {
   return std::holds_alternative<String>(inner);
 }
-[[nodiscard]] auto Value::is_int() const -> bool { return std::holds_alternative<Int>(inner); }
-[[nodiscard]] auto Value::is_real() const -> bool { return std::holds_alternative<Real>(inner); }
-[[nodiscard]] auto Value::is_bool() const -> bool { return std::holds_alternative<Bool>(inner); }
-[[nodiscard]] auto Value::is_list() const -> bool { return std::holds_alternative<List>(inner); }
-[[nodiscard]] auto Value::is_map() const -> bool { return std::holds_alternative<Map>(inner); }
+[[nodiscard]] inline auto Value::is_int() const -> bool {
+  return std::holds_alternative<Int>(inner);
+}
+[[nodiscard]] inline auto Value::is_real() const -> bool {
+  return std::holds_alternative<Real>(inner);
+}
+[[nodiscard]] inline auto Value::is_bool() const -> bool {
+  return std::holds_alternative<Bool>(inner);
+}
+[[nodiscard]] inline auto Value::is_list() const -> bool {
+  return std::holds_alternative<List>(inner);
+}
+[[nodiscard]] inline auto Value::is_map() const -> bool {
+  return std::holds_alternative<Map>(inner);
+}
 
-[[nodiscard]] auto Value::as_string() -> String& { return std::get<String>(inner); }
-[[nodiscard]] auto Value::as_string() const -> const String& { return std::get<String>(inner); }
+[[nodiscard]] inline auto Value::as_string() -> String& { return std::get<String>(inner); }
+[[nodiscard]] inline auto Value::as_string() const -> const String& {
+  return std::get<String>(inner);
+}
 
-[[nodiscard]] auto Value::as_int() -> Int& { return std::get<Int>(inner); }
-[[nodiscard]] auto Value::as_int() const -> const Int& { return std::get<Int>(inner); }
+[[nodiscard]] inline auto Value::as_int() -> Int& { return std::get<Int>(inner); }
+[[nodiscard]] inline auto Value::as_int() const -> const Int& { return std::get<Int>(inner); }
 
-[[nodiscard]] auto Value::as_real() -> Real& { return std::get<Real>(inner); }
-[[nodiscard]] auto Value::as_real() const -> const Real& { return std::get<Real>(inner); }
+[[nodiscard]] inline auto Value::as_real() -> Real& { return std::get<Real>(inner); }
+[[nodiscard]] inline auto Value::as_real() const -> const Real& { return std::get<Real>(inner); }
 
-[[nodiscard]] auto Value::as_bool() -> Bool& { return std::get<Bool>(inner); }
-[[nodiscard]] auto Value::as_bool() const -> const Bool& { return std::get<Bool>(inner); }
+[[nodiscard]] inline auto Value::as_bool() -> Bool& { return std::get<Bool>(inner); }
+[[nodiscard]] inline auto Value::as_bool() const -> const Bool& { return std::get<Bool>(inner); }
 
-[[nodiscard]] auto Value::as_list() -> List& { return std::get<List>(inner); }
-[[nodiscard]] auto Value::as_list() const -> const List& { return std::get<List>(inner); }
+[[nodiscard]] inline auto Value::as_list() -> List& { return std::get<List>(inner); }
+[[nodiscard]] inline auto Value::as_list() const -> const List& { return std::get<List>(inner); }
 
-[[nodiscard]] auto Value::as_map() -> Map& { return std::get<Map>(inner); }
-[[nodiscard]] auto Value::as_map() const -> const Map& { return std::get<Map>(inner); }
+[[nodiscard]] inline auto Value::as_map() -> Map& { return std::get<Map>(inner); }
+[[nodiscard]] inline auto Value::as_map() const -> const Map& { return std::get<Map>(inner); }
 
 }  // namespace cplib::json
-  
+// --- End embedded: json.i.hpp ---
 
 #endif
-
+// --- End embedded: json.hpp ---
+// --- Start embedded: pattern.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -1460,6 +1449,7 @@ struct Pattern {
 };
 }  // namespace cplib
 
+// --- Start embedded: pattern.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -1476,16 +1466,6 @@ struct Pattern {
  */
 
 
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_PATTERN_HPP_
-#error "Must be included from pattern.hpp"
-#endif
-#endif
-
-
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -1493,9 +1473,6 @@ struct Pattern {
 #include <utility>
 
 #include "regex.h"
-
-
-
 
 
 namespace cplib {
@@ -1536,10 +1513,11 @@ inline auto Pattern::match(std::string_view s) const -> bool {
 
 inline auto Pattern::src() const -> std::string_view { return src_; }
 }  // namespace cplib
-  
+// --- End embedded: pattern.i.hpp ---
 
 #endif
-
+// --- End embedded: pattern.hpp ---
+// --- Start embedded: random.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -1742,6 +1720,7 @@ struct Random {
 };
 }  // namespace cplib
 
+// --- Start embedded: random.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -1758,16 +1737,6 @@ struct Random {
  */
 
 
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_RANDOM_HPP_
-#error "Must be included from random.hpp"
-#endif
-#endif
-
-
 #include <algorithm>
 #include <bit>
 #include <cmath>
@@ -1781,9 +1750,6 @@ struct Random {
 #include <string>
 #include <type_traits>
 #include <vector>
-
-
-
 
 
 namespace cplib {
@@ -2016,10 +1982,11 @@ inline auto Random::shuffle(Container& container) -> void {
   shuffle(std::begin(container), std::end(container));
 }
 }  // namespace cplib
-  
+// --- End embedded: random.i.hpp ---
 
 #endif
-
+// --- End embedded: random.hpp ---
+// --- Start embedded: io.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -2047,9 +2014,6 @@ inline auto Random::shuffle(Container& container) -> void {
 #include <streambuf>
 #include <string>
 #include <string_view>
-
-
-
 
 
 namespace cplib::io {
@@ -2250,6 +2214,7 @@ struct OutBuf : std::streambuf {
 };
 }  // namespace cplib::io
 
+// --- Start embedded: io.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -2264,16 +2229,6 @@ struct OutBuf : std::streambuf {
  * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
  * not, see <https://www.gnu.org/licenses/>.
  */
-
-
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_IO_HPP_
-#error "Must be included from io.hpp"
-#endif
-#endif
 
 
 #include <array>
@@ -2293,11 +2248,6 @@ struct OutBuf : std::streambuf {
 #include <utility>
 
 
-
-
-
-
-
 namespace cplib::io {
 
 inline Position::Position() : line(0), col(0), byte(0) {}
@@ -2313,7 +2263,7 @@ inline auto Position::to_json() const -> json::Map {
   };
 }
 
-InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {
+inline InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {
   /*
     We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
     Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
@@ -2549,10 +2499,11 @@ inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf>& 
 }
 }  // namespace detail
 }  // namespace cplib::io
-  
+// --- End embedded: io.i.hpp ---
 
 #endif
-
+// --- End embedded: io.hpp ---
+// --- Start embedded: trace.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -2579,9 +2530,6 @@ inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf>& 
 #include <string>
 #include <string_view>
 #include <vector>
-
-
-
 
 
 namespace cplib::trace {
@@ -2780,6 +2728,7 @@ struct Traced {
 
 }  // namespace cplib::trace
 
+// --- Start embedded: trace.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -2794,16 +2743,6 @@ struct Traced {
  * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
  * not, see <https://www.gnu.org/licenses/>.
  */
-
-
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_TRACE_HPP_
-#error "Must be included from trace.hpp"
-#endif
-#endif
 
 
 #include <algorithm>
@@ -2821,10 +2760,6 @@ struct Traced {
 #include <string_view>
 #include <utility>
 #include <vector>
-
-
-
-
 
 
 namespace cplib::trace {
@@ -3091,10 +3026,11 @@ inline auto Traced<T>::pop_trace() -> void {
 }
 
 }  // namespace cplib::trace
-
+// --- End embedded: trace.i.hpp ---
 
 #endif
-
+// --- End embedded: trace.hpp ---
+// --- Start embedded: evaluate.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -3119,11 +3055,6 @@ inline auto Traced<T>::pop_trace() -> void {
 #include <optional>
 #include <string>
 #include <string_view>
-
-
-
-
-
 
 
 namespace cplib::evaluate {
@@ -3386,6 +3317,7 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
 
 }  // namespace cplib::evaluate
 
+// --- Start embedded: evaluate.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -3402,16 +3334,6 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
  */
 
 
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_EVALUATE_HPP_
-#error "Must be included from evaluate.hpp"
-#endif
-#endif
-
-
 #include <algorithm>
 #include <cmath>
 #include <compare>
@@ -3422,11 +3344,6 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
 #include <string>
 #include <string_view>
 #include <utility>
-
-
-
-
-
 
 
 namespace cplib::evaluate {
@@ -3751,10 +3668,11 @@ inline auto Evaluator::approx_abs(std::string_view var_name, const T& pans, cons
 }
 
 }  // namespace cplib::evaluate
-  
+// --- End embedded: evaluate.i.hpp ---
 
 #endif
-
+// --- End embedded: evaluate.hpp ---
+// --- Start embedded: var.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -3786,13 +3704,6 @@ inline auto Evaluator::approx_abs(std::string_view var_name, const T& pans, cons
 #include <tuple>
 #include <utility>
 #include <vector>
-
-
-
-
-
-
-
 
 
 #ifndef CPLIB_READER_TRACE_LEVEL_MAX
@@ -4642,6 +4553,7 @@ const auto tab = Separator("tab", '\t');
 const auto eoln = Separator("eoln", '\n');
 };  // namespace cplib::var
 
+// --- Start embedded: var.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -4656,17 +4568,6 @@ const auto eoln = Separator("eoln", '\n');
  * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
  * not, see <https://www.gnu.org/licenses/>.
  */
-
-
-#include <ranges>
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_VAR_HPP_
-#error "Must be included from var.hpp"
-#endif
-#endif
 
 
 #include <algorithm>
@@ -4688,13 +4589,6 @@ const auto eoln = Separator("eoln", '\n');
 #include <tuple>
 #include <utility>
 #include <vector>
-
-
-
-
-
-
-
 
 
 namespace cplib::var {
@@ -5401,10 +5295,11 @@ inline auto ExtVec<T>::read_from(Reader& in) const -> std::vector<T> {
   return inner_function_(in);
 }
 }  // namespace cplib::var
-  
+// --- End embedded: var.i.hpp ---
 
 #endif
-
+// --- End embedded: var.hpp ---
+// --- Start embedded: cmd_args.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -5451,6 +5346,7 @@ struct ParsedArgs {
 };
 }  // namespace cplib::cmd_args
 
+// --- Start embedded: cmd_args.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -5465,16 +5361,6 @@ struct ParsedArgs {
  * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
  * not, see <https://www.gnu.org/licenses/>.
  */
-
-
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_CMD_ARGS_HPP_
-#error "Must be included from cmd_args.hpp"
-#endif
-#endif
 
 
 #include <algorithm>
@@ -5537,10 +5423,11 @@ inline auto ParsedArgs::has_flag(std::string_view name) const -> bool {
 }
 
 }  // namespace cplib::cmd_args
-  
+// --- End embedded: cmd_args.i.hpp ---
 
 #endif
-
+// --- End embedded: cmd_args.hpp ---
+// --- Start embedded: checker.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -5564,12 +5451,6 @@ inline auto ParsedArgs::has_flag(std::string_view name) const -> bool {
 #include <string>
 #include <string_view>
 #include <vector>
-
-
-
-
-
-
 
 
 namespace cplib::checker {
@@ -5842,7 +5723,7 @@ struct ColoredTextReporter : Reporter {
     ::cplib::evaluate::Result result = state.evaluator("output", output, answer, input);           \
     ::std::string report_message;                                                                  \
     auto evaluator_trace_stacks = state.reporter->get_evaluator_trace_stacks();                    \
-    auto it = ::std::ranges::find_if(evaluator_trace_stacks, [](const auto& x) {                   \
+    auto it = ::std::ranges::find_if(evaluator_trace_stacks, [](const auto& x) -> bool {           \
       return !x.stack.empty() && x.stack.back().result.has_value() &&                              \
              !x.stack.back().result->message.empty();                                              \
     });                                                                                            \
@@ -5866,6 +5747,7 @@ struct ColoredTextReporter : Reporter {
   CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, CPLIB_CHECKER_DEFAULT_INITIALIZER)
 }  // namespace cplib::checker
 
+// --- Start embedded: checker.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -5882,17 +5764,6 @@ struct ColoredTextReporter : Reporter {
  */
 
 
-
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_CHECKER_HPP_
-#error "Must be included from checker.hpp"
-#endif
-#endif
-
-
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -5905,16 +5776,6 @@ struct ColoredTextReporter : Reporter {
 #include <string_view>
 #include <utility>
 #include <vector>
-
-
-
-
-
-
-
-
-
-
 
 
 namespace cplib::checker {
@@ -6324,10 +6185,11 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 }
 // /Impl reporters }}}
 }  // namespace cplib::checker
-  
+// --- End embedded: checker.i.hpp ---
 
 #endif
-
+// --- End embedded: checker.hpp ---
+// --- Start embedded: interactor.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -6353,11 +6215,6 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 #include <string>
 #include <string_view>
 #include <vector>
-
-
-
-
-
 
 
 namespace cplib::interactor {
@@ -6617,6 +6474,7 @@ struct ColoredTextReporter : Reporter {
   CPLIB_REGISTER_INTERACTOR_OPT(var, CPLIB_INTERACTOR_DEFAULT_INITIALIZER)
 }  // namespace cplib::interactor
 
+// --- Start embedded: interactor.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -6633,16 +6491,6 @@ struct ColoredTextReporter : Reporter {
  */
 
 
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_INTERACTOR_HPP_
-#error "Must be included from interactor.hpp"
-#endif
-#endif
-
-
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -6655,15 +6503,6 @@ struct ColoredTextReporter : Reporter {
 #include <string_view>
 #include <utility>
 #include <vector>
-
-
-
-
-
-
-
-
-
 
 
 namespace cplib::interactor {
@@ -6999,10 +6838,11 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 }
 // /Impl reporters }}}
 }  // namespace cplib::interactor
-  
+// --- End embedded: interactor.i.hpp ---
 
 #endif
-
+// --- End embedded: interactor.hpp ---
+// --- Start embedded: validator.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -7030,11 +6870,6 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 #include <string_view>
 #include <utility>
 #include <vector>
-
-
-
-
-
 
 
 namespace cplib::validator {
@@ -7321,6 +7156,7 @@ struct ColoredTextReporter : Reporter {
   CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_, CPLIB_VALIDATOR_DEFAULT_INITIALIZER)
 }  // namespace cplib::validator
 
+// --- Start embedded: validator.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -7335,16 +7171,6 @@ struct ColoredTextReporter : Reporter {
  * You should have received a copy of the GNU Lesser General Public License along with CPLib. If
  * not, see <https://www.gnu.org/licenses/>.
  */
-
-
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_VALIDATOR_HPP_
-#error "Must be included from validator.hpp"
-#endif
-#endif
 
 
 #include <algorithm>
@@ -7363,15 +7189,6 @@ struct ColoredTextReporter : Reporter {
 #include <string_view>
 #include <utility>
 #include <vector>
-
-
-
-
-
-
-
-
-
 
 
 namespace cplib::validator {
@@ -7916,10 +7733,11 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 }
 // /Impl reporters }}}
 }  // namespace cplib::validator
-  
+// --- End embedded: validator.i.hpp ---
 
 #endif
-
+// --- End embedded: validator.hpp ---
+// --- Start embedded: generator.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -7947,9 +7765,6 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 #include <string>
 #include <string_view>
 #include <vector>
-
-
-
 
 
 namespace cplib::generator {
@@ -8529,6 +8344,7 @@ struct ColoredTextReporter : Reporter {
                                args_namespace_name_, __VA_ARGS__)
 }  // namespace cplib::generator
 
+// --- Start embedded: generator.i.hpp ---
 /*
  * This file is part of CPLib.
  *
@@ -8545,16 +8361,6 @@ struct ColoredTextReporter : Reporter {
  */
 
 
-#if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
-#pragma once
-  
-#else
-#ifndef CPLIB_GENERATOR_HPP_
-#error "Must be included from generator.hpp"
-#endif
-#endif
-
-
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -8568,12 +8374,6 @@ struct ColoredTextReporter : Reporter {
 #include <string_view>
 #include <utility>
 #include <vector>
-
-
-
-
-
-
 
 
 namespace cplib::generator {
@@ -8842,10 +8642,10 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 }
 // /Impl reporters }}}
 }  // namespace cplib::generator
-  
+// --- End embedded: generator.i.hpp ---
 
 #endif
-
+// --- End embedded: generator.hpp ---
 
 // clang-format on
 
