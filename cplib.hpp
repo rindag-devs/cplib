@@ -2170,11 +2170,21 @@ struct InStream {
 
   /**
    * Reads a new token from the stream.
-   * Ignores whitespaces in non-strict mode (strict mode is used in validators usually).
+   * Skip the previous blanks in non-strict mode.
    *
    * @return The read token as a string.
    */
   auto read_token() -> std::string;
+
+  /**
+   * Reads a new "word" from the stream.
+   * Skip the previous blanks in non-strict mode.
+   *
+   * A "word" is defined as a string consisting only of characters from [A-Za-z0-9+\-_\.].
+   *
+   * @return The read word as a string.
+   */
+  auto read_word() -> std::string;
 
   /**
    * If the current position contains EOF, do nothing and return `std::nullopt`.
@@ -2207,7 +2217,7 @@ struct OutBuf : std::streambuf {
   /// Write one character
   auto overflow(int_type c) -> int_type override;
   /// Write multiple characters
-  auto xsputn(const char *s, std::streamsize num) -> std::streamsize override;
+  auto xsputn(const char* s, std::streamsize num) -> std::streamsize override;
 
   int fd_;  // File descriptor
   bool need_close_;
@@ -2415,6 +2425,20 @@ inline auto InStream::read_token() -> std::string {
     token.push_back(static_cast<char>(read()));
   }
   return token;
+}
+
+inline auto InStream::read_word() -> std::string {
+  if (!strict_) skip_blanks();
+
+  std::string word;
+  while (true) {
+    if (int c = seek();
+        c == EOF || (!std::isalnum(c) && c != '+' && c != '-' && c != '_' && c != '.')) {
+      break;
+    }
+    word.push_back(static_cast<char>(read()));
+  }
+  return word;
 }
 
 inline auto InStream::read_line() -> std::optional<std::string> {
@@ -4066,38 +4090,65 @@ struct YesNo : Var<bool, YesNo> {
 };
 
 /**
- * `String` is a variable reading template, indicating to read a whitespace separated string.
+ * `String` is a variable reading template, indicating to read a string.
  */
 struct String : Var<std::string, String> {
  public:
+  /**
+   * `Mode` represents the reading mode of the string.
+   */
+  struct Mode {
+   public:
+    enum Value : std::uint8_t {
+      /// Reads a blank-separated token.
+      TOKEN,
+      /// Reads a sequence of alphanumeric characters.
+      WORD,
+      /// Reads until the end of the line.
+      LINE,
+    };
+
+    /**
+     * Default constructor for Mode.
+     */
+    Mode() = default;
+
+    /**
+     * Constructor for Mode with a given value.
+     *
+     * @param value The value of the mode.
+     */
+    constexpr Mode(Value value);  // NOLINT(google-explicit-constructor)
+
+    /**
+     * Implicit conversion operator to Value.
+     *
+     * @return The value of the mode.
+     */
+    constexpr operator Value() const;  // NOLINT(google-explicit-constructor)
+
+    /**
+     * Deleted conversion operator to bool.
+     *
+     * @return Deleted conversion operator to bool.
+     */
+    explicit operator bool() const = delete;
+
+   private:
+    Value value_;
+  };
+
   std::optional<Pattern> pat;
+  Mode mode;
 
-  /**
-   * Default constructor.
-   */
   explicit String();
-
-  /**
-   * Constructor with pattern parameter.
-   *
-   * @param pat The pattern of the String variable.
-   */
+  explicit String(Mode mode);
   explicit String(Pattern pat);
-
-  /**
-   * Constructor with name parameter.
-   *
-   * @param name The name of the String variable.
-   */
+  explicit String(Mode mode, Pattern pat);
   explicit String(std::string name);
-
-  /**
-   * Constructor with pattern and name parameters.
-   *
-   * @param name The name of the String variable.
-   * @param pat The pattern of the String variable.
-   * */
+  explicit String(std::string name, Mode mode);
   explicit String(std::string name, Pattern pat);
+  explicit String(std::string name, Mode mode, Pattern pat);
 
   /**
    * Read the value from the input reader.
@@ -4143,49 +4194,6 @@ struct Separator : Var<std::nullopt_t, Separator> {
    * @return `std::nullopt` to indicate that no value is read.
    */
   auto read_from(Reader& in) const -> std::nullopt_t override;
-};
-
-/**
- * `Line` is a variable reading template, indicating to read a end-of-line separated string.
- */
-struct Line : Var<std::string, Line> {
- public:
-  std::optional<Pattern> pat;
-
-  /**
-   * Constructs a `Line` object.
-   */
-  explicit Line();
-
-  /**
-   * Constructs a `Line` object with the specified pattern.
-   *
-   * @param pat The pattern to match for the line.
-   */
-  explicit Line(Pattern pat);
-
-  /**
-   * Constructs a `Line` object with the specified name.
-   *
-   * @param name The name of the `Line`.
-   */
-  explicit Line(std::string name);
-
-  /**
-   * Constructs a `Line` object with the specified pattern and name.
-   *
-   * @param name The name of the `Line`.
-   * @param pat The pattern to match for the line.
-   */
-  explicit Line(std::string name, Pattern pat);
-
-  /**
-   * Reads the line from the input reader.
-   *
-   * @param in The input reader.
-   * @return The read line as a string.
-   */
-  auto read_from(Reader& in) const -> std::string override;
 };
 
 /**
@@ -4718,7 +4726,7 @@ template <class T, class D>
 inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
   auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
-                       trace::Level::NONE, [](const Reader&, std::string_view msg) {
+                       trace::Level::NONE, [](const Reader&, std::string_view msg) -> void {
                          panic(std::string("Var::parse failed: ") + msg.data());
                        });
   T result = reader.read(*this);
@@ -4755,7 +4763,7 @@ inline Int<T>::Int(std::string name, std::optional<T> min, std::optional<T> max)
 
 template <std::integral T>
 inline auto Int<T>::read_from(Reader& in) const -> T {
-  auto token = in.inner().read_token();
+  auto token = in.inner().read_word();
 
   if (token.empty()) {
     if (in.inner().eof()) {
@@ -4901,7 +4909,7 @@ inline StrictFloat<T>::StrictFloat(std::string name, T min, T max, size_t min_n_
 
 template <std::floating_point T>
 inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
-  auto token = in.inner().read_token();
+  auto token = in.inner().read_word();
 
   if (token.empty()) {
     if (in.inner().eof()) {
@@ -4964,8 +4972,8 @@ inline YesNo::YesNo() : YesNo(std::string(detail::VAR_DEFAULT_NAME)) {}
 inline YesNo::YesNo(std::string name) : Var<bool, YesNo>(std::move(name)) {}
 
 inline auto YesNo::read_from(Reader& in) const -> bool {
-  auto token = in.inner().read_token();
-  auto lower_token = token;
+  auto word = in.inner().read_word();
+  auto lower_token = word;
   std::ranges::transform(lower_token, lower_token.begin(), ::tolower);
 
   bool result;
@@ -4974,7 +4982,7 @@ inline auto YesNo::read_from(Reader& in) const -> bool {
   } else if (lower_token == "no") {
     result = false;
   } else {
-    in.fail("Expected `Yes` or `No`, got " + token);
+    in.fail("Expected `Yes` or `No`, got " + word);
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -4984,39 +4992,90 @@ inline auto YesNo::read_from(Reader& in) const -> bool {
   return result;
 }
 
-inline String::String() : String(std::string(detail::VAR_DEFAULT_NAME)) {}
+inline constexpr String::Mode::Mode(Value value) : value_(value) {}
 
+inline constexpr String::Mode::operator Value() const { return value_; }
+
+inline String::String()
+    : Var<std::string, String>(std::string(detail::VAR_DEFAULT_NAME)),
+      pat(std::nullopt),
+      mode(Mode::TOKEN) {}
+inline String::String(Mode mode)
+    : Var<std::string, String>(std::string(detail::VAR_DEFAULT_NAME)),
+      pat(std::nullopt),
+      mode(mode) {}
 inline String::String(Pattern pat)
-    : String(std::string(detail::VAR_DEFAULT_NAME), std::move(pat)) {}
-
+    : Var<std::string, String>(std::string(detail::VAR_DEFAULT_NAME)),
+      pat(std::move(pat)),
+      mode(Mode::TOKEN) {}
+inline String::String(Mode mode, Pattern pat)
+    : Var<std::string, String>(std::string(detail::VAR_DEFAULT_NAME)),
+      pat(std::move(pat)),
+      mode(mode) {}
 inline String::String(std::string name)
-    : Var<std::string, String>(std::move(name)), pat(std::nullopt) {}
-
+    : Var<std::string, String>(std::move(name)), pat(std::nullopt), mode(Mode::TOKEN) {}
+inline String::String(std::string name, Mode mode)
+    : Var<std::string, String>(std::move(name)), pat(std::nullopt), mode(mode) {}
 inline String::String(std::string name, Pattern pat)
-    : Var<std::string, String>(std::move(name)), pat(std::move(pat)) {}
+    : Var<std::string, String>(std::move(name)), pat(std::move(pat)), mode(Mode::TOKEN) {}
+inline String::String(std::string name, Mode mode, Pattern pat)
+    : Var<std::string, String>(std::move(name)), pat(std::move(pat)), mode(mode) {}
 
 inline auto String::read_from(Reader& in) const -> std::string {
-  auto token = in.inner().read_token();
+  std::string result;
+  std::string kind;
 
-  if (token.empty()) {
-    if (in.inner().eof()) {
-      in.fail("Expected a string, got EOF");
-    } else {
-      in.fail(cplib::format("Expected a string, got whitespace `{}`",
-                            cplib::detail::hex_encode(in.inner().seek())));
+  switch (mode) {
+    case Mode::TOKEN: {
+      kind = "token";
+      result = in.inner().read_token();
+      if (result.empty()) {
+        if (in.inner().eof()) {
+          in.fail("Expected a " + kind + ", got EOF");
+        } else {
+          in.fail(cplib::format("Expected a {}, got whitespace `{}`", kind,
+                                cplib::detail::hex_encode(in.inner().seek())));
+        }
+      }
+      break;
+    }
+    case Mode::WORD: {
+      kind = "word";
+      result = in.inner().read_word();
+      if (result.empty()) {
+        if (in.inner().eof()) {
+          in.fail("Expected a " + kind + ", got EOF");
+        } else {
+          in.fail(cplib::format("Expected a {}, got whitespace `{}`", kind,
+                                cplib::detail::hex_encode(in.inner().seek())));
+        }
+      }
+      break;
+    }
+    case Mode::LINE: {
+      kind = "line";
+      auto line = in.inner().read_line();
+      if (!line.has_value()) {
+        in.fail("Expected a " + kind + ", got EOF");
+      }
+      result = *line;
+      break;
+    }
+    default: {
+      in.fail("Unexpected var::String:Mode");
     }
   }
 
-  if (pat.has_value() && !pat->match(token)) {
-    in.fail(cplib::format("Expected a string matching `{}`, got `{}`", compress(pat->src()),
-                          compress(token)));
+  if (pat.has_value() && !pat->match(result)) {
+    in.fail(cplib::format("Expected a {} matching `{}`, got `{}`", kind, compress(pat->src()),
+                          compress(result)));
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(token));
+    in.attach_tag("#v", json::Value(result));
   }
 
-  return token;
+  return result;
 }
 
 // Impl Separator {{{
@@ -5065,34 +5124,6 @@ inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
   return std::nullopt;
 }
 // /Impl Separator }}}
-
-inline Line::Line() : Line(std::string(detail::VAR_DEFAULT_NAME)) {}
-
-inline Line::Line(Pattern pat) : Line(std::string(detail::VAR_DEFAULT_NAME), std::move(pat)) {}
-
-inline Line::Line(std::string name) : Var<std::string, Line>(std::move(name)), pat(std::nullopt) {}
-
-inline Line::Line(std::string name, Pattern pat)
-    : Var<std::string, Line>(std::move(name)), pat(std::move(pat)) {}
-
-inline auto Line::read_from(Reader& in) const -> std::string {
-  auto line = in.inner().read_line();
-
-  if (!line.has_value()) {
-    in.fail("Expected a line, got EOF");
-  }
-
-  if (pat.has_value() && !pat->match(*line)) {
-    in.fail(cplib::format("Expected a line matching `{}`, got `{}`", compress(pat->src()),
-                          compress(*line)));
-  }
-
-  if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(*line));
-  }
-
-  return *line;
-}
 
 template <class T>
 inline Vec<T>::Vec(T element, size_t len) : Vec<T>(element, len, var::space) {}
