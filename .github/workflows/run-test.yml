@@ -45,7 +45,7 @@ jobs:
           - c_compiler: "clang-18"
             cxx_compiler: "clang++-18"
             use_fmt: true
-    name: Test ${{ matrix.compiler }}${{ matrix.use_fmt && ' (FMT)' || '' }}
+    name: Test ${{ matrix.cxx_compiler }}${{ matrix.use_fmt && ' (FMT)' || '' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repo
@@ -66,4 +66,4 @@ jobs:
         run: cmake --build build --parallel
 
       - name: Run tests with CTest
-        run: ctest --test-dir build --output-on-failure --parallelr="${{ matrix.compiler }}"
+        run: ctest --test-dir build --output-on-failure --parallel
