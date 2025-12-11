@@ -4,7 +4,8 @@
  * Run test with:
  *
  * ```bash
- * pnpm test -- --kind validator --match "^0-i32-a-plus-b$"
+ * cmake --build build --parallel
+ * ctest --test-dir build --output-on-failure --parallel -R '^validator\.0-i32-a-plus-b'
  * ```
  */
 

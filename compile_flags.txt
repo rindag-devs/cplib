@@ -1,4 +1,0 @@
--Iinclude
--Ithird_party/fmt/include
--xc++
--std=c++20

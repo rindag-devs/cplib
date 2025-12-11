@@ -61,7 +61,7 @@ inline auto Position::to_json() const -> json::Map {
   };
 }
 
-InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {
+inline InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {
   /*
     We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
     Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.

@@ -1,5 +1,5 @@
 import { Tab, Tabs } from "nextra-theme-docs";
-import { Steps } from 'nextra/components'
+import { Steps } from "nextra/components";
 
 # 快速上手
 
@@ -16,6 +16,7 @@ CPLib 是一个仅包含头文件的库．也就是说你基本无需担心链�
 ```bash
 curl -o cplib.hpp -L https://github.com/rindag-devs/cplib/raw/single-header-snapshot/cplib.hpp
 ```
+
 </Tab>
 <Tab>
 启动 PowerShell，并输入以下命令：
@@ -23,6 +24,7 @@ curl -o cplib.hpp -L https://github.com/rindag-devs/cplib/raw/single-header-snap
 ```powershell
 Invoke-WebRequest -Uri "https://github.com/rindag-devs/cplib/raw/single-header-snapshot/cplib.hpp" -OutFile "cplib.hpp"
 ```
+
 </Tab>
 </Tabs>
 
@@ -40,21 +42,17 @@ git clone https://github.com/rindag-devs/cplib.git --depth=1
 cd cplib
 ```
 
-### 安装 PNPM 依赖
-
-```bash
-pnpm install
-```
-
 ### 构建单文件头
 
 ```bash
-pnpm build-single-header
+cmake -B build
+cmake --build build --target single_header
 ```
 
 ### 查看生成文件
 
-最终生成的代码将会保存在 `out/single-header/cplib.hpp` 文件中．
+最终生成的代码将会保存在 `build/cplib.hpp` 文件中．
+
 </Steps>
 
 ## 开始学习

@@ -4,7 +4,8 @@
  * Run test with:
  *
  * ```bash
- * pnpm test -- --kind checker --match "^2-shortest-path$"
+ * cmake --build build --parallel
+ * ctest --test-dir build --output-on-failure --parallel -R '^checker\.2-shortest-path'
  * ```
  */
 

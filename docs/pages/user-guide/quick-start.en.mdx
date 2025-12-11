@@ -1,5 +1,5 @@
 import { Tab, Tabs } from "nextra-theme-docs";
-import { Steps } from 'nextra/components'
+import { Steps } from "nextra/components";
 
 # Quick Start
 
@@ -16,6 +16,7 @@ Open the terminal and enter the following command:
 ```bash
 curl -o cplib.hpp -L https://github.com/rindag-devs/cplib/raw/single-header-snapshot/cplib.hpp
 ```
+
 </Tab>
 <Tab>
 Launch PowerShell and enter the following command:
@@ -23,6 +24,7 @@ Launch PowerShell and enter the following command:
 ```powershell
 Invoke-WebRequest -Uri "https://github.com/rindag-devs/cplib/raw/single-header-snapshot/cplib.hpp" -OutFile "cplib.hpp"
 ```
+
 </Tab>
 </Tabs>
 
@@ -36,25 +38,21 @@ In addition to using snapshots directly, building from source is another way to 
 ### Clone Git Repo
 
 ```bash
-git clone https://github.com/rindag-devs/cplib.git --depth=1
+git clone https://github.com/rindag-devs/cplib.git --depth=1 --single-branch
 cd cplib
-```
-
-### Install PNPM dependencies
-
-```bash
-pnpm install
 ```
 
 ### Build Single Header File
 
 ```bash
-pnpm build-single-header
+cmake -B build
+cmake --build build --target single_header
 ```
 
 ### Get Output File
 
-The final code is stored in `out/single-header/cplib.hpp`.
+The final code is stored in `build/cplib.hpp`.
+
 </Steps>
 
 ## Start Learning

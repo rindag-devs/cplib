@@ -4,7 +4,8 @@
  * Run test with:
  *
  * ```bash
- * pnpm test -- --kind interactor --match "^0-guessing-number$"
+ * cmake --build build --parallel
+ * ctest --test-dir build --output-on-failure --parallel -R '^interactor\.0-guessing-number'
  * ```
  */
 

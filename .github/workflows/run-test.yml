@@ -12,42 +12,58 @@ jobs:
     strategy:
       matrix:
         include:
-          - compiler: "g++-13"
+          - c_compiler: "gcc-13"
+            cxx_compiler: "g++-13"
             use_fmt: false
-          - compiler: "g++-14"
+          - c_compiler: "gcc-14"
+            cxx_compiler: "g++-14"
             use_fmt: false
-          - compiler: "clang++-16"
+          - c_compiler: "clang-16"
+            cxx_compiler: "clang++-16"
             use_fmt: false
-          - compiler: "clang++-17"
+          - c_compiler: "clang-17"
+            cxx_compiler: "clang++-17"
             use_fmt: false
-          - compiler: "clang++-18"
+          - c_compiler: "clang-18"
+            cxx_compiler: "clang++-18"
             use_fmt: false
-          - compiler: "g++-12"
+          - c_compiler: "gcc-12"
+            cxx_compiler: "g++-12"
             use_fmt: true
-          - compiler: "g++-13"
+          - c_compiler: "gcc-13"
+            cxx_compiler: "g++-13"
             use_fmt: true
-          - compiler: "g++-14"
+          - c_compiler: "gcc-14"
+            cxx_compiler: "g++-14"
             use_fmt: true
-          - compiler: "clang++-16"
+          - c_compiler: "clang-16"
+            cxx_compiler: "clang++-16"
             use_fmt: true
-          - compiler: "clang++-17"
+          - c_compiler: "clang-17"
+            cxx_compiler: "clang++-17"
             use_fmt: true
-          - compiler: "clang++-18"
+          - c_compiler: "clang-18"
+            cxx_compiler: "clang++-18"
             use_fmt: true
     name: Test ${{ matrix.compiler }}${{ matrix.use_fmt && ' (FMT)' || '' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-        with:
-          submodules: true
+
       - name: Write FMT flag to compile_flags.txt
         if: ${{ matrix.use_fmt == true }}
         run: echo "-DCPLIB_USE_FMT_LIB" >> compile_flags.txt
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: |
-            - args: [--frozen-lockfile, --strict-peer-dependencies]
-      - name: Run tests
-        run: pnpm test -- --cpp_compiler="${{ matrix.compiler }}"
+
+      - name: Configure CMake
+        run: |
+          cmake -B build \
+            -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cxx_compiler }} \
+            -DCPLIB_USE_FMT_LIB=${{ matrix.use_fmt && 'ON' || 'OFF' }}
+
+      - name: Build project
+        run: cmake --build build --parallel
+
+      - name: Run tests with CTest
+        run: ctest --test-dir build --output-on-failure --parallelr="${{ matrix.compiler }}"

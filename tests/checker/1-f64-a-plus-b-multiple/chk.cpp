@@ -7,7 +7,8 @@
  * Run test with:
  *
  * ```bash
- * pnpm test -- --kind checker --match "^1-f64-a-plus-b-multiple$"
+ * cmake --build build --parallel
+ * ctest --test-dir build --output-on-failure --parallel -R '^checker\.1-f64-a-plus-b-multiple'
  * ```
  */
 

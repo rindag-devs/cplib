@@ -164,32 +164,46 @@ inline auto Value::write_string(std::streambuf& buf) const -> void {
   return buf.str();
 }
 
-[[nodiscard]] auto Value::is_null() const -> bool { return std::holds_alternative<Null>(inner); }
-[[nodiscard]] auto Value::is_string() const -> bool {
+[[nodiscard]] inline auto Value::is_null() const -> bool {
+  return std::holds_alternative<Null>(inner);
+}
+[[nodiscard]] inline auto Value::is_string() const -> bool {
   return std::holds_alternative<String>(inner);
 }
-[[nodiscard]] auto Value::is_int() const -> bool { return std::holds_alternative<Int>(inner); }
-[[nodiscard]] auto Value::is_real() const -> bool { return std::holds_alternative<Real>(inner); }
-[[nodiscard]] auto Value::is_bool() const -> bool { return std::holds_alternative<Bool>(inner); }
-[[nodiscard]] auto Value::is_list() const -> bool { return std::holds_alternative<List>(inner); }
-[[nodiscard]] auto Value::is_map() const -> bool { return std::holds_alternative<Map>(inner); }
+[[nodiscard]] inline auto Value::is_int() const -> bool {
+  return std::holds_alternative<Int>(inner);
+}
+[[nodiscard]] inline auto Value::is_real() const -> bool {
+  return std::holds_alternative<Real>(inner);
+}
+[[nodiscard]] inline auto Value::is_bool() const -> bool {
+  return std::holds_alternative<Bool>(inner);
+}
+[[nodiscard]] inline auto Value::is_list() const -> bool {
+  return std::holds_alternative<List>(inner);
+}
+[[nodiscard]] inline auto Value::is_map() const -> bool {
+  return std::holds_alternative<Map>(inner);
+}
 
-[[nodiscard]] auto Value::as_string() -> String& { return std::get<String>(inner); }
-[[nodiscard]] auto Value::as_string() const -> const String& { return std::get<String>(inner); }
+[[nodiscard]] inline auto Value::as_string() -> String& { return std::get<String>(inner); }
+[[nodiscard]] inline auto Value::as_string() const -> const String& {
+  return std::get<String>(inner);
+}
 
-[[nodiscard]] auto Value::as_int() -> Int& { return std::get<Int>(inner); }
-[[nodiscard]] auto Value::as_int() const -> const Int& { return std::get<Int>(inner); }
+[[nodiscard]] inline auto Value::as_int() -> Int& { return std::get<Int>(inner); }
+[[nodiscard]] inline auto Value::as_int() const -> const Int& { return std::get<Int>(inner); }
 
-[[nodiscard]] auto Value::as_real() -> Real& { return std::get<Real>(inner); }
-[[nodiscard]] auto Value::as_real() const -> const Real& { return std::get<Real>(inner); }
+[[nodiscard]] inline auto Value::as_real() -> Real& { return std::get<Real>(inner); }
+[[nodiscard]] inline auto Value::as_real() const -> const Real& { return std::get<Real>(inner); }
 
-[[nodiscard]] auto Value::as_bool() -> Bool& { return std::get<Bool>(inner); }
-[[nodiscard]] auto Value::as_bool() const -> const Bool& { return std::get<Bool>(inner); }
+[[nodiscard]] inline auto Value::as_bool() -> Bool& { return std::get<Bool>(inner); }
+[[nodiscard]] inline auto Value::as_bool() const -> const Bool& { return std::get<Bool>(inner); }
 
-[[nodiscard]] auto Value::as_list() -> List& { return std::get<List>(inner); }
-[[nodiscard]] auto Value::as_list() const -> const List& { return std::get<List>(inner); }
+[[nodiscard]] inline auto Value::as_list() -> List& { return std::get<List>(inner); }
+[[nodiscard]] inline auto Value::as_list() const -> const List& { return std::get<List>(inner); }
 
-[[nodiscard]] auto Value::as_map() -> Map& { return std::get<Map>(inner); }
-[[nodiscard]] auto Value::as_map() const -> const Map& { return std::get<Map>(inner); }
+[[nodiscard]] inline auto Value::as_map() -> Map& { return std::get<Map>(inner); }
+[[nodiscard]] inline auto Value::as_map() const -> const Map& { return std::get<Map>(inner); }
 
 }  // namespace cplib::json

@@ -1,4 +1,6 @@
 .tmp/
+.zed/
+build/
 
 benchmark/*/chk_cplib
 benchmark/*/chk_testlib

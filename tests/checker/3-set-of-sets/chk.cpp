@@ -6,7 +6,8 @@
  * Run test with:
  *
  * ```bash
- * pnpm test -- --kind checker --match "^3-set-of-sets$"
+ * cmake --build build --parallel
+ * ctest --test-dir build --output-on-failure --parallel -R '^checker\.3-set-of-sets'
  * ```
  */
 

@@ -299,7 +299,7 @@ struct ColoredTextReporter : Reporter {
     ::cplib::evaluate::Result result = state.evaluator("output", output, answer, input);           \
     ::std::string report_message;                                                                  \
     auto evaluator_trace_stacks = state.reporter->get_evaluator_trace_stacks();                    \
-    auto it = ::std::ranges::find_if(evaluator_trace_stacks, [](const auto& x) {                   \
+    auto it = ::std::ranges::find_if(evaluator_trace_stacks, [](const auto& x) -> bool {           \
       return !x.stack.empty() && x.stack.back().result.has_value() &&                              \
              !x.stack.back().result->message.empty();                                              \
     });                                                                                            \

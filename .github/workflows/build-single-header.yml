@@ -18,24 +18,20 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: |
-            - args: [--frozen-lockfile, --strict-peer-dependencies]
+      - name: Configure CMake
+        run: cmake -B build
 
       - name: Build single header
-        run: pnpm build-single-header
+        run: cmake --build build --target single_header && mkdir dist && cp build/cplib.hpp dist/
 
       - name: Dump git commit SHA
-        run: echo "${GITHUB_SHA}" > git_commit_sha.txt
+        run: echo "${GITHUB_SHA}" > dist/git_commit_sha.txt
         shell: bash
-        working-directory: ./out/single-header/
 
       - name: Commit single-header-snapshot
         uses: nicholasgriffintn/github-branch-deployment-action@1.0.0
         env:
           GITHUB_TOKEN: ${{ github.token }}
           BRANCH: single-header-snapshot
-          FOLDER: ./out/single-header
+          FOLDER: ./dist
           MESSAGE: "build: ({sha}) {msg}"
