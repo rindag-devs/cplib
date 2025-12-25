@@ -1,0 +1,5 @@
+/node_modules/
+/.next/
+/public/robots.txt
+/public/sitemap.xml
+/public/sitemap-*.xml

@@ -9,9 +9,6 @@ benchmark/*/*.in
 benchmark/*/*.out
 benchmark/*/*.ans
 
-docs/node_modules/
-docs/.next/
-
 tests/checker/*/chk
 tests/checker/*/gen
 tests/checker/*/std

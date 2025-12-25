@@ -51,10 +51,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Write FMT flag to compile_flags.txt
-        if: ${{ matrix.use_fmt == true }}
-        run: echo "-DCPLIB_USE_FMT_LIB" >> compile_flags.txt
-
       - name: Configure CMake
         run: |
           cmake -B build \
