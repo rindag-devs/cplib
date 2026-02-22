@@ -1,6 +1,7 @@
 .tmp/
 .zed/
 build/
+compile_commands.json
 
 benchmark/*/chk_cplib
 benchmark/*/chk_testlib
