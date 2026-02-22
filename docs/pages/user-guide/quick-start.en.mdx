@@ -30,6 +30,13 @@ Invoke-WebRequest -Uri "https://github.com/rindag-devs/cplib/raw/single-header-s
 
 This will download the latest snapshot of the single-header file based on the main branch and save it as `cplib.hpp` in the current directory.
 
+### For Older Compilers (without `<format>`)
+
+If you are using an older compiler (e.g., GCC < 13) that does not support the `<format>` header, you can use the `with_fmt` version of the single-header file. This version embeds the [fmt](https://github.com/fmtlib/fmt) library to provide formatting support.
+
+You can download it from:
+[https://github.com/rindag-devs/cplib/raw/single-header-snapshot/with_fmt/cplib.hpp](https://github.com/rindag-devs/cplib/raw/single-header-snapshot/with_fmt/cplib.hpp)
+
 ## Build from Source
 
 In addition to using snapshots directly, building from source is another way to obtain a single file header.
@@ -52,6 +59,15 @@ cmake --build build --target single_header
 ### Get Output File
 
 The final code is stored in `build/cplib.hpp`.
+
+### Build with Embedded fmt
+
+If you need to embed the `fmt` library for older compilers:
+
+```bash
+cmake -B build -DCPLIB_USE_FMT_LIB=ON
+cmake --build build --target single_header
+```
 
 </Steps>
 

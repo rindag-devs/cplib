@@ -18,11 +18,19 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Configure CMake
-        run: cmake -B build
+      - name: Build single header (default)
+        run: |
+          cmake -B build-default -DCPLIB_USE_FMT_LIB=OFF
+          cmake --build build-default --target single_header
+          mkdir -p dist
+          cp build-default/cplib.hpp dist/
 
-      - name: Build single header
-        run: cmake --build build --target single_header && mkdir dist && cp build/cplib.hpp dist/
+      - name: Build single header (with_fmt)
+        run: |
+          cmake -B build-fmt -DCPLIB_USE_FMT_LIB=ON
+          cmake --build build-fmt --target single_header
+          mkdir -p dist/with_fmt
+          cp build-fmt/cplib.hpp dist/with_fmt/
 
       - name: Dump git commit SHA
         run: echo "${GITHUB_SHA}" > dist/git_commit_sha.txt

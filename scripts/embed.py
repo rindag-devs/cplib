@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import argparse
 import re
 import sys
 from pathlib import Path
 
-INCLUDE_REGEX = re.compile(r'#include "([^"]+)"')
+INCLUDE_REGEX = re.compile(r'#\s*include "([^"]+)"')
 EMBED_IGNORE_START_REGEX = re.compile(r"/\*\s*cplib_embed_ignore start\s*\*/")
 EMBED_IGNORE_END_REGEX = re.compile(r"/\*\s*cplib_embed_ignore end\s*\*/")
 IWYU_PRAGMA_REGEX = re.compile(r"//\s*IWYU pragma:.*|/\*\s*IWYU pragma:.*\*/")
-IGNORE_HEADERS = {"regex.h", "fmt/base.h", "fmt/core.h"}
+DEFAULT_IGNORE_HEADERS = {"regex.h", "fmt/base.h", "fmt/core.h"}
 
 
 def process_file(
-    file_path: Path, include_paths: list[Path], processed_files: set[Path]
-) -> str:
+    file_path: Path,
+    include_paths: list[Path],
+    processed_files: set[Path],
+    ignore_headers: set[str],
+) -> list[str]:
     """
     Recursively process a header file, replacing its local #includes with file content.
     """
     if file_path in processed_files:
-        return ""  # Act like #pragma once to prevent circular inclusion.
+        return []  # Act like #pragma once to prevent circular inclusion.
 
     processed_files.add(file_path)
 
@@ -52,19 +56,21 @@ def process_file(
         match = INCLUDE_REGEX.search(line)
         if match:
             header_name = match.group(1)
-            if header_name in IGNORE_HEADERS:
+            if header_name in ignore_headers:
                 output_lines.append(line)  # Keep this #include
                 continue
 
             # Find the included file in the search paths
             found = False
-            for include_path in include_paths:
+            # First, check the directory of the current file
+            search_paths = [file_path.parent] + include_paths
+            for include_path in search_paths:
                 included_file = (include_path / header_name).resolve()
                 if included_file.exists():
                     # Recurse
                     output_lines.append(f"// --- Start embedded: {header_name} ---")
                     output_lines += process_file(
-                        included_file, include_paths, processed_files
+                        included_file, include_paths, processed_files, ignore_headers
                     )
                     output_lines.append(f"// --- End embedded: {header_name} ---")
                     found = True
@@ -83,18 +89,44 @@ def process_file(
 
 
 def main():
-    if len(sys.argv) < 3:
-        print(
-            f"Usage: {sys.argv[0]} <main_header> <include_dir1> [include_dir2] ...",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Embed header files into a single header."
+    )
+    parser.add_argument(
+        "main_header", type=Path, help="The main header file to process."
+    )
+    parser.add_argument(
+        "-I",
+        "--include-dir",
+        type=Path,
+        action="append",
+        dest="include_dirs",
+        default=[],
+        help="Directories to search for included files.",
+    )
+    parser.add_argument(
+        "--embed-fmt",
+        action="store_true",
+        help="Embed fmt/base.h and fmt/core.h instead of ignoring them.",
+    )
 
-    main_header = Path(sys.argv[1]).resolve()
-    include_paths = [Path(p).resolve() for p in sys.argv[2:]]
+    args = parser.parse_args()
+
+    main_header = args.main_header.resolve()
+    include_paths = [p.resolve() for p in args.include_dirs]
+
+    ignore_headers = set(DEFAULT_IGNORE_HEADERS)
+    if args.embed_fmt:
+        ignore_headers.discard("fmt/base.h")
+        ignore_headers.discard("fmt/core.h")
 
     processed_files = set()
-    final_lines = process_file(main_header, include_paths, processed_files)
+    final_lines = process_file(
+        main_header, include_paths, processed_files, ignore_headers
+    )
+
+    if args.embed_fmt:
+        final_lines.insert(0, "#define CPLIB_USE_FMT_LIB")
 
     sys.stdout.buffer.write(("\n".join(final_lines) + "\n").encode("utf-8"))
 

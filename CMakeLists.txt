@@ -46,12 +46,16 @@ find_package(
 file(GLOB_RECURSE CPLIB_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/include/*.i.hpp")
 
+set(EMBED_ARGS ${CMAKE_CURRENT_SOURCE_DIR}/include/cplib.hpp -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
+if(CPLIB_USE_FMT_LIB)
+  list(APPEND EMBED_ARGS --embed-fmt -I ${fmt_SOURCE_DIR}/include)
+endif()
+
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cplib.hpp
   COMMAND
     ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed.py
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/cplib.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/include >${CMAKE_CURRENT_BINARY_DIR}/cplib.hpp
+    ${EMBED_ARGS} >${CMAKE_CURRENT_BINARY_DIR}/cplib.hpp
   DEPENDS ${CPLIB_HEADERS} ${CMAKE_CURRENT_SOURCE_DIR}/scripts/embed.py
   COMMENT "Generating single-header file cplib.hpp")
 

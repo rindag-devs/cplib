@@ -1,6 +1,6 @@
 .tmp/
 .zed/
-build/
+/build*/
 compile_commands.json
 
 benchmark/*/chk_cplib
