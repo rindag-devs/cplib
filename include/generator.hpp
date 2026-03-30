@@ -220,50 +220,51 @@ struct ColoredTextReporter : Reporter {
   [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
-#define CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_)                                 \
-  namespace cplib_generator_args_detail_ {                                                       \
-  struct AsResultTag_ {};                                                                        \
-                                                                                                 \
-  std::map<std::string, std::any> value_map_;                                                    \
-                                                                                                 \
-  struct Flag {                                                                                  \
-    using ResultType = bool;                                                                     \
-    std::string name;                                                                            \
-    explicit Flag(std::string name_) : name(std::move(name_)) {                                  \
-      state_var_name_.required_flag_args.emplace_back(name);                                     \
-      auto name = this->name;                                                                    \
-      state_var_name_.flag_parsers.emplace_back([name](const std::set<std::string> &flag_args) { \
-        *std::any_cast<ResultType>(&value_map_[name]) =                                          \
-            static_cast<ResultType>(flag_args.count(name));                                      \
-      });                                                                                        \
-    }                                                                                            \
-    inline auto operator|(AsResultTag_) const -> const ResultType & {                            \
-      return *std::any_cast<ResultType>(&(value_map_[name] = ResultType{}));                     \
-    }                                                                                            \
-  };                                                                                             \
-                                                                                                 \
-  template <class T>                                                                             \
-  struct Var {                                                                                   \
-    using ResultType = typename T::Target;                                                       \
-    T var;                                                                                       \
-    template <class... Args>                                                                     \
-    explicit Var(Args... args) : var(std::forward<Args>(args)...) {                              \
-      state_var_name_.required_var_args.emplace_back(var.name());                                \
-      auto var = this->var;                                                                      \
-      state_var_name_.var_parsers.emplace_back(                                                  \
-          [var](const std::map<std::string, std::string> &var_args) {                            \
-            auto name = std::string(var.name());                                                 \
-            *std::any_cast<ResultType>(&value_map_[name]) = var.parse(var_args.at(name));        \
-          });                                                                                    \
-    }                                                                                            \
-    inline auto operator|(AsResultTag_) const -> const ResultType & {                            \
-      return *std::any_cast<ResultType>(&(value_map_[std::string(var.name())] = ResultType{}));  \
-    }                                                                                            \
-  };                                                                                             \
-  }                                                                                              \
-  namespace cplib_generator_args_ {                                                              \
-  using ::cplib_generator_args_detail_::Flag;                                                    \
-  using ::cplib_generator_args_detail_::Var;                                                     \
+#define CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_)                                \
+  namespace cplib_generator_args_detail_ {                                                      \
+  struct AsResultTag_ {};                                                                       \
+                                                                                                \
+  std::map<std::string, std::any> value_map_;                                                   \
+                                                                                                \
+  struct Flag {                                                                                 \
+    using ResultType = bool;                                                                    \
+    std::string name;                                                                           \
+    explicit Flag(std::string name_) : name(std::move(name_)) {                                 \
+      state_var_name_.required_flag_args.emplace_back(name);                                    \
+      auto name = this->name;                                                                   \
+      state_var_name_.flag_parsers.emplace_back(                                                \
+          [name](const std::set<std::string> &flag_args) -> void {                              \
+            *std::any_cast<ResultType>(&value_map_[name]) =                                     \
+                static_cast<ResultType>(flag_args.count(name));                                 \
+          });                                                                                   \
+    }                                                                                           \
+    inline auto operator|(AsResultTag_) const -> const ResultType & {                           \
+      return *std::any_cast<ResultType>(&(value_map_[name] = ResultType{}));                    \
+    }                                                                                           \
+  };                                                                                            \
+                                                                                                \
+  template <class T>                                                                            \
+  struct Var {                                                                                  \
+    using ResultType = typename T::Target;                                                      \
+    T var;                                                                                      \
+    template <class... Args>                                                                    \
+    explicit Var(Args &&...args) : var(std::forward<Args>(args)...) {                           \
+      state_var_name_.required_var_args.emplace_back(var.name());                               \
+      auto var = this->var;                                                                     \
+      state_var_name_.var_parsers.emplace_back(                                                 \
+          [var](const std::map<std::string, std::string> &var_args) -> void {                   \
+            auto name = std::string(var.name());                                                \
+            *std::any_cast<ResultType>(&value_map_[name]) = var.parse(var_args.at(name));       \
+          });                                                                                   \
+    }                                                                                           \
+    inline auto operator|(AsResultTag_) const -> const ResultType & {                           \
+      return *std::any_cast<ResultType>(&(value_map_[std::string(var.name())] = ResultType{})); \
+    }                                                                                           \
+  };                                                                                            \
+  }                                                                                             \
+  namespace cplib_generator_args_ {                                                             \
+  using ::cplib_generator_args_detail_::Flag;                                                   \
+  using ::cplib_generator_args_detail_::Var;                                                    \
   }
 
 #define CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(x) x
@@ -530,40 +531,41 @@ struct ColoredTextReporter : Reporter {
     _59, _60, _61, _62, _63, N, ...)                                                               \
   N
 
-#define CPLIB_REGISTER_GENERATOR_ARGS_(...)                                                       \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_GET_NTH_ARG_(               \
-      dummy, ##__VA_ARGS__, CPLIB_REGISTER_GENERATOR_ARGS_63_, CPLIB_REGISTER_GENERATOR_ARGS_62_, \
-      CPLIB_REGISTER_GENERATOR_ARGS_61_, CPLIB_REGISTER_GENERATOR_ARGS_60_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_59_, CPLIB_REGISTER_GENERATOR_ARGS_58_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_57_, CPLIB_REGISTER_GENERATOR_ARGS_56_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_55_, CPLIB_REGISTER_GENERATOR_ARGS_54_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_53_, CPLIB_REGISTER_GENERATOR_ARGS_52_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_51_, CPLIB_REGISTER_GENERATOR_ARGS_50_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_49_, CPLIB_REGISTER_GENERATOR_ARGS_48_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_47_, CPLIB_REGISTER_GENERATOR_ARGS_46_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_45_, CPLIB_REGISTER_GENERATOR_ARGS_44_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_43_, CPLIB_REGISTER_GENERATOR_ARGS_42_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_41_, CPLIB_REGISTER_GENERATOR_ARGS_40_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_39_, CPLIB_REGISTER_GENERATOR_ARGS_38_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_37_, CPLIB_REGISTER_GENERATOR_ARGS_36_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_35_, CPLIB_REGISTER_GENERATOR_ARGS_34_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_33_, CPLIB_REGISTER_GENERATOR_ARGS_32_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_31_, CPLIB_REGISTER_GENERATOR_ARGS_30_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_29_, CPLIB_REGISTER_GENERATOR_ARGS_28_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_27_, CPLIB_REGISTER_GENERATOR_ARGS_26_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_25_, CPLIB_REGISTER_GENERATOR_ARGS_24_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_23_, CPLIB_REGISTER_GENERATOR_ARGS_22_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_21_, CPLIB_REGISTER_GENERATOR_ARGS_20_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_19_, CPLIB_REGISTER_GENERATOR_ARGS_18_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_17_, CPLIB_REGISTER_GENERATOR_ARGS_16_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_15_, CPLIB_REGISTER_GENERATOR_ARGS_14_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_13_, CPLIB_REGISTER_GENERATOR_ARGS_12_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_11_, CPLIB_REGISTER_GENERATOR_ARGS_10_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_9_, CPLIB_REGISTER_GENERATOR_ARGS_8_,                         \
-      CPLIB_REGISTER_GENERATOR_ARGS_7_, CPLIB_REGISTER_GENERATOR_ARGS_6_,                         \
-      CPLIB_REGISTER_GENERATOR_ARGS_5_, CPLIB_REGISTER_GENERATOR_ARGS_4_,                         \
-      CPLIB_REGISTER_GENERATOR_ARGS_3_, CPLIB_REGISTER_GENERATOR_ARGS_2_,                         \
-      CPLIB_REGISTER_GENERATOR_ARGS_1_, CPLIB_REGISTER_GENERATOR_ARGS_0_)(__VA_ARGS__))
+#define CPLIB_REGISTER_GENERATOR_ARGS_(...)                                         \
+  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_GET_NTH_ARG_( \
+      dummy __VA_OPT__(, ) __VA_ARGS__, CPLIB_REGISTER_GENERATOR_ARGS_63_,          \
+      CPLIB_REGISTER_GENERATOR_ARGS_62_, CPLIB_REGISTER_GENERATOR_ARGS_61_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_60_, CPLIB_REGISTER_GENERATOR_ARGS_59_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_58_, CPLIB_REGISTER_GENERATOR_ARGS_57_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_56_, CPLIB_REGISTER_GENERATOR_ARGS_55_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_54_, CPLIB_REGISTER_GENERATOR_ARGS_53_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_52_, CPLIB_REGISTER_GENERATOR_ARGS_51_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_50_, CPLIB_REGISTER_GENERATOR_ARGS_49_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_48_, CPLIB_REGISTER_GENERATOR_ARGS_47_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_46_, CPLIB_REGISTER_GENERATOR_ARGS_45_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_44_, CPLIB_REGISTER_GENERATOR_ARGS_43_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_42_, CPLIB_REGISTER_GENERATOR_ARGS_41_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_40_, CPLIB_REGISTER_GENERATOR_ARGS_39_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_38_, CPLIB_REGISTER_GENERATOR_ARGS_37_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_36_, CPLIB_REGISTER_GENERATOR_ARGS_35_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_34_, CPLIB_REGISTER_GENERATOR_ARGS_33_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_32_, CPLIB_REGISTER_GENERATOR_ARGS_31_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_30_, CPLIB_REGISTER_GENERATOR_ARGS_29_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_28_, CPLIB_REGISTER_GENERATOR_ARGS_27_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_26_, CPLIB_REGISTER_GENERATOR_ARGS_25_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_24_, CPLIB_REGISTER_GENERATOR_ARGS_23_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_22_, CPLIB_REGISTER_GENERATOR_ARGS_21_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_20_, CPLIB_REGISTER_GENERATOR_ARGS_19_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_18_, CPLIB_REGISTER_GENERATOR_ARGS_17_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_16_, CPLIB_REGISTER_GENERATOR_ARGS_15_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_14_, CPLIB_REGISTER_GENERATOR_ARGS_13_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_12_, CPLIB_REGISTER_GENERATOR_ARGS_11_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_10_, CPLIB_REGISTER_GENERATOR_ARGS_9_,          \
+      CPLIB_REGISTER_GENERATOR_ARGS_8_, CPLIB_REGISTER_GENERATOR_ARGS_7_,           \
+      CPLIB_REGISTER_GENERATOR_ARGS_6_, CPLIB_REGISTER_GENERATOR_ARGS_5_,           \
+      CPLIB_REGISTER_GENERATOR_ARGS_4_, CPLIB_REGISTER_GENERATOR_ARGS_3_,           \
+      CPLIB_REGISTER_GENERATOR_ARGS_2_, CPLIB_REGISTER_GENERATOR_ARGS_1_,           \
+      CPLIB_REGISTER_GENERATOR_ARGS_0_)(__VA_ARGS__))
 
 /**
  * Macro to register generator with custom initializer.
@@ -604,7 +606,7 @@ struct ColoredTextReporter : Reporter {
  */
 #define CPLIB_REGISTER_GENERATOR(var_name_, args_namespace_name_, ...)         \
   CPLIB_REGISTER_GENERATOR_OPT(var_name_, CPLIB_GENERATOR_DEFAULT_INITIALIZER, \
-                               args_namespace_name_, __VA_ARGS__)
+                               args_namespace_name_ __VA_OPT__(, ) __VA_ARGS__)
 }  // namespace cplib::generator
 
 #include "generator.i.hpp"  // IWYU pragma: export

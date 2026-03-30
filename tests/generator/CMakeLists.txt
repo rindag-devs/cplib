@@ -12,7 +12,12 @@ function(add_generator_test test_name)
     set(OUT_FILE "${TEST_DIR}/data/${CASE_NAME}.in")
 
     file(READ ${ARGS_FILE} GEN_ARGS)
-    string(REPLACE "\n" ";" GEN_ARGS_LIST ${GEN_ARGS})
+    if(GEN_ARGS STREQUAL "")
+      set(GEN_ARGS_LIST)
+    else()
+      string(REPLACE "\n" ";" GEN_ARGS_LIST "${GEN_ARGS}")
+      list(FILTER GEN_ARGS_LIST EXCLUDE REGEX "^$")
+    endif()
 
     add_test(
       NAME "generator.${test_name}.${CASE_NAME}"
@@ -24,3 +29,4 @@ function(add_generator_test test_name)
 endfunction()
 
 add_generator_test(0-i32-a-plus-b)
+add_generator_test(1-no-args)
