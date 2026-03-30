@@ -130,18 +130,18 @@ template <class... Args>
  */
 #ifdef CPLIB_USE_FMT_LIB
 template <class... Args>
-[[nodiscard]] auto format(fmt::format_string<Args...> fmt, Args&&... args) -> std::string;
+[[nodiscard]] auto format(fmt::format_string<Args...> fmt, Args &&...args) -> std::string;
 
 template <typename T>
-concept formattable = requires(T& v, fmt::format_context ctx) {
+concept formattable = requires(T &v, fmt::format_context ctx) {
   fmt::formatter<std::remove_cvref_t<T>>().format(v, ctx);
 };
 #else
 template <class... Args>
-[[nodiscard]] auto format(std::format_string<Args...> fmt, Args&&... args) -> std::string;
+[[nodiscard]] auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string;
 
 template <typename T>
-concept formattable = requires(T& v, std::format_context ctx) {
+concept formattable = requires(T &v, std::format_context ctx) {
   std::formatter<std::remove_cvref_t<T>>().format(v, ctx);
 };
 #endif
@@ -290,7 +290,7 @@ struct UniqueFunction<Ret(Args...)> {
      * @param args The arguments to be passed to the derived function.
      * @return The return value of the derived function.
      */
-    virtual auto operator()(Args&&... args) -> Ret = 0;
+    virtual auto operator()(Args &&...args) -> Ret = 0;
   };
 
   /**
@@ -302,7 +302,7 @@ struct UniqueFunction<Ret(Args...)> {
   struct Data : Base {
     T func;
 
-    explicit Data(T&& t);
+    explicit Data(T &&t);
 
     /**
      * Function call operator implementation.
@@ -310,7 +310,7 @@ struct UniqueFunction<Ret(Args...)> {
      * @param args The arguments to be passed to the stored function.
      * @return The return value of the stored function.
      */
-    auto operator()(Args&&... args) -> Ret override;
+    auto operator()(Args &&...args) -> Ret override;
   };
 
   std::unique_ptr<Base> ptr{nullptr};
@@ -337,8 +337,8 @@ struct FlatMap {
   using mapped_type = T;
   using value_type = std::pair<Key, T>;
   using key_compare = Compare;
-  using reference = value_type&;
-  using const_reference = const value_type&;
+  using reference = value_type &;
+  using const_reference = const value_type &;
   using size_type = std::size_t;
   using difference_type = std::ptrdiff_t;
   using iterator = typename std::vector<value_type>::iterator;
@@ -358,33 +358,33 @@ struct FlatMap {
   FlatMap() = default;
 
   /** @brief Constructs with a specific comparator. */
-  explicit FlatMap(const Compare& comp);
+  explicit FlatMap(const Compare &comp);
 
   /** @brief Constructs from a range of elements. */
   template <std::input_iterator It>
-  explicit FlatMap(It first, It last, const Compare& comp = Compare{});
+  explicit FlatMap(It first, It last, const Compare &comp = Compare{});
 
   /** @brief Constructs from an initializer list. */
-  FlatMap(std::initializer_list<value_type> ilist, const Compare& comp = Compare{});
+  FlatMap(std::initializer_list<value_type> ilist, const Compare &comp = Compare{});
 
   // Defaulted copy/move constructors and assignment operators are sufficient.
-  FlatMap(const FlatMap&) = default;
-  FlatMap(FlatMap&&) = default;
-  auto operator=(const FlatMap&) -> FlatMap& = default;
-  auto operator=(FlatMap&&) -> FlatMap& = default;
+  FlatMap(const FlatMap &) = default;
+  FlatMap(FlatMap &&) = default;
+  auto operator=(const FlatMap &) -> FlatMap & = default;
+  auto operator=(FlatMap &&) -> FlatMap & = default;
 
   // Comparison Operators
-  auto operator==(const FlatMap& other) const -> bool;
-  auto operator<=>(const FlatMap& other) const;
+  auto operator==(const FlatMap &other) const -> bool;
+  auto operator<=>(const FlatMap &other) const;
 
   // Element Access
   /** @brief Access specified element with bounds checking. */
-  auto at(const key_type& key) -> mapped_type&;
-  auto at(const key_type& key) const -> const mapped_type&;
+  auto at(const key_type &key) -> mapped_type &;
+  auto at(const key_type &key) const -> const mapped_type &;
 
   /** @brief Access or insert specified element. */
-  auto operator[](const key_type& key) -> mapped_type&;
-  auto operator[](key_type&& key) -> mapped_type&;
+  auto operator[](const key_type &key) -> mapped_type &;
+  auto operator[](key_type &&key) -> mapped_type &;
 
   // Iterators
 
@@ -418,35 +418,35 @@ struct FlatMap {
   // Modifiers
 
   /** @brief Inserts a new element into the container. */
-  auto insert(const value_type& value) -> std::pair<iterator, bool>;
-  auto insert(value_type&& value) -> std::pair<iterator, bool>;
+  auto insert(const value_type &value) -> std::pair<iterator, bool>;
+  auto insert(value_type &&value) -> std::pair<iterator, bool>;
 
   /** @brief Constructs an element in-place. */
   template <typename... Args>
-  auto emplace(Args&&... args) -> std::pair<iterator, bool>;
+  auto emplace(Args &&...args) -> std::pair<iterator, bool>;
 
   /** @brief Erases an element at a specific position. */
   auto erase(const_iterator pos) -> iterator;
 
   /** @brief Erases an element with a specific key. */
-  auto erase(const key_type& key) -> size_type;
+  auto erase(const key_type &key) -> size_type;
 
   // Lookup
 
   /** @brief Finds an element with a specific key. */
-  auto find(const key_type& key) -> iterator;
-  auto find(const key_type& key) const -> const_iterator;
+  auto find(const key_type &key) -> iterator;
+  auto find(const key_type &key) const -> const_iterator;
 
   /** @brief Checks if the container contains an element with a specific key. */
-  auto contains(const key_type& key) const -> bool;
+  auto contains(const key_type &key) const -> bool;
 
   /** @brief Returns an iterator to the first element not less than the given key. */
-  auto lower_bound(const key_type& key) -> iterator;
-  auto lower_bound(const key_type& key) const -> const_iterator;
+  auto lower_bound(const key_type &key) -> iterator;
+  auto lower_bound(const key_type &key) const -> const_iterator;
 
   /** @brief Returns an iterator to the first element greater than the given key. */
-  auto upper_bound(const key_type& key) -> iterator;
-  auto upper_bound(const key_type& key) const -> const_iterator;
+  auto upper_bound(const key_type &key) -> iterator;
+  auto upper_bound(const key_type &key) const -> const_iterator;
 
  private:
   /**
@@ -572,12 +572,12 @@ inline auto panic(std::string_view message) -> void {
 
 #ifdef CPLIB_USE_FMT_LIB
 template <class... Args>
-[[nodiscard]] inline auto format(fmt::format_string<Args...> fmt, Args&&... args) -> std::string {
+[[nodiscard]] inline auto format(fmt::format_string<Args...> fmt, Args &&...args) -> std::string {
   return fmt::vformat(fmt.get(), fmt::make_format_args(args...));
 }
 #else
 template <class... Args>
-[[nodiscard]] inline auto format(std::format_string<Args...> fmt, Args&&... args) -> std::string {
+[[nodiscard]] inline auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string {
   return std::vformat(fmt.get(), std::make_format_args(args...));
 }
 #endif
@@ -713,11 +713,11 @@ auto UniqueFunction<Ret(Args...)>::operator()(Args... args) const -> Ret {
 
 template <typename Ret, typename... Args>
 template <class T>
-UniqueFunction<Ret(Args...)>::Data<T>::Data(T&& t) : func(std::forward<T>(t)) {}
+UniqueFunction<Ret(Args...)>::Data<T>::Data(T &&t) : func(std::forward<T>(t)) {}
 
 template <typename Ret, typename... Args>
 template <class T>
-auto UniqueFunction<Ret(Args...)>::Data<T>::operator()(Args&&... args) -> Ret {
+auto UniqueFunction<Ret(Args...)>::Data<T>::operator()(Args &&...args) -> Ret {
   return func(std::forward<Args>(args)...);
 }
 
@@ -733,7 +733,7 @@ struct PairKeyCompare {
 
   // Compare pair with key
   template <typename Pair, typename Key>
-  auto operator()(const Pair& p, const Key& k) const -> bool {
+  auto operator()(const Pair &p, const Key &k) const -> bool {
     return key_comp(p.first, k);
   }
 };
@@ -743,18 +743,18 @@ struct PairKeyCompare {
 // Constructors & Assignment
 
 template <typename Key, typename T, typename Compare>
-inline FlatMap<Key, T, Compare>::FlatMap(const Compare& comp) : comp_(comp) {}
+inline FlatMap<Key, T, Compare>::FlatMap(const Compare &comp) : comp_(comp) {}
 
 template <typename Key, typename T, typename Compare>
 template <std::input_iterator It>
-inline FlatMap<Key, T, Compare>::FlatMap(It first, It last, const Compare& comp)
+inline FlatMap<Key, T, Compare>::FlatMap(It first, It last, const Compare &comp)
     : data_(first, last), comp_(comp) {
   sort_and_unique();
 }
 
 template <typename Key, typename T, typename Compare>
 inline FlatMap<Key, T, Compare>::FlatMap(std::initializer_list<value_type> ilist,
-                                         const Compare& comp)
+                                         const Compare &comp)
     : data_(ilist), comp_(comp) {
   sort_and_unique();
 }
@@ -762,20 +762,20 @@ inline FlatMap<Key, T, Compare>::FlatMap(std::initializer_list<value_type> ilist
 // Comparison Operators
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::operator==(const FlatMap& other) const -> bool {
+inline auto FlatMap<Key, T, Compare>::operator==(const FlatMap &other) const -> bool {
   return data_ == other.data_;
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::operator<=>(const FlatMap& other) const {
+inline auto FlatMap<Key, T, Compare>::operator<=>(const FlatMap &other) const {
   return data_ <=> other.data_;
 }
 
 // Element Access
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::at(const key_type& key) ->
-    typename FlatMap<Key, T, Compare>::mapped_type& {
+inline auto FlatMap<Key, T, Compare>::at(const key_type &key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = find(key);
   if (it == end()) {
     cplib::panic(cplib::format("FlatMap::at: key not found"));
@@ -784,8 +784,8 @@ inline auto FlatMap<Key, T, Compare>::at(const key_type& key) ->
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::at(const key_type& key) const -> const
-    typename FlatMap<Key, T, Compare>::mapped_type& {
+inline auto FlatMap<Key, T, Compare>::at(const key_type &key) const -> const
+    typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = find(key);
   if (it == end()) {
     cplib::panic(cplib::format("FlatMap::at: key not found"));
@@ -794,8 +794,8 @@ inline auto FlatMap<Key, T, Compare>::at(const key_type& key) const -> const
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::operator[](const key_type& key) ->
-    typename FlatMap<Key, T, Compare>::mapped_type& {
+inline auto FlatMap<Key, T, Compare>::operator[](const key_type &key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = lower_bound(key);
   if (it != end() && !comp_(key, it->first)) {
     // Key already exists
@@ -807,8 +807,8 @@ inline auto FlatMap<Key, T, Compare>::operator[](const key_type& key) ->
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::operator[](key_type&& key) ->
-    typename FlatMap<Key, T, Compare>::mapped_type& {
+inline auto FlatMap<Key, T, Compare>::operator[](key_type &&key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = lower_bound(key);
   if (it != end() && !comp_(key, it->first)) {
     // Key already exists
@@ -912,7 +912,7 @@ inline auto FlatMap<Key, T, Compare>::max_size() const ->
 // Modifiers
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::insert(const value_type& value)
+inline auto FlatMap<Key, T, Compare>::insert(const value_type &value)
     -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
   auto it = lower_bound(value.first);
   if (it != end() && !comp_(value.first, it->first)) {
@@ -923,7 +923,7 @@ inline auto FlatMap<Key, T, Compare>::insert(const value_type& value)
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::insert(value_type&& value)
+inline auto FlatMap<Key, T, Compare>::insert(value_type &&value)
     -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
   auto it = lower_bound(value.first);
   if (it != end() && !comp_(value.first, it->first)) {
@@ -935,7 +935,7 @@ inline auto FlatMap<Key, T, Compare>::insert(value_type&& value)
 
 template <typename Key, typename T, typename Compare>
 template <typename... Args>
-inline auto FlatMap<Key, T, Compare>::emplace(Args&&... args)
+inline auto FlatMap<Key, T, Compare>::emplace(Args &&...args)
     -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
   value_type temp_val(std::forward<Args>(args)...);
   auto it = lower_bound(temp_val.first);
@@ -953,7 +953,7 @@ inline auto FlatMap<Key, T, Compare>::erase(const_iterator pos) ->
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::erase(const key_type& key) ->
+inline auto FlatMap<Key, T, Compare>::erase(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::size_type {
   auto it = find(key);
   if (it == end()) {
@@ -966,7 +966,7 @@ inline auto FlatMap<Key, T, Compare>::erase(const key_type& key) ->
 // Lookup
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::find(const key_type& key) ->
+inline auto FlatMap<Key, T, Compare>::find(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::iterator {
   auto it = lower_bound(key);
   if (it != end() && !comp_(key, it->first)) {
@@ -976,7 +976,7 @@ inline auto FlatMap<Key, T, Compare>::find(const key_type& key) ->
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::find(const key_type& key) const ->
+inline auto FlatMap<Key, T, Compare>::find(const key_type &key) const ->
     typename FlatMap<Key, T, Compare>::const_iterator {
   auto it = lower_bound(key);
   if (it != end() && !comp_(key, it->first)) {
@@ -986,30 +986,30 @@ inline auto FlatMap<Key, T, Compare>::find(const key_type& key) const ->
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::contains(const key_type& key) const -> bool {
+inline auto FlatMap<Key, T, Compare>::contains(const key_type &key) const -> bool {
   return find(key) != end();
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type& key) ->
+inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::iterator {
   return std::lower_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type& key) const ->
+inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type &key) const ->
     typename FlatMap<Key, T, Compare>::const_iterator {
   return std::lower_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type& key) ->
+inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::iterator {
   return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type& key) const ->
+inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type &key) const ->
     typename FlatMap<Key, T, Compare>::const_iterator {
   return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
 }
@@ -1020,11 +1020,11 @@ template <typename Key, typename T, typename Compare>
 inline auto FlatMap<Key, T, Compare>::sort_and_unique() -> void {
   // Sort by key
   std::sort(data_.begin(), data_.end(),
-            [this](const value_type& a, const value_type& b) { return comp_(a.first, b.first); });
+            [this](const value_type &a, const value_type &b) { return comp_(a.first, b.first); });
 
   // Remove duplicate keys. std::unique keeps the first element in a group of duplicates.
   auto last =
-      std::unique(data_.begin(), data_.end(), [this](const value_type& a, const value_type& b) {
+      std::unique(data_.begin(), data_.end(), [this](const value_type &a, const value_type &b) {
         // Two keys are equivalent if !(a < b) && !(b < a)
         return !comp_(a.first, b.first) && !comp_(b.first, a.first);
       });
@@ -1081,8 +1081,7 @@ __attribute__((error("Don not use `rand`, use `rnd.next` instead")))
 #ifdef _MSC_VER
 #pragma warning(disable : 4273)
 #endif
-inline auto
-rand() CPLIB_RAND_THROW_STATEMENT -> int {
+inline auto rand() CPLIB_RAND_THROW_STATEMENT -> int {
   cplib::panic("Don not use `rand`, use `rnd.next` instead");
 }
 
@@ -1092,8 +1091,7 @@ __attribute__((error("Don not use `srand`, you should use `cplib::Random` for ra
 #ifdef _MSC_VER
 #pragma warning(disable : 4273)
 #endif
-inline auto
-srand(unsigned int) CPLIB_RAND_THROW_STATEMENT -> void {
+inline auto srand(unsigned int) CPLIB_RAND_THROW_STATEMENT -> void {
   cplib::panic("Don not use `srand`, you should use `cplib::Random` for random generator");
 }
 
@@ -1214,7 +1212,7 @@ namespace cplib::json {
 
 inline Raw::Raw(std::string inner) : inner(std::move(inner)) {}
 
-inline auto Value::encode_string(std::streambuf& buf, std::string_view inner) -> void {
+inline auto Value::encode_string(std::streambuf &buf, std::string_view inner) -> void {
   buf.sputc('\"');
   for (char c : inner) {
     switch (c) {
@@ -1262,7 +1260,7 @@ inline auto Value::encode_string(std::streambuf& buf, std::string_view inner) ->
   buf.sputc('\"');
 }
 
-inline auto Value::encode_list(std::streambuf& buf, const List& inner) -> void {
+inline auto Value::encode_list(std::streambuf &buf, const List &inner) -> void {
   buf.sputc('[');
   if (!inner.empty()) {
     auto it = inner.begin();
@@ -1276,7 +1274,7 @@ inline auto Value::encode_list(std::streambuf& buf, const List& inner) -> void {
   buf.sputc(']');
 }
 
-inline auto Value::encode_map(std::streambuf& buf, const Map& inner) -> void {
+inline auto Value::encode_map(std::streambuf &buf, const Map &inner) -> void {
   buf.sputc('{');
   if (!inner.empty()) {
     auto it = inner.begin();
@@ -1294,9 +1292,9 @@ inline auto Value::encode_map(std::streambuf& buf, const Map& inner) -> void {
   buf.sputc('}');
 }
 
-inline auto Value::write_string(std::streambuf& buf) const -> void {
+inline auto Value::write_string(std::streambuf &buf) const -> void {
   std::visit(
-      [&buf](const auto& arg) {
+      [&buf](const auto &arg) {
         using T = std::decay_t<decltype(arg)>;
 
         if constexpr (std::is_same_v<T, Null>) {
@@ -1359,25 +1357,25 @@ inline auto Value::write_string(std::streambuf& buf) const -> void {
   return std::holds_alternative<Map>(inner);
 }
 
-[[nodiscard]] inline auto Value::as_string() -> String& { return std::get<String>(inner); }
-[[nodiscard]] inline auto Value::as_string() const -> const String& {
+[[nodiscard]] inline auto Value::as_string() -> String & { return std::get<String>(inner); }
+[[nodiscard]] inline auto Value::as_string() const -> const String & {
   return std::get<String>(inner);
 }
 
-[[nodiscard]] inline auto Value::as_int() -> Int& { return std::get<Int>(inner); }
-[[nodiscard]] inline auto Value::as_int() const -> const Int& { return std::get<Int>(inner); }
+[[nodiscard]] inline auto Value::as_int() -> Int & { return std::get<Int>(inner); }
+[[nodiscard]] inline auto Value::as_int() const -> const Int & { return std::get<Int>(inner); }
 
-[[nodiscard]] inline auto Value::as_real() -> Real& { return std::get<Real>(inner); }
-[[nodiscard]] inline auto Value::as_real() const -> const Real& { return std::get<Real>(inner); }
+[[nodiscard]] inline auto Value::as_real() -> Real & { return std::get<Real>(inner); }
+[[nodiscard]] inline auto Value::as_real() const -> const Real & { return std::get<Real>(inner); }
 
-[[nodiscard]] inline auto Value::as_bool() -> Bool& { return std::get<Bool>(inner); }
-[[nodiscard]] inline auto Value::as_bool() const -> const Bool& { return std::get<Bool>(inner); }
+[[nodiscard]] inline auto Value::as_bool() -> Bool & { return std::get<Bool>(inner); }
+[[nodiscard]] inline auto Value::as_bool() const -> const Bool & { return std::get<Bool>(inner); }
 
-[[nodiscard]] inline auto Value::as_list() -> List& { return std::get<List>(inner); }
-[[nodiscard]] inline auto Value::as_list() const -> const List& { return std::get<List>(inner); }
+[[nodiscard]] inline auto Value::as_list() -> List & { return std::get<List>(inner); }
+[[nodiscard]] inline auto Value::as_list() const -> const List & { return std::get<List>(inner); }
 
-[[nodiscard]] inline auto Value::as_map() -> Map& { return std::get<Map>(inner); }
-[[nodiscard]] inline auto Value::as_map() const -> const Map& { return std::get<Map>(inner); }
+[[nodiscard]] inline auto Value::as_map() -> Map & { return std::get<Map>(inner); }
+[[nodiscard]] inline auto Value::as_map() const -> const Map & { return std::get<Map>(inner); }
 
 }  // namespace cplib::json
 // --- End embedded: json.i.hpp ---
@@ -1477,7 +1475,7 @@ struct Pattern {
 
 namespace cplib {
 namespace detail {
-inline auto get_regex_err_msg(int err_code, regex_t* re) -> std::string {
+inline auto get_regex_err_msg(int err_code, regex_t *re) -> std::string {
   std::size_t len = regerror(err_code, re, nullptr, 0);
   std::string buf(len, 0);
   regerror(err_code, re, buf.data(), len);
@@ -1486,7 +1484,7 @@ inline auto get_regex_err_msg(int err_code, regex_t* re) -> std::string {
 }  // namespace detail
 
 inline Pattern::Pattern(std::string src)
-    : src_(std::move(src)), re_(new std::pair<regex_t, bool>, [](std::pair<regex_t, bool>* p) {
+    : src_(std::move(src)), re_(new std::pair<regex_t, bool>, [](std::pair<regex_t, bool> *p) {
         if (p->second) regfree(&p->first);
         delete p;
       }) {
@@ -1536,11 +1534,11 @@ inline auto Pattern::src() const -> std::string_view { return src_; }
 #ifndef CPLIB_RANDOM_HPP_
 #define CPLIB_RANDOM_HPP_
 
+#include <array>
 #include <concepts>
 #include <cstdint>
 #include <initializer_list>
 #include <iterator>
-#include <random>
 #include <ranges>
 #include <string>
 #include <vector>
@@ -1550,9 +1548,9 @@ namespace cplib {
 // Concept to check if a type behaves like a map for weighted choice.
 // It must be a range, and its elements must have a 'second' member we can use as a weight.
 template <typename T>
-concept MapLike = std::ranges::range<T> && requires(const std::ranges::range_value_t<T>& value) {
+concept MapLike = std::ranges::range<T> && requires(const std::ranges::range_value_t<T> &value) {
   typename T::mapped_type;
-  { value.second } -> std::convertible_to<const typename T::mapped_type&>;
+  { value.second } -> std::convertible_to<const typename T::mapped_type &>;
 };
 
 /**
@@ -1561,7 +1559,24 @@ concept MapLike = std::ranges::range<T> && requires(const std::ranges::range_val
  */
 struct Random {
  public:
-  using Engine = std::mt19937_64;
+  struct Engine {
+   public:
+    using result_type = std::uint64_t;
+
+    Engine() noexcept;
+    explicit Engine(std::uint64_t seed) noexcept;
+
+    static constexpr auto min() noexcept -> result_type { return 0; }
+    static constexpr auto max() noexcept -> result_type { return ~static_cast<result_type>(0); }
+
+    auto seed(std::uint64_t seed) noexcept -> void;
+    auto operator()() noexcept -> result_type;
+    auto jump() noexcept -> void;
+    auto long_jump() noexcept -> void;
+
+   private:
+    std::array<result_type, 4> state_{};
+  };
 
   /**
    * Construct a random generator with default seed.
@@ -1580,7 +1595,7 @@ struct Random {
    *
    * @param args The command-line arguments.
    */
-  explicit Random(const std::vector<std::string>& args);
+  explicit Random(const std::vector<std::string> &args);
 
   /**
    * Reseed the generator with a new seed.
@@ -1594,14 +1609,14 @@ struct Random {
    *
    * @param args The command-line arguments.
    */
-  auto reseed(const std::vector<std::string>& args) -> void;
+  auto reseed(const std::vector<std::string> &args) -> void;
 
   /**
    * Get the engine used by the random generator.
    *
    * @return A reference to the engine.
    */
-  auto engine() -> Engine&;
+  auto engine() -> Engine &;
 
   /**
    * Generate a random integer in the range [from, to].
@@ -1683,7 +1698,7 @@ struct Random {
    * @return A random iterator from the container.
    */
   template <std::ranges::forward_range Container>
-  auto choice(Container& container);
+  auto choice(Container &container);
 
   /**
    * Return a random iterator from the given map container by utilizing the values of the map
@@ -1694,7 +1709,7 @@ struct Random {
    * @return A random iterator from the map container.
    */
   template <MapLike Map>
-  auto weighted_choice(const Map& map);
+  auto weighted_choice(const Map &map);
 
   /**
    * Shuffle the elements in the given range.
@@ -1713,7 +1728,7 @@ struct Random {
    * @param container The container to shuffle.
    */
   template <std::ranges::random_access_range Container>
-  auto shuffle(Container& container) -> void;
+  auto shuffle(Container &container) -> void;
 
  private:
   Engine engine_;
@@ -1738,7 +1753,7 @@ struct Random {
 
 
 #include <algorithm>
-#include <bit>
+#include <array>
 #include <cmath>
 #include <concepts>
 #include <cstdint>
@@ -1755,36 +1770,43 @@ struct Random {
 namespace cplib {
 namespace detail {
 
-inline constexpr auto int_log2(std::uint64_t x) noexcept -> std::uint32_t {
-  if (x == 0) return 0;
-  return std::numeric_limits<std::uint64_t>::digits - 1 - std::countl_zero(x);
+inline constexpr auto rotl(std::uint64_t x, int k) noexcept -> std::uint64_t {
+  return (x << k) | (x >> (64 - k));
 }
 
-template <class T>
-inline constexpr auto scale_int(std::uint64_t x, T size) -> T {
-  auto lg = int_log2(size);
-  if (std::has_single_bit(static_cast<std::make_unsigned_t<T>>(size))) {
-    return x & (size - 1);
-  }
-  if (lg >= 8 * sizeof(T) - 1) {
-    return static_cast<T>(x);
-  }
-  return x & ((T(1) << (lg + 1)) - 1);
+inline constexpr auto splitmix64(std::uint64_t &x) noexcept -> std::uint64_t {
+  x += 0x9e3779b97f4a7c15ull;
+  std::uint64_t z = x;
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ull;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111ebull;
+  return z ^ (z >> 31);
 }
 
-/// Get random integer in [0, size).
+template <std::unsigned_integral T>
+inline auto rand_int_range(Random::Engine &rnd, T size) -> T {
+  if (size == 0) {
+    return 0;
+  }
+
+  const auto size64 = static_cast<std::uint64_t>(size);
+  const auto threshold = (static_cast<std::uint64_t>(0) - size64) % size64;
+  while (true) {
+    const std::uint64_t x = rnd();
+    if (x >= threshold) {
+      return static_cast<T>(x % size64);
+    }
+  }
+}
+
 template <std::integral T>
-inline auto rand_int_range(Random::Engine& rnd, T size) -> T {
-  T result;
-  do {
-    result = scale_int<T>(rnd(), size);
-  } while (result >= size);
-  return result;
+inline auto rand_int_range(Random::Engine &rnd, T size) -> T {
+  using UnsignedT = std::make_unsigned_t<T>;
+  return static_cast<T>(rand_int_range(rnd, static_cast<UnsignedT>(size)));
 }
 
 /// Get random integer in [l,r].
 template <std::integral T>
-inline auto rand_int_between(Random::Engine& rnd, T l, T r) -> T {
+inline auto rand_int_between(Random::Engine &rnd, T l, T r) -> T {
   using UnsignedT = std::make_unsigned_t<T>;
 
   if (l > r) panic("rand_int_between failed: l must be <= r");
@@ -1800,63 +1822,130 @@ inline auto rand_int_between(Random::Engine& rnd, T l, T r) -> T {
 
 /// Get random float in [0,1).
 template <std::floating_point T>
-inline auto rand_float(Random::Engine& rnd) -> T {
-  return static_cast<T>(rnd()) / rnd.max();
+inline auto rand_float(Random::Engine &rnd) -> T {
+  constexpr int digits = std::numeric_limits<T>::digits;
+  const std::uint64_t x = rnd() >> (64 - digits);
+  return std::ldexp(static_cast<T>(x), -digits);
 }
 
 /// Get random float in [l,r).
 template <std::floating_point T>
-inline auto rand_float_between(Random::Engine& rnd, T l, T r) -> T {
+inline auto rand_float_between(Random::Engine &rnd, T l, T r) -> T {
   if (l > r) panic("rand_float_between failed: l must be <= r");
-
+  if (l == r) return l;
   T size = r - l;
-  if (float_delta(l, r) <= 1E-9) return l;
-
-  return rand_float<T>(rnd) * size + l;
+  return std::fma(rand_float<T>(rnd), size, l);
 }
 }  // namespace detail
+
+inline Random::Engine::Engine() noexcept { seed(0); }
+
+inline Random::Engine::Engine(std::uint64_t seed_value) noexcept { seed(seed_value); }
+
+inline auto Random::Engine::seed(std::uint64_t seed_value) noexcept -> void {
+  std::uint64_t x = seed_value;
+  for (auto &word : state_) {
+    word = detail::splitmix64(x);
+  }
+  if ((state_[0] | state_[1] | state_[2] | state_[3]) == 0) {
+    state_[0] = 1;
+  }
+}
+
+inline auto Random::Engine::operator()() noexcept -> result_type {
+  const std::uint64_t result = detail::rotl(state_[0] + state_[3], 23) + state_[0];
+  const std::uint64_t t = state_[1] << 17;
+
+  state_[2] ^= state_[0];
+  state_[3] ^= state_[1];
+  state_[1] ^= state_[2];
+  state_[0] ^= state_[3];
+  state_[2] ^= t;
+  state_[3] = detail::rotl(state_[3], 45);
+
+  return result;
+}
+
+inline auto Random::Engine::jump() noexcept -> void {
+  constexpr std::array<std::uint64_t, 4> K_JUMP = {0x180ec6d33cfd0abaull, 0xd5a61266f0c9392cull,
+                                                   0xa9582618e03fc9aaull, 0x39abdc4529b1661cull};
+
+  std::array<std::uint64_t, 4> next_state{};
+  for (std::uint64_t jump : K_JUMP) {
+    for (int bit = 0; bit < 64; ++bit) {
+      if ((jump & (UINT64_C(1) << bit)) != 0) {
+        next_state[0] ^= state_[0];
+        next_state[1] ^= state_[1];
+        next_state[2] ^= state_[2];
+        next_state[3] ^= state_[3];
+      }
+      (*this)();
+    }
+  }
+  state_ = next_state;
+}
+
+inline auto Random::Engine::long_jump() noexcept -> void {
+  constexpr std::array<std::uint64_t, 4> K_LONG_JUMP = {
+      0x76e15d3efefdcbbfull, 0xc5004e441c522fb3ull, 0x77710069854ee241ull, 0x39109bb02acbe635ull};
+
+  std::array<std::uint64_t, 4> next_state{};
+  for (std::uint64_t jump : K_LONG_JUMP) {
+    for (int bit = 0; bit < 64; ++bit) {
+      if ((jump & (UINT64_C(1) << bit)) != 0) {
+        next_state[0] ^= state_[0];
+        next_state[1] ^= state_[1];
+        next_state[2] ^= state_[2];
+        next_state[3] ^= state_[3];
+      }
+      (*this)();
+    }
+  }
+  state_ = next_state;
+}
 
 inline Random::Random() : engine_() {}
 
 inline Random::Random(std::uint64_t seed) : engine_(seed) {}
 
-inline Random::Random(const std::vector<std::string>& args) : engine_() { reseed(args); }
+inline Random::Random(const std::vector<std::string> &args) : engine_() { reseed(args); }
 
 inline auto Random::reseed(std::uint64_t seed) -> void { engine().seed(seed); }
 
-inline auto Random::reseed(const std::vector<std::string>& args) -> void {
-  // Magic numbers from https://docs.oracle.com/javase/8/docs/api/java/util/Random.html#next-int-
-  constexpr std::uint64_t multiplier = 0x5DEECE66Dull;
-  constexpr std::uint64_t addend = 0xBull;
-  std::uint64_t seed = 3905348978240129619ull;
+inline auto Random::reseed(const std::vector<std::string> &args) -> void {
+  std::uint64_t seed = 0;
 
-  for (const auto& arg : args) {
-    for (char c : arg) {
-      seed = seed * multiplier + static_cast<std::uint32_t>(c) + addend;
+  for (const auto &arg : args) {
+    // Add a delimiter before each argument so ["ab", "c"] and ["a", "bc"]
+    // do not collapse to the same byte stream.
+    seed = detail::splitmix64(seed);
+    for (unsigned char c : arg) {
+      seed ^= static_cast<std::uint64_t>(c) + 1;
+      seed = detail::splitmix64(seed);
     }
-    seed += multiplier / addend;
+    seed ^= static_cast<std::uint64_t>(arg.size()) + 1;
+    seed = detail::splitmix64(seed);
   }
 
-  reseed(seed & ((1ull << 48) - 1));
+  reseed(seed);
 }
 
-inline auto Random::engine() -> Engine& { return engine_; }
+inline auto Random::engine() -> Engine & { return engine_; }
 
 template <std::integral T>
 inline auto Random::next(T from, T to) -> T {
-  if (from <= to) {
-    return detail::rand_int_between<T>(engine(), from, to);
+  if (from > to) {
+    panic("Random::next failed: from must be <= to");
   }
-  panic("Random::next failed: from must be <= to");
+  return detail::rand_int_between<T>(engine(), from, to);
 }
 
 template <std::floating_point T>
 inline auto Random::next(T from, T to) -> T {
-  // Allow range from higher to lower
-  if (from <= to) {
-    return detail::rand_float_between<T>(engine(), from, to);
+  if (from > to) {
+    panic("Random::next failed: from must be <= to");
   }
-  panic("Random::next failed: from must be <= to");
+  return detail::rand_float_between<T>(engine(), from, to);
 }
 
 inline auto Random::next_bool() -> bool { return next_bool(0.5); }
@@ -1865,6 +1954,8 @@ inline auto Random::next_bool(double true_prob) -> bool {
   if (true_prob < 0 || true_prob > 1) {
     panic("Random::next_bool failed: true_prob must be in [0, 1]");
   }
+  if (true_prob == 0) return false;
+  if (true_prob == 1) return true;
   return detail::rand_float<double>(engine()) < true_prob;
 }
 
@@ -1948,25 +2039,29 @@ inline auto Random::choice(It first, It last) -> It {
 }
 
 template <std::ranges::forward_range Container>
-inline auto Random::choice(Container& container) {
+inline auto Random::choice(Container &container) {
   return choice(std::begin(container), std::end(container));
 }
 
 template <MapLike Map>
-inline auto Random::weighted_choice(const Map& map) {
+inline auto Random::weighted_choice(const Map &map) {
   using MappedType = typename Map::mapped_type;
+  using UnsignedWeight = std::make_unsigned_t<MappedType>;
 
-  MappedType total_weight{};
-  for (const auto& pair : map) {
-    total_weight += pair.second;
+  UnsignedWeight total_weight{};
+  for (const auto &pair : map) {
+    if (pair.second < MappedType(0)) {
+      panic("Random::weighted_choice failed: weights must be non-negative");
+    }
+    total_weight += static_cast<UnsignedWeight>(pair.second);
   }
-  if (total_weight == MappedType(0)) return std::end(map);
+  if (total_weight == UnsignedWeight(0)) return std::end(map);
 
-  MappedType random_weight = next(MappedType(0), total_weight - 1);
-  MappedType cumulative_weight{};
+  UnsignedWeight random_weight = detail::rand_int_range(engine(), total_weight);
+  UnsignedWeight cumulative_weight{};
 
   for (auto it = std::begin(map); it != std::end(map); ++it) {
-    cumulative_weight += it->second;
+    cumulative_weight += static_cast<UnsignedWeight>(it->second);
     if (cumulative_weight > random_weight) return it;
   }
   return std::end(map);  // Should not be reached if total_weight > 0
@@ -1974,11 +2069,17 @@ inline auto Random::weighted_choice(const Map& map) {
 
 template <std::random_access_iterator RandomIt>
 inline auto Random::shuffle(RandomIt first, RandomIt last) -> void {
-  std::shuffle(first, last, engine());
+  using diff_t = std::iter_difference_t<RandomIt>;
+
+  const diff_t n = last - first;
+  for (diff_t i = n; i > 1; --i) {
+    const auto j = detail::rand_int_range<diff_t>(engine(), i);
+    std::iter_swap(first + (i - 1), first + j);
+  }
 }
 
 template <std::ranges::random_access_range Container>
-inline auto Random::shuffle(Container& container) -> void {
+inline auto Random::shuffle(Container &container) -> void {
   shuffle(std::begin(container), std::end(container));
 }
 }  // namespace cplib
@@ -2217,7 +2318,7 @@ struct OutBuf : std::streambuf {
   /// Write one character
   auto overflow(int_type c) -> int_type override;
   /// Write multiple characters
-  auto xsputn(const char* s, std::streamsize num) -> std::streamsize override;
+  auto xsputn(const char *s, std::streamsize num) -> std::streamsize override;
 
   int fd_;  // File descriptor
   bool need_close_;
@@ -2503,21 +2604,21 @@ inline auto OutBuf::overflow(int_type c) -> int_type {
   return c;
 }
 
-inline auto OutBuf::xsputn(const char* s, std::streamsize num) -> std::streamsize {
+inline auto OutBuf::xsputn(const char *s, std::streamsize num) -> std::streamsize {
   return write(fd_, s, num);
 }
 
 namespace detail {
 // Open the givin file and create a `std::::ostream`
-inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf>& buf,
-                                 std::ostream& stream) -> void {
+inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf> &buf,
+                                 std::ostream &stream) -> void {
   buf = std::make_unique<io::OutBuf>(path);
   stream.rdbuf(buf.get());
 }
 
 // Use file with givin fileno as output stream and create a `std::::ostream`
-inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf>& buf,
-                                   std::ostream& stream) -> void {
+inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf> &buf,
+                                   std::ostream &stream) -> void {
   buf = std::make_unique<io::OutBuf>(fileno);
   stream.rdbuf(buf.get());
 }
@@ -2568,7 +2669,7 @@ enum struct Level : std::uint8_t {
 };
 
 template <typename T>
-concept Trace = requires(const T& t) {
+concept Trace = requires(const T &t) {
   { t.node_name() } -> std::same_as<std::string>;
   { t.to_plain_text() } -> std::same_as<std::string>;
   { t.to_colored_text() } -> std::same_as<std::string>;
@@ -2619,30 +2720,30 @@ struct TraceTreeNode {
   explicit TraceTreeNode(T trace);
 
   /// Copy constructor (deleted to prevent copying).
-  TraceTreeNode(const TraceTreeNode&) = delete;
+  TraceTreeNode(const TraceTreeNode &) = delete;
 
   /// Copy assignment operator (deleted to prevent copying).
-  auto operator=(const TraceTreeNode&) -> TraceTreeNode& = delete;
+  auto operator=(const TraceTreeNode &) -> TraceTreeNode & = delete;
 
   /// Move constructor.
-  TraceTreeNode(TraceTreeNode&&) noexcept = default;
+  TraceTreeNode(TraceTreeNode &&) noexcept = default;
 
   /// Move assignment operator.
-  auto operator=(TraceTreeNode&&) noexcept -> TraceTreeNode& = default;
+  auto operator=(TraceTreeNode &&) noexcept -> TraceTreeNode & = default;
 
   /**
    * Get the children of the node.
    *
    * @return The children of the node.
    */
-  [[nodiscard]] auto get_children() const -> const std::vector<std::unique_ptr<TraceTreeNode>>&;
+  [[nodiscard]] auto get_children() const -> const std::vector<std::unique_ptr<TraceTreeNode>> &;
 
   /**
    * Get the parent of the node.
    *
    * @return The parent of the node.
    */
-  [[nodiscard]] auto get_parent() -> TraceTreeNode*;
+  [[nodiscard]] auto get_parent() -> TraceTreeNode *;
 
   /**
    * Convert to JSON value.
@@ -2662,13 +2763,13 @@ struct TraceTreeNode {
    * @param child The child node.
    * @return The child node.
    */
-  auto add_child(std::unique_ptr<TraceTreeNode> child) -> std::unique_ptr<TraceTreeNode>&;
+  auto add_child(std::unique_ptr<TraceTreeNode> child) -> std::unique_ptr<TraceTreeNode> &;
 
  private:
   std::vector<std::unique_ptr<TraceTreeNode>> children_{};
-  TraceTreeNode* parent_{nullptr};
+  TraceTreeNode *parent_{nullptr};
 
-  auto write_json(std::streambuf& buf) const -> void;
+  auto write_json(std::streambuf &buf) const -> void;
 };
 
 /**
@@ -2679,10 +2780,10 @@ struct Traced {
  public:
   explicit Traced(Level trace_level, T root);
   virtual ~Traced() = 0;
-  Traced(const Traced&) = delete;
-  auto operator=(const Traced&) -> Traced& = delete;
-  Traced(Traced&&) noexcept = default;
-  auto operator=(Traced&&) noexcept -> Traced& = default;
+  Traced(const Traced &) = delete;
+  auto operator=(const Traced &) -> Traced & = delete;
+  Traced(Traced &&) noexcept = default;
+  auto operator=(Traced &&) noexcept -> Traced & = default;
 
   /**
    * Get the trace level.
@@ -2703,7 +2804,7 @@ struct Traced {
    * Only available when `TraceLevel::FULL` is set.
    * Otherwise, an error will be panicked.
    */
-  [[nodiscard]] auto get_trace_tree() const -> const TraceTreeNode<T>*;
+  [[nodiscard]] auto get_trace_tree() const -> const TraceTreeNode<T> *;
 
   /**
    * Attach a tag to the current trace.
@@ -2719,7 +2820,7 @@ struct Traced {
    * Only available when `TraceLevel::STACK_ONLY` or higher is set.
    * Otherwise, an error will be panicked.
    */
-  auto get_current_trace() const -> const T&;
+  auto get_current_trace() const -> const T &;
 
  protected:
   /**
@@ -2747,7 +2848,7 @@ struct Traced {
   trace::Level trace_level_;
   std::vector<T> active_traces_;
   std::unique_ptr<TraceTreeNode<T>> trace_tree_root_;
-  TraceTreeNode<T>* trace_tree_current_;
+  TraceTreeNode<T> *trace_tree_current_;
 };
 
 }  // namespace cplib::trace
@@ -2794,7 +2895,7 @@ template <Trace T>
   json::List stack_list;
 
   stack_list.reserve(stack.size());
-  for (const auto& trace : stack) {
+  for (const auto &trace : stack) {
     stack_list.emplace_back(trace.to_stack_json());
   }
 
@@ -2813,7 +2914,7 @@ template <Trace T>
   }
 
   std::size_t id = 0;
-  for (const auto& trace : stack) {
+  for (const auto &trace : stack) {
     auto line = cplib::format("#{}: {}", id, trace.to_plain_text());
     ++id;
     lines.emplace_back(std::move(line));
@@ -2832,7 +2933,7 @@ template <Trace T>
   }
 
   std::size_t id = 0;
-  for (const auto& trace : stack) {
+  for (const auto &trace : stack) {
     auto line = cplib::format("#{}: {}", id, trace.to_colored_text());
     ++id;
     lines.emplace_back(std::move(line));
@@ -2893,12 +2994,12 @@ inline TraceTreeNode<T>::TraceTreeNode(T trace) : trace(std::move(trace)) {}
 
 template <Trace T>
 [[nodiscard]] inline auto TraceTreeNode<T>::get_children() const
-    -> const std::vector<std::unique_ptr<TraceTreeNode>>& {
+    -> const std::vector<std::unique_ptr<TraceTreeNode>> & {
   return children_;
 }
 
 template <Trace T>
-[[nodiscard]] inline auto TraceTreeNode<T>::get_parent() -> TraceTreeNode* {
+[[nodiscard]] inline auto TraceTreeNode<T>::get_parent() -> TraceTreeNode * {
   return parent_;
 }
 
@@ -2914,13 +3015,13 @@ template <Trace T>
 
 template <Trace T>
 inline auto TraceTreeNode<T>::add_child(std::unique_ptr<TraceTreeNode> child)
-    -> std::unique_ptr<TraceTreeNode>& {
+    -> std::unique_ptr<TraceTreeNode> & {
   child->parent_ = this;
   return children_.emplace_back(std::move(child));
 }
 
 template <Trace T>
-inline auto TraceTreeNode<T>::write_json(std::streambuf& buf) const -> void {
+inline auto TraceTreeNode<T>::write_json(std::streambuf &buf) const -> void {
   assert(!tags.contains("#hidden"));
 
   constexpr std::string_view TRACE_HEADER = "{\"trace\":";
@@ -2933,12 +3034,12 @@ inline auto TraceTreeNode<T>::write_json(std::streambuf& buf) const -> void {
     json::Value::encode_map(buf, tags);
   }
 
-  if (const auto& children = get_children();
-      std::ranges::any_of(children, [](const auto& c) { return !c->tags.contains("#hidden"); })) {
+  if (const auto &children = get_children();
+      std::ranges::any_of(children, [](const auto &c) { return !c->tags.contains("#hidden"); })) {
     constexpr std::string_view CHILDREN_HEADER = ",\"children\":[";
     buf.sputn(CHILDREN_HEADER.data(), CHILDREN_HEADER.size());
     bool first = true;
-    for (const auto& child : children) {
+    for (const auto &child : children) {
       if (child->tags.contains("#hidden")) continue;
       if (first) {
         first = false;
@@ -2974,7 +3075,7 @@ template <Trace T>
 }
 
 template <Trace T>
-[[nodiscard]] inline auto Traced<T>::get_trace_tree() const -> const TraceTreeNode<T>* {
+[[nodiscard]] inline auto Traced<T>::get_trace_tree() const -> const TraceTreeNode<T> * {
   if (get_trace_level() < Level::FULL) {
     panic("Traced::get_trace_tree requires `Level::FULL`");
   }
@@ -2992,7 +3093,7 @@ inline auto Traced<T>::attach_tag(std::string_view key, json::Value value) -> vo
 }
 
 template <Trace T>
-inline auto Traced<T>::get_current_trace() const -> const T& {
+inline auto Traced<T>::get_current_trace() const -> const T & {
   if (get_trace_level() < Level::STACK_ONLY) {
     panic("Traced::get_current_trace requires `Level::STACK_ONLY`");
   }
@@ -3026,7 +3127,7 @@ inline auto Traced<T>::push_trace(T trace) -> void {
     return;
   }
 
-  auto& child =
+  auto &child =
       trace_tree_current_->add_child(std::make_unique<trace::TraceTreeNode<T>>(std::move(trace)));
   trace_tree_current_ = child.get();
 }
@@ -3191,7 +3292,7 @@ struct Result {
   /// then by score (lower score is "worse"). Message is not part of comparison logic.
   /// @param other The Result to compare with.
   /// @return A std::strong_ordering indicating the relationship.
-  constexpr auto operator<=>(const Result& other) const -> std::strong_ordering;
+  constexpr auto operator<=>(const Result &other) const -> std::strong_ordering;
 
   /// Scales the score of the Result by a given factor.
   /// @param scale The scaling factor.
@@ -3201,19 +3302,19 @@ struct Result {
   /// Scales the score of this Result by a given factor in-place. The message remains unchanged.
   /// @param scale The scaling factor.
   /// @return A reference to this Result object.
-  auto operator*=(double scale) -> Result&;
+  auto operator*=(double scale) -> Result &;
 
   /// Combines two Results by adding their scores. The message remains unchanged.
   /// The resulting status is the "worst" (minimum enum value) of the two statuses.
   /// @param other The Result to add.
   /// @return A new Result object representing the sum.
-  [[nodiscard]] auto operator+(const Result& other) const -> Result;
+  [[nodiscard]] auto operator+(const Result &other) const -> Result;
 
   /// Combines this Result with another by adding scores in-place. The message remains unchanged.
   /// The resulting status is the "worst" (minimum enum value) of the two statuses.
   /// @param other The Result to add.
   /// @return A reference to this Result object.
-  auto operator+=(const Result& other) -> Result&;
+  auto operator+=(const Result &other) -> Result &;
 
   /// Combines two Results by taking the minimum of their scores. The message remains unchanged.
   /// The resulting status is the "worst" (minimum enum value) of the two statuses.
@@ -3221,14 +3322,14 @@ struct Result {
   /// the lowest score dictates the overall outcome.
   /// @param other The Result to combine with (min operation).
   /// @return A new Result object representing the minimum.
-  [[nodiscard]] auto operator&(const Result& other) const -> Result;
+  [[nodiscard]] auto operator&(const Result &other) const -> Result;
 
   /// Combines this Result with another by taking the minimum of their scores in-place. The message
   /// remains unchanged. The resulting status is the "worst" (minimum enum value) of the two
   /// statuses.
   /// @param other The Result to combine with (min operation).
   /// @return A reference to this Result object.
-  auto operator&=(const Result& other) -> Result&;
+  auto operator&=(const Result &other) -> Result &;
 
   /**
    * Convert to json value.
@@ -3253,7 +3354,7 @@ struct Evaluator;
  * answer/correct output) and additional arguments and returns a `cplib::Result`.
  */
 template <typename T, typename... Args>
-concept Evaluatable = requires(Evaluator& ev, const T& pans, const T& jans, Args&&... args) {
+concept Evaluatable = requires(Evaluator &ev, const T &pans, const T &jans, Args &&...args) {
   { T::evaluate(ev, pans, jans, std::forward<Args>(args)...) } -> std::same_as<Result>;
 };
 
@@ -3280,8 +3381,8 @@ struct EvaluatorTrace {
 };
 
 struct Evaluator : trace::Traced<EvaluatorTrace> {
-  using FailFunc = UniqueFunction<auto(const Evaluator&, std::string_view)->void>;
-  using EvaluationHook = UniqueFunction<auto(const Evaluator&, const Result&)->void>;
+  using FailFunc = UniqueFunction<auto(const Evaluator &, std::string_view)->void>;
+  using EvaluationHook = UniqueFunction<auto(const Evaluator &, const Result &)->void>;
 
   /**
    * Create an evaluator.
@@ -3289,16 +3390,16 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
   explicit Evaluator(trace::Level trace_level, FailFunc fail_func, EvaluationHook evaluation_hook);
 
   /// Copy constructor (deleted to prevent copying).
-  Evaluator(const Evaluator&) = delete;
+  Evaluator(const Evaluator &) = delete;
 
   /// Copy assignment operator (deleted to prevent copying).
-  auto operator=(const Evaluator&) -> Evaluator& = delete;
+  auto operator=(const Evaluator &) -> Evaluator & = delete;
 
   /// Move constructor.
-  Evaluator(Evaluator&&) noexcept = default;
+  Evaluator(Evaluator &&) noexcept = default;
 
   /// Move assignment operator.
-  auto operator=(Evaluator&&) noexcept -> Evaluator& = default;
+  auto operator=(Evaluator &&) noexcept -> Evaluator & = default;
 
   /**
    * Call fail func with a message.
@@ -3317,17 +3418,17 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
    * @return Result of the evaluation.
    */
   template <typename T, class... Args>
-  auto operator()(std::string_view var_name, const T& pans, const T& jans, Args... args) -> Result
+  auto operator()(std::string_view var_name, const T &pans, const T &jans, Args... args) -> Result
     requires Evaluatable<T, Args...>;
 
   template <std::equality_comparable T>
-  auto eq(std::string_view var_name, const T& pans, const T& jans) -> Result;
+  auto eq(std::string_view var_name, const T &pans, const T &jans) -> Result;
 
   template <std::floating_point T>
-  auto approx(std::string_view var_name, const T& pans, const T& jans, const T& max_err) -> Result;
+  auto approx(std::string_view var_name, const T &pans, const T &jans, const T &max_err) -> Result;
 
   template <class T>
-  auto approx_abs(std::string_view var_name, const T& pans, const T& jans, const T& abs_err)
+  auto approx_abs(std::string_view var_name, const T &pans, const T &jans, const T &abs_err)
       -> Result
     requires std::is_arithmetic_v<T>;
 
@@ -3336,7 +3437,7 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
   EvaluationHook evaluation_hook_;
 
   auto pre_evaluate(std::string_view var_name) -> void;
-  auto post_evaluate(Result& result) -> void;
+  auto post_evaluate(Result &result) -> void;
 };
 
 }  // namespace cplib::evaluate
@@ -3392,7 +3493,7 @@ inline constexpr auto Result::Status::to_string() const -> std::string_view {
 
 // Impl Result {{{
 namespace detail {
-inline auto merge_message(const std::string& a, const std::string& b) -> std::string {
+inline auto merge_message(const std::string &a, const std::string &b) -> std::string {
   if (a.empty()) {
     return b;
   }
@@ -3438,7 +3539,7 @@ inline auto Result::pc(double score, std::string message) -> Result {
   return {Status::PARTIALLY_CORRECT, score, std::move(message)};
 }
 
-inline constexpr auto Result::operator<=>(const Result& other) const -> std::strong_ordering {
+inline constexpr auto Result::operator<=>(const Result &other) const -> std::strong_ordering {
   if (status != other.status) {
     return status <=> other.status;
   }
@@ -3454,12 +3555,12 @@ inline auto Result::operator*(double scale) const -> Result {
   return res;
 }
 
-inline auto Result::operator*=(double scale) -> Result& {
+inline auto Result::operator*=(double scale) -> Result & {
   score *= scale;
   return *this;
 }
 
-inline auto Result::operator+(const Result& other) const -> Result {
+inline auto Result::operator+(const Result &other) const -> Result {
   Result res;
   res.status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
@@ -3472,7 +3573,7 @@ inline auto Result::operator+(const Result& other) const -> Result {
   return res;
 }
 
-inline auto Result::operator+=(const Result& other) -> Result& {
+inline auto Result::operator+=(const Result &other) -> Result & {
   status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
   score += other.score;
@@ -3482,7 +3583,7 @@ inline auto Result::operator+=(const Result& other) -> Result& {
   return *this;
 }
 
-inline auto Result::operator&(const Result& other) const -> Result {
+inline auto Result::operator&(const Result &other) const -> Result {
   Result res;
   res.status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
@@ -3495,7 +3596,7 @@ inline auto Result::operator&(const Result& other) const -> Result {
   return res;
 }
 
-inline auto Result::operator&=(const Result& other) -> Result& {
+inline auto Result::operator&=(const Result &other) -> Result & {
   status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
   score = std::min(score, other.score);
@@ -3604,7 +3705,7 @@ inline auto Evaluator::pre_evaluate(std::string_view var_name) -> void {
   }
 }
 
-inline auto Evaluator::post_evaluate(Result& result) -> void {
+inline auto Evaluator::post_evaluate(Result &result) -> void {
   result.named = true;
 
   auto trace_level = get_trace_level();
@@ -3624,7 +3725,7 @@ inline auto Evaluator::post_evaluate(Result& result) -> void {
 }
 
 template <typename T, class... Args>
-inline auto Evaluator::operator()(std::string_view var_name, const T& pans, const T& jans,
+inline auto Evaluator::operator()(std::string_view var_name, const T &pans, const T &jans,
                                   Args... args) -> Result
   requires Evaluatable<T, Args...>
 {
@@ -3635,7 +3736,7 @@ inline auto Evaluator::operator()(std::string_view var_name, const T& pans, cons
 }
 
 template <std::equality_comparable T>
-inline auto Evaluator::eq(std::string_view var_name, const T& pans, const T& jans) -> Result {
+inline auto Evaluator::eq(std::string_view var_name, const T &pans, const T &jans) -> Result {
   pre_evaluate(var_name);
   Result result = Result::ac();
   if (pans != jans) {
@@ -3657,8 +3758,8 @@ inline auto Evaluator::eq(std::string_view var_name, const T& pans, const T& jan
 }
 
 template <std::floating_point T>
-inline auto Evaluator::approx(std::string_view var_name, const T& pans, const T& jans,
-                              const T& max_err) -> Result {
+inline auto Evaluator::approx(std::string_view var_name, const T &pans, const T &jans,
+                              const T &max_err) -> Result {
   pre_evaluate(var_name);
   Result result = Result::ac();
   if (!float_equals(pans, jans, max_err)) {
@@ -3672,8 +3773,8 @@ inline auto Evaluator::approx(std::string_view var_name, const T& pans, const T&
 }
 
 template <class T>
-inline auto Evaluator::approx_abs(std::string_view var_name, const T& pans, const T& jans,
-                                  const T& abs_err) -> Result
+inline auto Evaluator::approx_abs(std::string_view var_name, const T &pans, const T &jans,
+                                  const T &abs_err) -> Result
   requires std::is_arithmetic_v<T>
 {
   pre_evaluate(var_name);
@@ -3772,37 +3873,37 @@ struct ReaderTrace {
  */
 struct Reader : trace::Traced<ReaderTrace> {
  public:
-  using FailFunc = UniqueFunction<auto(const Reader&, std::string_view)->void>;
+  using FailFunc = UniqueFunction<auto(const Reader &, std::string_view)->void>;
 
   /// Create a reader of input stream.
   explicit Reader(std::unique_ptr<io::InStream> inner, trace::Level trace_level,
                   FailFunc fail_func);
 
   /// Copy constructor (deleted to prevent copying).
-  Reader(const Reader&) = delete;
+  Reader(const Reader &) = delete;
 
   /// Copy assignment operator (deleted to prevent copying).
-  auto operator=(const Reader&) -> Reader& = delete;
+  auto operator=(const Reader &) -> Reader & = delete;
 
   /// Move constructor.
-  Reader(Reader&&) noexcept = default;
+  Reader(Reader &&) noexcept = default;
 
   /// Move assignment operator.
-  auto operator=(Reader&&) noexcept -> Reader& = default;
+  auto operator=(Reader &&) noexcept -> Reader & = default;
 
   /**
    * Get the inner wrapped input stream.
    *
    * @return Reference to the inner input stream.
    */
-  [[nodiscard]] auto inner() -> io::InStream&;
+  [[nodiscard]] auto inner() -> io::InStream &;
 
   /**
    * Get the inner wrapped input stream.
    *
    * @return Reference to the inner input stream.
    */
-  [[nodiscard]] auto inner() const -> const io::InStream&;
+  [[nodiscard]] auto inner() const -> const io::InStream &;
 
   /**
    * Call fail func with a message.
@@ -3820,7 +3921,7 @@ struct Reader : trace::Traced<ReaderTrace> {
    * @return The value read from the input stream.
    */
   template <class T, class D>
-  auto read(const Var<T, D>& v) -> T;
+  auto read(const Var<T, D> &v) -> T;
 
   /**
    * Read multiple variables and put them into a tuple.
@@ -3902,7 +4003,7 @@ struct Var {
    * @param in The `Reader` object to read from.
    * @return The value of the variable.
    */
-  virtual auto read_from(Reader& in) const -> T = 0;
+  virtual auto read_from(Reader &in) const -> T = 0;
 
  private:
   /**
@@ -3968,7 +4069,7 @@ struct Int : Var<T, Int<T>> {
    * @param in The reader to read from.
    * @return The read value.
    */
-  auto read_from(Reader& in) const -> T override;
+  auto read_from(Reader &in) const -> T override;
 };
 
 /**
@@ -4015,7 +4116,7 @@ struct Float : Var<T, Float<T>> {
    * @param in The input reader.
    * @return The value read from the input reader.
    */
-  auto read_from(Reader& in) const -> T override;
+  auto read_from(Reader &in) const -> T override;
 };
 
 /**
@@ -4056,7 +4157,7 @@ struct StrictFloat : Var<T, StrictFloat<T>> {
    * @param in The input reader.
    * @return The value read from the input reader.
    */
-  auto read_from(Reader& in) const -> T override;
+  auto read_from(Reader &in) const -> T override;
 };
 
 /**
@@ -4086,7 +4187,7 @@ struct YesNo : Var<bool, YesNo> {
    * @param in The reader to read from.
    * @return The read value.
    */
-  auto read_from(Reader& in) const -> bool override;
+  auto read_from(Reader &in) const -> bool override;
 };
 
 /**
@@ -4156,7 +4257,7 @@ struct String : Var<std::string, String> {
    * @param in The input reader.
    * @return The value read from the input reader.
    */
-  auto read_from(Reader& in) const -> std::string override;
+  auto read_from(Reader &in) const -> std::string override;
 };
 
 /**
@@ -4193,7 +4294,7 @@ struct Separator : Var<std::nullopt_t, Separator> {
    * @param in The input reader.
    * @return `std::nullopt` to indicate that no value is read.
    */
-  auto read_from(Reader& in) const -> std::nullopt_t override;
+  auto read_from(Reader &in) const -> std::nullopt_t override;
 };
 
 /**
@@ -4235,7 +4336,7 @@ struct Vec : Var<std::vector<typename T::Var::Target>, Vec<T>> {
    * @param in The reader object.
    * @return The vector of elements.
    */
-  auto read_from(Reader& in) const -> std::vector<typename T::Var::Target> override;
+  auto read_from(Reader &in) const -> std::vector<typename T::Var::Target> override;
 };
 
 /**
@@ -4284,7 +4385,7 @@ struct Mat : Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>> {
    * @param in The reader object.
    * @return The matrix of elements.
    */
-  auto read_from(Reader& in) const -> std::vector<std::vector<typename T::Var::Target>> override;
+  auto read_from(Reader &in) const -> std::vector<std::vector<typename T::Var::Target>> override;
 };
 
 /**
@@ -4342,7 +4443,7 @@ struct Pair : Var<std::pair<typename F::Var::Target, typename S::Var::Target>, P
    * @param in The reader object.
    * @return The pair of elements.
    */
-  auto read_from(Reader& in) const
+  auto read_from(Reader &in) const
       -> std::pair<typename F::Var::Target, typename S::Var::Target> override;
 };
 
@@ -4397,7 +4498,7 @@ struct Tuple : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
    * @param in The reader object.
    * @return The tuple of elements.
    */
-  auto read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> override;
+  auto read_from(Reader &in) const -> std::tuple<typename T::Var::Target...> override;
 
  private:
   /**
@@ -4413,7 +4514,7 @@ struct Tuple : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
    * @return The tuple of elements read from the stream.
    */
   template <std::size_t... Is>
-  auto read_from_impl(Reader& in, std::index_sequence<Is...>) const
+  auto read_from_impl(Reader &in, std::index_sequence<Is...>) const
       -> std::tuple<typename T::Var::Target...>;
 };
 
@@ -4448,17 +4549,17 @@ struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
    * @param in The reader object.
    * @return The result of the function.
    */
-  auto read_from(Reader& in) const -> typename std::function<F>::result_type override;
+  auto read_from(Reader &in) const -> typename std::function<F>::result_type override;
 
  private:
   /// The inner function.
-  std::function<typename std::function<F>::result_type(Reader& in)> inner_function_;
+  std::function<typename std::function<F>::result_type(Reader &in)> inner_function_;
 };
 
 // Defines the requirements for a type T to be "readable"
 // with a static 'read' method that takes a Reader and additional arguments.
 template <typename T, typename... Args>
-concept Readable = requires(Reader& reader, Args&&... args) {
+concept Readable = requires(Reader &reader, Args &&...args) {
   // T must have a static member function named 'read'.
   // It must be callable with a Reader& and the given Args.
   // Its return type must be convertible to T (or exactly T).
@@ -4494,11 +4595,11 @@ struct ExtVar : Var<T, ExtVar<T>> {
    * @param in The reader object.
    * @return The result of `T::read`.
    */
-  auto read_from(Reader& in) const -> T override;
+  auto read_from(Reader &in) const -> T override;
 
  private:
   /// The inner function that encapsulates the call to T::read.
-  std::function<T(Reader&)> inner_function_;
+  std::function<T(Reader &)> inner_function_;
 };
 
 /**
@@ -4525,7 +4626,7 @@ struct ExtVec : Var<std::vector<T>, ExtVec<T>> {
    * @param args The fixed arguments to be passed to `T::read` before the range element.
    */
   template <std::ranges::range Range, class... Args>
-  explicit ExtVec(std::string name, Range&& range, Separator sep, Args... args)
+  explicit ExtVec(std::string name, Range &&range, Separator sep, Args... args)
     requires Readable<T, Args..., std::ranges::range_value_t<Range>>;
 
   /**
@@ -4534,11 +4635,11 @@ struct ExtVec : Var<std::vector<T>, ExtVec<T>> {
    * @param in The reader object.
    * @return The vector of elements.
    */
-  auto read_from(Reader& in) const -> std::vector<T> override;
+  auto read_from(Reader &in) const -> std::vector<T> override;
 
  private:
   /// The inner function that encapsulates the call to T::read for each element.
-  std::function<std::vector<T>(Reader&)> inner_function_;
+  std::function<std::vector<T>(Reader &)> inner_function_;
 };
 
 using i8 = Int<std::int8_t>;
@@ -4642,9 +4743,9 @@ inline Reader::Reader(std::unique_ptr<io::InStream> inner, trace::Level trace_le
       inner_(std::move(inner)),
       fail_func_(std::move(fail_func)) {}
 
-inline auto Reader::inner() -> io::InStream& { return *inner_; }
+inline auto Reader::inner() -> io::InStream & { return *inner_; }
 
-inline auto Reader::inner() const -> const io::InStream& { return *inner_; }
+inline auto Reader::inner() const -> const io::InStream & { return *inner_; }
 
 [[noreturn]] inline auto Reader::fail(std::string_view message) -> void {
   fail_func_(*this, message);
@@ -4652,7 +4753,7 @@ inline auto Reader::inner() const -> const io::InStream& { return *inner_; }
 }
 
 template <class T, class D>
-inline auto Reader::read(const Var<T, D>& v) -> T {
+inline auto Reader::read(const Var<T, D> &v) -> T {
   auto trace_level = get_trace_level();
 
   if (trace_level >= trace::Level::STACK_ONLY) {
@@ -4711,13 +4812,13 @@ inline auto Var<T, D>::name() const -> std::string_view {
 
 template <class T, class D>
 inline auto Var<T, D>::clone() const -> D {
-  D clone = *static_cast<const D*>(this);
+  D clone = *static_cast<const D *>(this);
   return clone;
 }
 
 template <class T, class D>
 inline auto Var<T, D>::renamed(std::string_view name) const -> D {
-  D clone = *static_cast<const D*>(this);
+  D clone = *static_cast<const D *>(this);
   clone.name_ = name;
   return clone;
 }
@@ -4726,7 +4827,7 @@ template <class T, class D>
 inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
   auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
-                       trace::Level::NONE, [](const Reader&, std::string_view msg) -> void {
+                       trace::Level::NONE, [](const Reader &, std::string_view msg) -> void {
                          panic(std::string("Var::parse failed: ") + msg.data());
                        });
   T result = reader.read(*this);
@@ -4738,7 +4839,7 @@ inline auto Var<T, D>::parse(std::string_view s) const -> T {
 
 template <class T, class D>
 inline auto Var<T, D>::operator*(std::size_t len) const -> Vec<D> {
-  return Vec<D>(*static_cast<const D*>(this), len);
+  return Vec<D>(*static_cast<const D *>(this), len);
 }
 
 template <class T, class D>
@@ -4762,7 +4863,7 @@ inline Int<T>::Int(std::string name, std::optional<T> min, std::optional<T> max)
     : Var<T, Int<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
 template <std::integral T>
-inline auto Int<T>::read_from(Reader& in) const -> T {
+inline auto Int<T>::read_from(Reader &in) const -> T {
   auto token = in.inner().read_word();
 
   if (token.empty()) {
@@ -4775,8 +4876,8 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
   }
 
   T result{};
-  const char* first = token.data();
-  const char* last = token.data() + token.length();
+  const char *first = token.data();
+  const char *last = token.data() + token.length();
   auto [ptr, ec] = std::from_chars(first, last, result);
 
   if (ec == std::errc::invalid_argument || ptr != last) {
@@ -4823,7 +4924,7 @@ inline Float<T>::Float(std::string name, std::optional<T> min, std::optional<T> 
     : Var<T, Float<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
 template <std::floating_point T>
-inline auto Float<T>::read_from(Reader& in) const -> T {
+inline auto Float<T>::read_from(Reader &in) const -> T {
   auto token = in.inner().read_token();
 
   if (token.empty()) {
@@ -4836,8 +4937,8 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
   }
 
   T result{};
-  const char* first = token.data();
-  const char* last = token.data() + token.length();
+  const char *first = token.data();
+  const char *last = token.data() + token.length();
 
   // `Float<T>` usually uses with non-strict streams, so it should support both fixed format and
   // scientific.
@@ -4908,7 +5009,7 @@ inline StrictFloat<T>::StrictFloat(std::string name, T min, T max, size_t min_n_
 }
 
 template <std::floating_point T>
-inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
+inline auto StrictFloat<T>::read_from(Reader &in) const -> T {
   auto token = in.inner().read_word();
 
   if (token.empty()) {
@@ -4921,8 +5022,8 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
   }
 
   T result;
-  const char* first = token.data();
-  const char* last = token.data() + token.length();
+  const char *first = token.data();
+  const char *last = token.data() + token.length();
 
   // Use std::chars_format::fixed for strict float parsing (no scientific notation)
   auto [ptr, ec] = std::from_chars(first, last, result, std::chars_format::fixed);
@@ -4971,7 +5072,7 @@ inline YesNo::YesNo() : YesNo(std::string(detail::VAR_DEFAULT_NAME)) {}
 
 inline YesNo::YesNo(std::string name) : Var<bool, YesNo>(std::move(name)) {}
 
-inline auto YesNo::read_from(Reader& in) const -> bool {
+inline auto YesNo::read_from(Reader &in) const -> bool {
   auto word = in.inner().read_word();
   auto lower_token = word;
   std::ranges::transform(lower_token, lower_token.begin(), ::tolower);
@@ -5021,7 +5122,7 @@ inline String::String(std::string name, Pattern pat)
 inline String::String(std::string name, Mode mode, Pattern pat)
     : Var<std::string, String>(std::move(name)), pat(std::move(pat)), mode(mode) {}
 
-inline auto String::read_from(Reader& in) const -> std::string {
+inline auto String::read_from(Reader &in) const -> std::string {
   std::string result;
   std::string kind;
 
@@ -5085,7 +5186,7 @@ inline Separator::Separator(std::optional<unsigned char> sep)
 inline Separator::Separator(std::string name, std::optional<unsigned char> sep)
     : Var<std::nullopt_t, Separator>(std::move(name)), sep(sep) {}
 
-inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
+inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#hidden", json::Value(true));
   }
@@ -5136,7 +5237,7 @@ inline Vec<T>::Vec(T element, size_t len, Separator sep)
       sep(std::move(sep)) {}
 
 template <class T>
-inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::Target> {
+inline auto Vec<T>::read_from(Reader &in) const -> std::vector<typename T::Var::Target> {
   std::vector<typename T::Var::Target> result(len);
   for (std::size_t i = 0; i < len; ++i) {
     if (i > 0) in.read(sep);
@@ -5159,7 +5260,7 @@ inline Mat<T>::Mat(T element, size_t len0, size_t len1, Separator sep0, Separato
       sep1(std::move(sep1)) {}
 
 template <class T>
-inline auto Mat<T>::read_from(Reader& in) const
+inline auto Mat<T>::read_from(Reader &in) const
     -> std::vector<std::vector<typename T::Var::Target>> {
   std::vector<std::vector<typename T::Var::Target>> result(
       len0, std::vector<typename T::Var::Target>(len1));
@@ -5190,7 +5291,7 @@ inline Pair<F, S>::Pair(std::string name, std::pair<F, S> pr, Separator sep)
       sep(std::move(sep)) {}
 
 template <class F, class S>
-inline auto Pair<F, S>::read_from(Reader& in) const
+inline auto Pair<F, S>::read_from(Reader &in) const
     -> std::pair<typename F::Var::Target, typename S::Var::Target> {
   auto result_first = in.read(first.renamed("first"));
   in.read(sep);
@@ -5213,14 +5314,14 @@ inline Tuple<T...>::Tuple(std::string name, std::tuple<T...> elements, Separator
       sep(std::move(sep)) {}
 
 template <class... T>
-inline auto Tuple<T...>::read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> {
+inline auto Tuple<T...>::read_from(Reader &in) const -> std::tuple<typename T::Var::Target...> {
   // Delegate to the implementation helper with a generated index sequence.
   return read_from_impl(in, std::index_sequence_for<T...>{});
 }
 
 template <class... T>
 template <std::size_t... Is>
-inline auto Tuple<T...>::read_from_impl(Reader& in, std::index_sequence<Is...>) const
+inline auto Tuple<T...>::read_from_impl(Reader &in, std::index_sequence<Is...>) const
     -> std::tuple<typename T::Var::Target...> {
   // Create the result tuple that will be populated.
   std::tuple<typename T::Var::Target...> result;
@@ -5250,16 +5351,16 @@ template <class... Args>
 inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args... args)
     : Var<typename std::function<F>::result_type, FnVar<F>>(std::move(name)),
       inner_function_(
-          [captured_args = std::make_tuple(std::forward<Args>(args)...), f](Reader& in) {
+          [captured_args = std::make_tuple(std::forward<Args>(args)...), f](Reader &in) {
             return std::apply(
-                [&in, f](auto&&... unpacked_args) {
+                [&in, f](auto &&...unpacked_args) {
                   return f(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
                 },
                 captured_args);
           }) {}
 
 template <class F>
-inline auto FnVar<F>::read_from(Reader& in) const -> typename std::function<F>::result_type {
+inline auto FnVar<F>::read_from(Reader &in) const -> typename std::function<F>::result_type {
   return inner_function_(in);
 }
 
@@ -5270,9 +5371,9 @@ inline ExtVar<T>::ExtVar(std::string name, Args... args)
     : Var<T, ExtVar<T>>(std::move(name)),
       // Capture arguments into a tuple, then use std::apply to call T::read.
       // This is a robust way to handle variadic arguments within std::function.
-      inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...)](Reader& in) {
+      inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...)](Reader &in) {
         return std::apply(
-            [&in](auto&&... unpacked_args) {
+            [&in](auto &&...unpacked_args) {
               // Call T::read with the Reader and the unpacked arguments
               return T::read(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
             },
@@ -5280,25 +5381,25 @@ inline ExtVar<T>::ExtVar(std::string name, Args... args)
       }) {}
 
 template <class T>
-inline auto ExtVar<T>::read_from(Reader& in) const -> T {
+inline auto ExtVar<T>::read_from(Reader &in) const -> T {
   return inner_function_(in);
 }
 
 template <class T>
 template <std::ranges::range Range, class... Args>
-inline ExtVec<T>::ExtVec(std::string name, Range&& range, Separator sep, Args... args)
+inline ExtVec<T>::ExtVec(std::string name, Range &&range, Separator sep, Args... args)
   requires Readable<T, Args..., std::ranges::range_value_t<Range>>
     : Var<std::vector<T>, ExtVec<T>>(std::move(name)),
       inner_function_([range = std::forward<Range>(range), sep,
                        captured_args = std::make_tuple(std::forward<Args>(args)...)](
-                          Reader& in) -> std::vector<T> {
+                          Reader &in) -> std::vector<T> {
         std::vector<T> result;
         if constexpr (std::ranges::sized_range<Range>) {
           result.reserve(std::ranges::size(range));
         }
 
         std::size_t i = 0;
-        for (const auto& range_element : range) {
+        for (const auto &range_element : range) {
           if (i > 0) {
             in.read(sep);
           }
@@ -5308,7 +5409,7 @@ inline ExtVec<T>::ExtVec(std::string name, Range&& range, Separator sep, Args...
           // current range_element, to the ExtVar constructor. This correctly sets up
           // the call to T::read with all necessary arguments and handles tracing.
           auto element = std::apply(
-              [&](auto&&... fixed_args) {
+              [&](auto &&...fixed_args) {
                 return in.read(ExtVar<T>(std::to_string(i),
                                          std::forward<decltype(fixed_args)>(fixed_args)...,
                                          range_element));
@@ -5322,7 +5423,7 @@ inline ExtVec<T>::ExtVec(std::string name, Range&& range, Separator sep, Args...
       }) {}
 
 template <class T>
-inline auto ExtVec<T>::read_from(Reader& in) const -> std::vector<T> {
+inline auto ExtVec<T>::read_from(Reader &in) const -> std::vector<T> {
   return inner_function_(in);
 }
 }  // namespace cplib::var
@@ -5371,7 +5472,7 @@ struct ParsedArgs {
   ParsedArgs() = default;
 
   /// Parse from raw command-line args.
-  explicit ParsedArgs(const std::vector<std::string>& args);
+  explicit ParsedArgs(const std::vector<std::string> &args);
 
   [[nodiscard]] auto has_flag(std::string_view name) const -> bool;
 };
@@ -5410,10 +5511,10 @@ inline auto split_var(std::string_view var) -> std::pair<std::string_view, std::
 }
 }  // namespace detail
 
-inline ParsedArgs::ParsedArgs(const std::vector<std::string>& args) {
+inline ParsedArgs::ParsedArgs(const std::vector<std::string> &args) {
   std::optional<std::string> last_flag;
 
-  for (const auto& arg : args) {
+  for (const auto &arg : args) {
     if (arg.size() >= 2 && arg[0] == '-' && arg[1] == '-') {
       if (arg.find('=') != std::string::npos) {
         // `--var=value`
@@ -5576,12 +5677,12 @@ struct Initializer {
  public:
   virtual ~Initializer() = 0;
 
-  auto set_state(State& state) -> void;
+  auto set_state(State &state) -> void;
 
-  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string> &args) -> void = 0;
 
  protected:
-  auto state() -> State&;
+  auto state() -> State &;
   auto set_inf_fileno(int fileno, trace::Level trace_level) -> void;
   auto set_ouf_fileno(int fileno, trace::Level trace_level) -> void;
   auto set_ans_fileno(int fileno, trace::Level trace_level) -> void;
@@ -5591,7 +5692,7 @@ struct Initializer {
   auto set_evaluator(trace::Level trace_level) -> void;
 
  private:
-  State* state_{};
+  State *state_{};
 };
 
 /**
@@ -5601,13 +5702,13 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
+  [[nodiscard]] virtual auto report(const Report &report) -> int = 0;
 
   auto attach_reader_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
   auto attach_evaluator_trace_stack(trace::TraceStack<evaluate::EvaluatorTrace> trace_stack)
       -> void;
   [[nodiscard]] auto get_evaluator_trace_stacks() const
-      -> const std::vector<trace::TraceStack<evaluate::EvaluatorTrace>>&;
+      -> const std::vector<trace::TraceStack<evaluate::EvaluatorTrace>> &;
 
  protected:
   std::vector<trace::TraceStack<var::ReaderTrace>> reader_trace_stacks_{};
@@ -5703,28 +5804,28 @@ struct DefaultInitializer : Initializer {
    * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string> &args) -> void override;
 };
 
 /**
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
@@ -5734,11 +5835,11 @@ struct ColoredTextReporter : Reporter {
  */
 #define CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, initializer_)                    \
   static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
-  static_assert(::cplib::var::Readable<output_struct_, const input_struct_&>,                      \
+  static_assert(::cplib::var::Readable<output_struct_, const input_struct_ &>,                     \
                 "`" #output_struct_ "` should be Readable");                                       \
-  static_assert(::cplib::evaluate::Evaluatable<output_struct_, const input_struct_&>,              \
+  static_assert(::cplib::evaluate::Evaluatable<output_struct_, const input_struct_ &>,             \
                 "`" #output_struct_ "` should be Evaluatable");                                    \
-  auto main(int argc, char** argv) -> int {                                                        \
+  auto main(int argc, char **argv) -> int {                                                        \
     ::std::vector<::std::string> args;                                                             \
     args.reserve(argc);                                                                            \
     for (int i = 1; i < argc; ++i) {                                                               \
@@ -5754,7 +5855,7 @@ struct ColoredTextReporter : Reporter {
     ::cplib::evaluate::Result result = state.evaluator("output", output, answer, input);           \
     ::std::string report_message;                                                                  \
     auto evaluator_trace_stacks = state.reporter->get_evaluator_trace_stacks();                    \
-    auto it = ::std::ranges::find_if(evaluator_trace_stacks, [](const auto& x) -> bool {           \
+    auto it = ::std::ranges::find_if(evaluator_trace_stacks, [](const auto &x) -> bool {           \
       return !x.stack.empty() && x.stack.back().result.has_value() &&                              \
              !x.stack.back().result->message.empty();                                              \
     });                                                                                            \
@@ -5852,14 +5953,14 @@ inline Report::Report(Report::Status status, double score, std::string message)
 
 inline Initializer::~Initializer() = default;
 
-inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
+inline auto Initializer::set_state(State &state) -> void { state_ = &state; };
 
-inline auto Initializer::state() -> State& { return *state_; };
+inline auto Initializer::state() -> State & { return *state_; };
 
 inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -5870,7 +5971,7 @@ inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_ouf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->ouf = var::detail::make_reader_by_fileno(
       fileno, "ouf", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -5881,7 +5982,7 @@ inline auto Initializer::set_ouf_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_ans_fileno(int fileno, trace::Level trace_level) -> void {
   state_->ans = var::detail::make_reader_by_fileno(
       fileno, "ans", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -5892,7 +5993,7 @@ inline auto Initializer::set_ans_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -5903,7 +6004,7 @@ inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_
 inline auto Initializer::set_ouf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->ouf = var::detail::make_reader_by_path(
       path, "ouf", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -5914,7 +6015,7 @@ inline auto Initializer::set_ouf_path(std::string_view path, trace::Level trace_
 inline auto Initializer::set_ans_path(std::string_view path, trace::Level trace_level) -> void {
   state_->ans = var::detail::make_reader_by_path(
       path, "ans", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -5925,13 +6026,13 @@ inline auto Initializer::set_ans_path(std::string_view path, trace::Level trace_
 inline auto Initializer::set_evaluator(trace::Level trace_level) -> void {
   state_->evaluator = evaluate::Evaluator(
       trace_level,
-      [this, trace_level](const evaluate::Evaluator& evaluator, std::string_view msg) {
+      [this, trace_level](const evaluate::Evaluator &evaluator, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_evaluator_trace_stack(evaluator.make_trace_stack(true));
         }
         panic(msg);
       },
-      [this, trace_level](const evaluate::Evaluator& evaluator, const evaluate::Result& result) {
+      [this, trace_level](const evaluate::Evaluator &evaluator, const evaluate::Result &result) {
         if (trace_level >= trace::Level::STACK_ONLY && !result.message.empty()) {
           state_->reporter->attach_evaluator_trace_stack(evaluator.make_trace_stack(false));
         }
@@ -5951,7 +6052,7 @@ inline auto Reporter::attach_evaluator_trace_stack(
 }
 
 inline auto Reporter::get_evaluator_trace_stacks() const
-    -> const std::vector<trace::TraceStack<evaluate::EvaluatorTrace>>& {
+    -> const std::vector<trace::TraceStack<evaluate::EvaluatorTrace>> & {
   return evaluator_trace_stacks_;
 }
 
@@ -6021,7 +6122,7 @@ inline auto print_help_message(std::string_view program_name) -> void {
   panic(msg);
 }
 
-inline auto detect_reporter(State& state) -> void {
+inline auto detect_reporter(State &state) -> void {
   if (!isatty(fileno(stderr))) {
     state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
@@ -6034,7 +6135,7 @@ inline auto detect_reporter(State& state) -> void {
 // Set the report format of `state` according to the string `format`.
 //
 // Returns `false` if the `format` is invalid.
-inline auto set_report_format(State& state, std::string_view format) -> bool {
+inline auto set_report_format(State &state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
@@ -6052,15 +6153,15 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string> &args)
     -> void {
-  auto& state = this->state();
+  auto &state = this->state();
 
   detail::detect_reporter(state);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
 
-  for (const auto& [key, value] : parsed_args.vars) {
+  for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
         panic(cplib::format("Unknown {} option: {}", key, value));
@@ -6070,7 +6171,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
     }
   }
 
-  for (const auto& flag : parsed_args.flags) {
+  for (const auto &flag : parsed_args.flags) {
     if (flag == "help") {
       detail::print_help_message(arg0);
     } else {
@@ -6127,7 +6228,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> int {
+inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
       {"status", json::Value(json::String(report.status.to_string()))},
       {"score", json::Value(report.score)},
@@ -6138,7 +6239,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
     json::List trace_stacks;
     trace_stacks.reserve(reader_trace_stacks_.size());
     std::ranges::transform(reader_trace_stacks_, std::back_inserter(trace_stacks),
-                           [](const auto& s) { return json::Value(s.to_json()); });
+                           [](const auto &s) { return json::Value(s.to_json()); });
     map.emplace("reader_trace_stacks", trace_stacks);
   }
 
@@ -6146,7 +6247,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
     json::List trace_stacks;
     trace_stacks.reserve(evaluator_trace_stacks_.size());
     std::ranges::transform(evaluator_trace_stacks_, std::back_inserter(trace_stacks),
-                           [](const auto& s) { return json::Value(s.to_json()); });
+                           [](const auto &s) { return json::Value(s.to_json()); });
     map.emplace("evaluator_trace_stacks", trace_stacks);
   }
 
@@ -6155,7 +6256,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
   return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> int {
+inline auto PlainTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2) << detail::status_to_title_string(report.status)
@@ -6167,8 +6268,8 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
 
   if (!reader_trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& stack : reader_trace_stacks_) {
-      for (const auto& line : stack.to_plain_text_lines()) {
+    for (const auto &stack : reader_trace_stacks_) {
+      for (const auto &line : stack.to_plain_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';
@@ -6177,7 +6278,7 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
 
   if (!evaluator_trace_stacks_.empty()) {
     stream << "\nEvaluator trace stacks:\n";
-    for (const auto& stack : evaluator_trace_stacks_) {
+    for (const auto &stack : evaluator_trace_stacks_) {
       stream << "  " << stack.to_plain_text_compact() << '\n';
     }
   }
@@ -6185,7 +6286,7 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
   return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> int {
+inline auto ColoredTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2)
@@ -6197,8 +6298,8 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 
   if (!reader_trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& stack : reader_trace_stacks_) {
-      for (const auto& line : stack.to_colored_text_lines()) {
+    for (const auto &stack : reader_trace_stacks_) {
+      for (const auto &line : stack.to_colored_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';
@@ -6207,7 +6308,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 
   if (!evaluator_trace_stacks_.empty()) {
     stream << "\nEvaluator trace stacks:\n";
-    for (const auto& stack : evaluator_trace_stacks_) {
+    for (const auto &stack : evaluator_trace_stacks_) {
       stream << "  " << stack.to_colored_text_compact() << '\n';
     }
   }
@@ -6333,12 +6434,12 @@ struct Initializer {
  public:
   virtual ~Initializer() = 0;
 
-  auto set_state(State& state) -> void;
+  auto set_state(State &state) -> void;
 
-  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string> &args) -> void = 0;
 
  protected:
-  auto state() -> State&;
+  auto state() -> State &;
 
   auto set_inf_fileno(int fileno, trace::Level trace_level) -> void;
   auto set_from_user_fileno(int fileno, trace::Level trace_level) -> void;
@@ -6348,7 +6449,7 @@ struct Initializer {
   auto set_to_user_path(std::string_view path) -> void;
 
  private:
-  State* state_{};
+  State *state_{};
 };
 
 /**
@@ -6358,7 +6459,7 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
+  [[nodiscard]] virtual auto report(const Report &report) -> int = 0;
 
   auto attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
 
@@ -6409,7 +6510,7 @@ struct State {
    *
    * @param report The report to be reported.
    */
-  [[noreturn]] auto quit(const Report& report) -> void;
+  [[noreturn]] auto quit(const Report &report) -> void;
 
   /**
    * Quits the interactor with the `report::Status::ACCEPTED` status.
@@ -6447,28 +6548,28 @@ struct DefaultInitializer : Initializer {
    * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string> &args) -> void override;
 };
 
 /**
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
@@ -6480,7 +6581,7 @@ struct ColoredTextReporter : Reporter {
 #define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_)                                    \
   auto var_ =                                                                                \
       ::cplib::interactor::State(std::unique_ptr<decltype(initializer_)>(new initializer_)); \
-  auto main(int argc, char** argv) -> int {                                                  \
+  auto main(int argc, char **argv) -> int {                                                  \
     ::std::vector<::std::string> args;                                                       \
     args.reserve(argc);                                                                      \
     for (int i = 1; i < argc; ++i) {                                                         \
@@ -6562,14 +6663,14 @@ inline Report::Report(Report::Status status, double score, std::string message)
 
 inline Initializer::~Initializer() = default;
 
-inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
+inline auto Initializer::set_state(State &state) -> void { state_ = &state; };
 
-inline auto Initializer::state() -> State& { return *state_; };
+inline auto Initializer::state() -> State & { return *state_; };
 
 inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -6580,7 +6681,7 @@ inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_from_user_fileno(int fileno, trace::Level trace_level) -> void {
   state_->from_user = var::detail::make_reader_by_fileno(
       fileno, "from_user", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -6595,7 +6696,7 @@ inline auto Initializer::set_to_user_fileno(int fileno) -> void {
 inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -6607,7 +6708,7 @@ inline auto Initializer::set_from_user_path(std::string_view path, trace::Level 
     -> void {
   state_->from_user = var::detail::make_reader_by_path(
       path, "from_user", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -6645,7 +6746,7 @@ inline State::~State() {
   if (!exited_) panic("Interactor must exit by calling method `State::quit*`");
 }
 
-inline auto State::quit(const Report& report) -> void {
+inline auto State::quit(const Report &report) -> void {
   exited_ = true;
 
   auto exit_code = reporter->report(report);
@@ -6680,7 +6781,7 @@ inline auto print_help_message(std::string_view program_name) -> void {
   panic(msg);
 }
 
-inline auto detect_reporter(State& state) -> void {
+inline auto detect_reporter(State &state) -> void {
   if (!isatty(fileno(stderr))) {
     state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
@@ -6693,7 +6794,7 @@ inline auto detect_reporter(State& state) -> void {
 // Set the report format of `state` according to the string `format`.
 //
 // Returns `false` if the `format` is invalid.
-inline auto set_report_format(State& state, std::string_view format) -> bool {
+inline auto set_report_format(State &state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
@@ -6727,15 +6828,15 @@ inline auto disable_stdio() -> void {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string> &args)
     -> void {
-  auto& state = this->state();
+  auto &state = this->state();
 
   detail::detect_reporter(state);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
 
-  for (const auto& [key, value] : parsed_args.vars) {
+  for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
         panic(cplib::format("Unknown {} option: {}", key, value));
@@ -6745,7 +6846,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
     }
   }
 
-  for (const auto& flag : parsed_args.flags) {
+  for (const auto &flag : parsed_args.flags) {
     if (flag == "help") {
       detail::print_help_message(arg0);
     } else {
@@ -6802,7 +6903,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> int {
+inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
       {"status", json::Value(json::String(report.status.to_string()))},
       {"score", json::Value(report.score)},
@@ -6813,7 +6914,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
     json::List trace_stacks;
     trace_stacks.reserve(trace_stacks_.size());
     std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
-                           [](auto& s) { return json::Value(s.to_json()); });
+                           [](auto &s) { return json::Value(s.to_json()); });
     map.emplace("reader_trace_stacks", trace_stacks);
   }
 
@@ -6822,7 +6923,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
   return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> int {
+inline auto PlainTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2) << detail::status_to_title_string(report.status)
@@ -6834,8 +6935,8 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& stack : trace_stacks_) {
-      for (const auto& line : stack.to_plain_text_lines()) {
+    for (const auto &stack : trace_stacks_) {
+      for (const auto &line : stack.to_plain_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';
@@ -6845,7 +6946,7 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
   return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> int {
+inline auto ColoredTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2)
@@ -6857,8 +6958,8 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& stack : trace_stacks_) {
-      for (const auto& line : stack.to_colored_text_lines()) {
+    for (const auto &stack : trace_stacks_) {
+      for (const auto &line : stack.to_colored_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';
@@ -7016,18 +7117,18 @@ struct Initializer {
  public:
   virtual ~Initializer() = 0;
 
-  auto set_state(State& state) -> void;
+  auto set_state(State &state) -> void;
 
-  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string> &args) -> void = 0;
 
  protected:
-  auto state() -> State&;
+  auto state() -> State &;
 
   auto set_inf_fileno(int fileno, trace::Level level) -> void;
   auto set_inf_path(std::string_view path, trace::Level level) -> void;
 
  private:
-  State* state_{};
+  State *state_{};
 };
 
 /**
@@ -7037,17 +7138,17 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
+  [[nodiscard]] virtual auto report(const Report &report) -> int = 0;
 
   auto attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
 
-  auto attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* root) -> void;
+  auto attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace> *root) -> void;
 
-  auto attach_trait_status(const std::map<std::string, bool>& trait_status) -> void;
+  auto attach_trait_status(const std::map<std::string, bool> &trait_status) -> void;
 
  protected:
   std::vector<trace::TraceStack<var::ReaderTrace>> trace_stacks_{};
-  const trace::TraceTreeNode<var::ReaderTrace>* trace_tree_{};
+  const trace::TraceTreeNode<var::ReaderTrace> *trace_tree_{};
   std::map<std::string, bool> trait_status_{};
 };
 
@@ -7126,28 +7227,28 @@ struct DefaultInitializer : Initializer {
    * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string> &args) -> void override;
 };
 
 /**
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
@@ -7158,7 +7259,7 @@ struct ColoredTextReporter : Reporter {
  */
 #define CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_, initializer_)                    \
   static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
-  auto main(int argc, char** argv) -> int {                                                        \
+  auto main(int argc, char **argv) -> int {                                                        \
     ::std::vector<::std::string> args;                                                             \
     args.reserve(argc);                                                                            \
     for (int i = 1; i < argc; ++i) {                                                               \
@@ -7169,7 +7270,7 @@ struct ColoredTextReporter : Reporter {
         ::cplib::validator::State(std::unique_ptr<decltype(initializer_)>(new initializer_));      \
     state.initializer->init(argv[0], args);                                                        \
     input_struct_ input{state.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};             \
-    std::function<auto(const input_struct_&)->::std::vector<::cplib::validator::Trait>>            \
+    std::function<auto(const input_struct_ &)->::std::vector<::cplib::validator::Trait>>           \
         traits_func = traits_func_;                                                                \
     state.traits(traits_func(input));                                                              \
     state.quit_valid();                                                                            \
@@ -7255,14 +7356,14 @@ inline Trait::Trait(std::string name, CheckFunc check_func,
 
 inline Initializer::~Initializer() = default;
 
-inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
+inline auto Initializer::set_state(State &state) -> void { state_ = &state; };
 
-inline auto Initializer::state() -> State& { return *state_; };
+inline auto Initializer::state() -> State & { return *state_; };
 
 inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", true, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -7273,7 +7374,7 @@ inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", true, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -7287,7 +7388,7 @@ inline auto Reporter::attach_trace_stack(trace::TraceStack<var::ReaderTrace> tra
   trace_stacks_.emplace_back(std::move(trace_stack));
 }
 
-inline auto Reporter::attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* root)
+inline auto Reporter::attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace> *root)
     -> void {
   if (!root) {
     panic("Reporter::attach_trace_tree failed: Trace tree root pointer is nullptr");
@@ -7296,7 +7397,7 @@ inline auto Reporter::attach_trace_tree(const trace::TraceTreeNode<var::ReaderTr
   trace_tree_ = root;
 }
 
-inline auto Reporter::attach_trait_status(const std::map<std::string, bool>& trait_status) -> void {
+inline auto Reporter::attach_trait_status(const std::map<std::string, bool> &trait_status) -> void {
   trait_status_ = trait_status;
 }
 
@@ -7308,12 +7409,12 @@ namespace detail {
  * If `follow_unmatched_edge` is false, outgoing edges with a value different from the value
  * returned by the callback for the current node will not be visited.
  */
-inline auto topo_sort(const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges,
+inline auto topo_sort(const std::vector<std::vector<std::pair<std::size_t, bool>>> &edges,
                       const bool follow_unmatched_edge,
-                      const std::function<auto(std::size_t)->bool>& callback) -> void {
+                      const std::function<auto(std::size_t)->bool> &callback) -> void {
   std::vector<std::size_t> degree(edges.size(), 0);
 
-  for (const auto& edge : edges) {
+  for (const auto &edge : edges) {
     for (auto [to, v] : edge) ++degree[to];
   }
 
@@ -7336,11 +7437,11 @@ inline auto topo_sort(const std::vector<std::vector<std::pair<std::size_t, bool>
 }
 
 // Returns std::nullopt if failed
-inline auto build_edges(std::vector<Trait>& traits)
+inline auto build_edges(std::vector<Trait> &traits)
     -> std::optional<std::vector<std::vector<std::pair<std::size_t, bool>>>> {
   // Check duplicate name
-  std::ranges::sort(traits, [](const Trait& x, const Trait& y) { return x.name < y.name; });
-  if (std::ranges::unique(traits, [](const Trait& x, const Trait& y) {
+  std::ranges::sort(traits, [](const Trait &x, const Trait &y) { return x.name < y.name; });
+  if (std::ranges::unique(traits, [](const Trait &x, const Trait &y) {
         return x.name == y.name;
       }).end() != traits.end()) {
     // Found duplicate name
@@ -7350,8 +7451,8 @@ inline auto build_edges(std::vector<Trait>& traits)
   std::vector<std::vector<std::pair<std::size_t, bool>>> edges(traits.size());
 
   for (std::size_t i = 0; i < traits.size(); ++i) {
-    auto& trait = traits[i];
-    for (const auto& [name, value] : trait.dependencies) {
+    auto &trait = traits[i];
+    for (const auto &[name, value] : trait.dependencies) {
       auto it = std::ranges::lower_bound(traits, name, std::less{}, &Trait::name);
       // IMPORTANT: Check if the dependency was actually found and is an exact match.
       if (it == traits.end() || it->name != name) {
@@ -7365,7 +7466,7 @@ inline auto build_edges(std::vector<Trait>& traits)
   return edges;
 }
 
-inline auto have_loop(const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges) -> bool {
+inline auto have_loop(const std::vector<std::vector<std::pair<std::size_t, bool>>> &edges) -> bool {
   std::vector<std::uint8_t> visited(edges.size(), 0);  // Never use std::vector<bool>
 
   topo_sort(edges, true, [&](std::size_t node) {
@@ -7379,13 +7480,13 @@ inline auto have_loop(const std::vector<std::vector<std::pair<std::size_t, bool>
   return false;
 }
 
-inline auto validate_traits(const std::vector<Trait>& traits,
-                            const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges)
+inline auto validate_traits(const std::vector<Trait> &traits,
+                            const std::vector<std::vector<std::pair<std::size_t, bool>>> &edges)
     -> std::map<std::string, bool> {
   std::map<std::string, bool> results;
 
   topo_sort(edges, true, [&](std::size_t id) {
-    auto& node = traits[id];
+    auto &node = traits[id];
     auto result = node.check_func();
     results.emplace(node.name, result);
     return result;
@@ -7469,7 +7570,7 @@ inline auto print_help_message(std::string_view program_name) -> void {
   panic(msg);
 }
 
-inline auto detect_reporter(State& state) -> void {
+inline auto detect_reporter(State &state) -> void {
   if (!isatty(fileno(stderr))) {
     state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
@@ -7482,7 +7583,7 @@ inline auto detect_reporter(State& state) -> void {
 // Set the report format of `state` according to the string `format`.
 //
 // Returns `false` if the `format` is invalid.
-inline auto set_report_format(State& state, std::string_view format) -> bool {
+inline auto set_report_format(State &state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
@@ -7500,16 +7601,16 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string> &args)
     -> void {
-  auto& state = this->state();
+  auto &state = this->state();
 
   detail::detect_reporter(state);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
   auto reader_trace_level = trace::Level::STACK_ONLY;
 
-  for (const auto& [key, value] : parsed_args.vars) {
+  for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
         panic(cplib::format("Unknown {} option: {}", key, value));
@@ -7524,7 +7625,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
     }
   }
 
-  for (const auto& flag : parsed_args.flags) {
+  for (const auto &flag : parsed_args.flags) {
     if (flag == "help") {
       detail::print_help_message(arg0);
     } else {
@@ -7575,16 +7676,16 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
   }
 }
 
-inline auto trait_status_to_json(const std::map<std::string, bool>& traits) -> json::Value {
+inline auto trait_status_to_json(const std::map<std::string, bool> &traits) -> json::Value {
   json::Map map;
-  for (const auto& [k, v] : traits) {
+  for (const auto &[k, v] : traits) {
     map.emplace(k, json::Value(v));
   }
   return json::Value(map);
 }
 
-inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node, std::size_t depth,
-                             std::size_t& n_remaining_node, bool colored_output, std::ostream& os)
+inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace> *node, std::size_t depth,
+                             std::size_t &n_remaining_node, bool colored_output, std::ostream &os)
     -> void {
   if (!node || depth >= 8 || (node->tags.contains("#hidden"))) {
     return;
@@ -7616,13 +7717,13 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node,
   }
 
   std::size_t n_visible_children = 0;
-  for (const auto& child : node->get_children()) {
+  for (const auto &child : node->get_children()) {
     if (!child->tags.contains("#hidden")) {
       ++n_visible_children;
     }
   }
 
-  for (const auto& child : node->get_children()) {
+  for (const auto &child : node->get_children()) {
     if (child->tags.contains("#hidden")) {
       continue;
     }
@@ -7639,7 +7740,7 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node,
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> int {
+inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
       {"status", json::Value(json::String(report.status.to_string()))},
       {"message", json::Value(report.message)},
@@ -7649,7 +7750,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
     json::List trace_stacks;
     trace_stacks.reserve(trace_stacks_.size());
     std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
-                           [](auto& s) { return json::Value(s.to_json()); });
+                           [](auto &s) { return json::Value(s.to_json()); });
     map.emplace("reader_trace_stacks", trace_stacks);
   }
 
@@ -7667,7 +7768,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
   return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> int {
+inline auto PlainTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << detail::status_to_title_string(report.status) << ".\n";
@@ -7678,8 +7779,8 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& stack : trace_stacks_) {
-      for (const auto& line : stack.to_plain_text_lines()) {
+    for (const auto &stack : trace_stacks_) {
+      for (const auto &line : stack.to_plain_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';
@@ -7690,7 +7791,7 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
     stream << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (const auto& [name, satisfaction] : trait_status_) {
+    for (const auto &[name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.emplace_back(name);
       } else {
@@ -7698,10 +7799,10 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
       }
     }
 
-    for (const auto& name : satisfied) {
+    for (const auto &name : satisfied) {
       stream << "+ " << cplib::detail::hex_encode(name) << '\n';
     }
-    for (const auto& name : dissatisfied) {
+    for (const auto &name : dissatisfied) {
       stream << "- " << cplib::detail::hex_encode(name) << '\n';
     }
   }
@@ -7715,7 +7816,7 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
   return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> int {
+inline auto ColoredTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << detail::status_to_colored_title_string(report.status) << ".\n";
@@ -7726,8 +7827,8 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& stack : trace_stacks_) {
-      for (const auto& line : stack.to_colored_text_lines()) {
+    for (const auto &stack : trace_stacks_) {
+      for (const auto &line : stack.to_colored_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';
@@ -7738,7 +7839,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
     stream << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (const auto& [name, satisfaction] : trait_status_) {
+    for (const auto &[name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.emplace_back(name);
       } else {
@@ -7746,10 +7847,10 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
       }
     }
 
-    for (const auto& name : satisfied) {
+    for (const auto &name : satisfied) {
       stream << "\x1b[0;32m+\x1b[0m " << name << '\n';
     }
-    for (const auto& name : dissatisfied) {
+    for (const auto &name : dissatisfied) {
       stream << "\x1b[0;31m-\x1b[0m " << name << '\n';
     }
   }
@@ -7875,15 +7976,15 @@ struct Initializer {
  public:
   virtual ~Initializer() = 0;
 
-  auto set_state(State& state) -> void;
+  auto set_state(State &state) -> void;
 
-  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string> &args) -> void = 0;
 
  protected:
-  auto state() -> State&;
+  auto state() -> State &;
 
  private:
-  State* state_{};
+  State *state_{};
 };
 
 /**
@@ -7893,7 +7994,7 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
+  [[nodiscard]] virtual auto report(const Report &report) -> int = 0;
 };
 
 struct State {
@@ -7942,7 +8043,7 @@ struct State {
    *
    * @param report The report to be reported.
    */
-  [[noreturn]] auto quit(const Report& report) -> void;
+  [[noreturn]] auto quit(const Report &report) -> void;
 
   /**
    * Quits the generator with the `report::Status::OK` status.
@@ -7964,74 +8065,75 @@ struct DefaultInitializer : Initializer {
    * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string> &args) -> void override;
 };
 
 /**
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
-#define CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_)                                 \
-  namespace cplib_generator_args_detail_ {                                                       \
-  struct AsResultTag_ {};                                                                        \
-                                                                                                 \
-  std::map<std::string, std::any> value_map_;                                                    \
-                                                                                                 \
-  struct Flag {                                                                                  \
-    using ResultType = bool;                                                                     \
-    std::string name;                                                                            \
-    explicit Flag(std::string name_) : name(std::move(name_)) {                                  \
-      state_var_name_.required_flag_args.emplace_back(name);                                     \
-      auto name = this->name;                                                                    \
-      state_var_name_.flag_parsers.emplace_back([name](const std::set<std::string>& flag_args) { \
-        *std::any_cast<ResultType>(&value_map_[name]) =                                          \
-            static_cast<ResultType>(flag_args.count(name));                                      \
-      });                                                                                        \
-    }                                                                                            \
-    inline auto operator|(AsResultTag_) const -> const ResultType& {                             \
-      return *std::any_cast<ResultType>(&(value_map_[name] = ResultType{}));                     \
-    }                                                                                            \
-  };                                                                                             \
-                                                                                                 \
-  template <class T>                                                                             \
-  struct Var {                                                                                   \
-    using ResultType = typename T::Target;                                                       \
-    T var;                                                                                       \
-    template <class... Args>                                                                     \
-    explicit Var(Args... args) : var(std::forward<Args>(args)...) {                              \
-      state_var_name_.required_var_args.emplace_back(var.name());                                \
-      auto var = this->var;                                                                      \
-      state_var_name_.var_parsers.emplace_back(                                                  \
-          [var](const std::map<std::string, std::string>& var_args) {                            \
-            auto name = std::string(var.name());                                                 \
-            *std::any_cast<ResultType>(&value_map_[name]) = var.parse(var_args.at(name));        \
-          });                                                                                    \
-    }                                                                                            \
-    inline auto operator|(AsResultTag_) const -> const ResultType& {                             \
-      return *std::any_cast<ResultType>(&(value_map_[std::string(var.name())] = ResultType{}));  \
-    }                                                                                            \
-  };                                                                                             \
-  }                                                                                              \
-  namespace cplib_generator_args_ {                                                              \
-  using ::cplib_generator_args_detail_::Flag;                                                    \
-  using ::cplib_generator_args_detail_::Var;                                                     \
+#define CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_)                                \
+  namespace cplib_generator_args_detail_ {                                                      \
+  struct AsResultTag_ {};                                                                       \
+                                                                                                \
+  std::map<std::string, std::any> value_map_;                                                   \
+                                                                                                \
+  struct Flag {                                                                                 \
+    using ResultType = bool;                                                                    \
+    std::string name;                                                                           \
+    explicit Flag(std::string name_) : name(std::move(name_)) {                                 \
+      state_var_name_.required_flag_args.emplace_back(name);                                    \
+      auto name = this->name;                                                                   \
+      state_var_name_.flag_parsers.emplace_back(                                                \
+          [name](const std::set<std::string> &flag_args) -> void {                              \
+            *std::any_cast<ResultType>(&value_map_[name]) =                                     \
+                static_cast<ResultType>(flag_args.count(name));                                 \
+          });                                                                                   \
+    }                                                                                           \
+    inline auto operator|(AsResultTag_) const -> const ResultType & {                           \
+      return *std::any_cast<ResultType>(&(value_map_[name] = ResultType{}));                    \
+    }                                                                                           \
+  };                                                                                            \
+                                                                                                \
+  template <class T>                                                                            \
+  struct Var {                                                                                  \
+    using ResultType = typename T::Target;                                                      \
+    T var;                                                                                      \
+    template <class... Args>                                                                    \
+    explicit Var(Args &&...args) : var(std::forward<Args>(args)...) {                           \
+      state_var_name_.required_var_args.emplace_back(var.name());                               \
+      auto var = this->var;                                                                     \
+      state_var_name_.var_parsers.emplace_back(                                                 \
+          [var](const std::map<std::string, std::string> &var_args) -> void {                   \
+            auto name = std::string(var.name());                                                \
+            *std::any_cast<ResultType>(&value_map_[name]) = var.parse(var_args.at(name));       \
+          });                                                                                   \
+    }                                                                                           \
+    inline auto operator|(AsResultTag_) const -> const ResultType & {                           \
+      return *std::any_cast<ResultType>(&(value_map_[std::string(var.name())] = ResultType{})); \
+    }                                                                                           \
+  };                                                                                            \
+  }                                                                                             \
+  namespace cplib_generator_args_ {                                                             \
+  using ::cplib_generator_args_detail_::Flag;                                                   \
+  using ::cplib_generator_args_detail_::Var;                                                    \
   }
 
 #define CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(x) x
@@ -8040,7 +8142,7 @@ struct ColoredTextReporter : Reporter {
 
 #define CPLIB_REGISTER_GENERATOR_ARGS_1_(arg)                       \
   namespace cplib_generator_args_ {                                 \
-  const auto& arg | ::cplib_generator_args_detail_::AsResultTag_{}; \
+  const auto &arg | ::cplib_generator_args_detail_::AsResultTag_{}; \
   }
 
 #define CPLIB_REGISTER_GENERATOR_ARGS_2_(arg0, ...) \
@@ -8298,40 +8400,41 @@ struct ColoredTextReporter : Reporter {
     _59, _60, _61, _62, _63, N, ...)                                                               \
   N
 
-#define CPLIB_REGISTER_GENERATOR_ARGS_(...)                                                       \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_GET_NTH_ARG_(               \
-      dummy, ##__VA_ARGS__, CPLIB_REGISTER_GENERATOR_ARGS_63_, CPLIB_REGISTER_GENERATOR_ARGS_62_, \
-      CPLIB_REGISTER_GENERATOR_ARGS_61_, CPLIB_REGISTER_GENERATOR_ARGS_60_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_59_, CPLIB_REGISTER_GENERATOR_ARGS_58_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_57_, CPLIB_REGISTER_GENERATOR_ARGS_56_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_55_, CPLIB_REGISTER_GENERATOR_ARGS_54_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_53_, CPLIB_REGISTER_GENERATOR_ARGS_52_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_51_, CPLIB_REGISTER_GENERATOR_ARGS_50_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_49_, CPLIB_REGISTER_GENERATOR_ARGS_48_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_47_, CPLIB_REGISTER_GENERATOR_ARGS_46_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_45_, CPLIB_REGISTER_GENERATOR_ARGS_44_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_43_, CPLIB_REGISTER_GENERATOR_ARGS_42_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_41_, CPLIB_REGISTER_GENERATOR_ARGS_40_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_39_, CPLIB_REGISTER_GENERATOR_ARGS_38_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_37_, CPLIB_REGISTER_GENERATOR_ARGS_36_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_35_, CPLIB_REGISTER_GENERATOR_ARGS_34_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_33_, CPLIB_REGISTER_GENERATOR_ARGS_32_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_31_, CPLIB_REGISTER_GENERATOR_ARGS_30_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_29_, CPLIB_REGISTER_GENERATOR_ARGS_28_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_27_, CPLIB_REGISTER_GENERATOR_ARGS_26_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_25_, CPLIB_REGISTER_GENERATOR_ARGS_24_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_23_, CPLIB_REGISTER_GENERATOR_ARGS_22_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_21_, CPLIB_REGISTER_GENERATOR_ARGS_20_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_19_, CPLIB_REGISTER_GENERATOR_ARGS_18_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_17_, CPLIB_REGISTER_GENERATOR_ARGS_16_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_15_, CPLIB_REGISTER_GENERATOR_ARGS_14_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_13_, CPLIB_REGISTER_GENERATOR_ARGS_12_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_11_, CPLIB_REGISTER_GENERATOR_ARGS_10_,                       \
-      CPLIB_REGISTER_GENERATOR_ARGS_9_, CPLIB_REGISTER_GENERATOR_ARGS_8_,                         \
-      CPLIB_REGISTER_GENERATOR_ARGS_7_, CPLIB_REGISTER_GENERATOR_ARGS_6_,                         \
-      CPLIB_REGISTER_GENERATOR_ARGS_5_, CPLIB_REGISTER_GENERATOR_ARGS_4_,                         \
-      CPLIB_REGISTER_GENERATOR_ARGS_3_, CPLIB_REGISTER_GENERATOR_ARGS_2_,                         \
-      CPLIB_REGISTER_GENERATOR_ARGS_1_, CPLIB_REGISTER_GENERATOR_ARGS_0_)(__VA_ARGS__))
+#define CPLIB_REGISTER_GENERATOR_ARGS_(...)                                         \
+  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_GET_NTH_ARG_( \
+      dummy __VA_OPT__(, ) __VA_ARGS__, CPLIB_REGISTER_GENERATOR_ARGS_63_,          \
+      CPLIB_REGISTER_GENERATOR_ARGS_62_, CPLIB_REGISTER_GENERATOR_ARGS_61_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_60_, CPLIB_REGISTER_GENERATOR_ARGS_59_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_58_, CPLIB_REGISTER_GENERATOR_ARGS_57_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_56_, CPLIB_REGISTER_GENERATOR_ARGS_55_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_54_, CPLIB_REGISTER_GENERATOR_ARGS_53_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_52_, CPLIB_REGISTER_GENERATOR_ARGS_51_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_50_, CPLIB_REGISTER_GENERATOR_ARGS_49_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_48_, CPLIB_REGISTER_GENERATOR_ARGS_47_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_46_, CPLIB_REGISTER_GENERATOR_ARGS_45_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_44_, CPLIB_REGISTER_GENERATOR_ARGS_43_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_42_, CPLIB_REGISTER_GENERATOR_ARGS_41_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_40_, CPLIB_REGISTER_GENERATOR_ARGS_39_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_38_, CPLIB_REGISTER_GENERATOR_ARGS_37_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_36_, CPLIB_REGISTER_GENERATOR_ARGS_35_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_34_, CPLIB_REGISTER_GENERATOR_ARGS_33_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_32_, CPLIB_REGISTER_GENERATOR_ARGS_31_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_30_, CPLIB_REGISTER_GENERATOR_ARGS_29_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_28_, CPLIB_REGISTER_GENERATOR_ARGS_27_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_26_, CPLIB_REGISTER_GENERATOR_ARGS_25_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_24_, CPLIB_REGISTER_GENERATOR_ARGS_23_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_22_, CPLIB_REGISTER_GENERATOR_ARGS_21_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_20_, CPLIB_REGISTER_GENERATOR_ARGS_19_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_18_, CPLIB_REGISTER_GENERATOR_ARGS_17_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_16_, CPLIB_REGISTER_GENERATOR_ARGS_15_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_14_, CPLIB_REGISTER_GENERATOR_ARGS_13_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_12_, CPLIB_REGISTER_GENERATOR_ARGS_11_,         \
+      CPLIB_REGISTER_GENERATOR_ARGS_10_, CPLIB_REGISTER_GENERATOR_ARGS_9_,          \
+      CPLIB_REGISTER_GENERATOR_ARGS_8_, CPLIB_REGISTER_GENERATOR_ARGS_7_,           \
+      CPLIB_REGISTER_GENERATOR_ARGS_6_, CPLIB_REGISTER_GENERATOR_ARGS_5_,           \
+      CPLIB_REGISTER_GENERATOR_ARGS_4_, CPLIB_REGISTER_GENERATOR_ARGS_3_,           \
+      CPLIB_REGISTER_GENERATOR_ARGS_2_, CPLIB_REGISTER_GENERATOR_ARGS_1_,           \
+      CPLIB_REGISTER_GENERATOR_ARGS_0_)(__VA_ARGS__))
 
 /**
  * Macro to register generator with custom initializer.
@@ -8347,7 +8450,7 @@ struct ColoredTextReporter : Reporter {
   CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_);                                    \
   CPLIB_REGISTER_GENERATOR_ARGS_(__VA_ARGS__);                                                 \
   namespace args_namespace_name_ = ::cplib_generator_args_;                                    \
-  auto main(int argc, char** argv) -> int {                                                    \
+  auto main(int argc, char **argv) -> int {                                                    \
     ::std::vector<::std::string> args;                                                         \
     args.reserve(argc);                                                                        \
     for (int i = 1; i < argc; ++i) {                                                           \
@@ -8372,7 +8475,7 @@ struct ColoredTextReporter : Reporter {
  */
 #define CPLIB_REGISTER_GENERATOR(var_name_, args_namespace_name_, ...)         \
   CPLIB_REGISTER_GENERATOR_OPT(var_name_, CPLIB_GENERATOR_DEFAULT_INITIALIZER, \
-                               args_namespace_name_, __VA_ARGS__)
+                               args_namespace_name_ __VA_OPT__(, ) __VA_ARGS__)
 }  // namespace cplib::generator
 
 // --- Start embedded: generator.i.hpp ---
@@ -8429,9 +8532,9 @@ inline Report::Report(Report::Status status, std::string message)
 
 inline Initializer::~Initializer() = default;
 
-inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
+inline auto Initializer::set_state(State &state) -> void { state_ = &state; };
 
-inline auto Initializer::state() -> State& { return *state_; };
+inline auto Initializer::state() -> State & { return *state_; };
 
 inline Reporter::~Reporter() = default;
 
@@ -8455,7 +8558,7 @@ inline State::~State() {
   if (!exited_) panic("Generator must exit by calling method `State::quit*`");
 }
 
-inline auto State::quit(const Report& report) -> void {
+inline auto State::quit(const Report &report) -> void {
   exited_ = true;
 
   auto exit_code = reporter->report(report);
@@ -8490,7 +8593,7 @@ inline auto print_help_message(std::string_view program_name, std::string_view a
   panic(msg);
 }
 
-inline auto detect_reporter(State& state) -> void {
+inline auto detect_reporter(State &state) -> void {
   if (!isatty(fileno(stderr))) {
     state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
@@ -8503,7 +8606,7 @@ inline auto detect_reporter(State& state) -> void {
 // Set the report format of `state` according to the string `format`.
 //
 // Returns `false` if the `format` is invalid.
-inline auto set_report_format(State& state, std::string_view format) -> bool {
+inline auto set_report_format(State &state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
@@ -8520,19 +8623,19 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   return true;
 }
 
-inline auto validate_required_arguments(const State& state,
-                                        const std::map<std::string, std::string>& var_args)
+inline auto validate_required_arguments(const State &state,
+                                        const std::map<std::string, std::string> &var_args)
     -> void {
-  for (const auto& var : state.required_var_args) {
+  for (const auto &var : state.required_var_args) {
     if (!var_args.count(var)) panic("Missing variable: " + var);
   }
 }
 
-inline auto get_args_usage(const State& state) {
+inline auto get_args_usage(const State &state) {
   std::vector<std::string> builder;
   builder.reserve(state.required_flag_args.size() + state.required_var_args.size());
-  for (const auto& arg : state.required_flag_args) builder.emplace_back("[--" + arg + "]");
-  for (const auto& arg : state.required_var_args) builder.emplace_back("--" + arg + "=<value>");
+  for (const auto &arg : state.required_flag_args) builder.emplace_back("[--" + arg + "]");
+  for (const auto &arg : state.required_var_args) builder.emplace_back("--" + arg + "=<value>");
   builder.emplace_back("[--report-format={auto|json|text}]");
 
   return join(builder.begin(), builder.end(), ' ');
@@ -8549,9 +8652,9 @@ inline auto set_binary_mode() {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string> &args)
     -> void {
-  auto& state = this->state();
+  auto &state = this->state();
 
   detail::detect_reporter(state);
 
@@ -8564,7 +8667,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   std::set<std::string> flag_args;
   std::map<std::string, std::string> var_args;
 
-  for (const auto& [key, value] : parsed_args.vars) {
+  for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
         panic(cplib::format("Unknown {} option: {}", key, value));
@@ -8582,7 +8685,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
     }
   }
 
-  for (const auto& flag : parsed_args.flags) {
+  for (const auto &flag : parsed_args.flags) {
     if (flag == "help") {
       detail::print_help_message(arg0, args_usage);
     } else {
@@ -8595,8 +8698,8 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
 
   detail::validate_required_arguments(state, var_args);
 
-  for (const auto& parser : state.flag_parsers) parser(flag_args);
-  for (const auto& parser : state.var_parsers) parser(var_args);
+  for (const auto &parser : state.flag_parsers) parser(flag_args);
+  for (const auto &parser : state.var_parsers) parser(var_args);
 
   // Unsynchronize to speed up std::cout output.
   std::ios_base::sync_with_stdio(false);
@@ -8634,7 +8737,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> int {
+inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
       {"status", json::Value(json::String(report.status.to_string()))},
       {"message", json::Value(report.message)},
@@ -8645,7 +8748,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
   return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> int {
+inline auto PlainTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   if (report.status == Report::Status::OK && report.message.empty()) {
@@ -8658,7 +8761,7 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
   return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> int {
+inline auto ColoredTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   if (report.status == Report::Status::OK && report.message.empty()) {
