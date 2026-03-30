@@ -73,14 +73,14 @@ inline Report::Report(Report::Status status, double score, std::string message)
 
 inline Initializer::~Initializer() = default;
 
-inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
+inline auto Initializer::set_state(State &state) -> void { state_ = &state; };
 
-inline auto Initializer::state() -> State& { return *state_; };
+inline auto Initializer::state() -> State & { return *state_; };
 
 inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -91,7 +91,7 @@ inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_from_user_fileno(int fileno, trace::Level trace_level) -> void {
   state_->from_user = var::detail::make_reader_by_fileno(
       fileno, "from_user", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -106,7 +106,7 @@ inline auto Initializer::set_to_user_fileno(int fileno) -> void {
 inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -118,7 +118,7 @@ inline auto Initializer::set_from_user_path(std::string_view path, trace::Level 
     -> void {
   state_->from_user = var::detail::make_reader_by_path(
       path, "from_user", false, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -156,7 +156,7 @@ inline State::~State() {
   if (!exited_) panic("Interactor must exit by calling method `State::quit*`");
 }
 
-inline auto State::quit(const Report& report) -> void {
+inline auto State::quit(const Report &report) -> void {
   exited_ = true;
 
   auto exit_code = reporter->report(report);
@@ -191,7 +191,7 @@ inline auto print_help_message(std::string_view program_name) -> void {
   panic(msg);
 }
 
-inline auto detect_reporter(State& state) -> void {
+inline auto detect_reporter(State &state) -> void {
   if (!isatty(fileno(stderr))) {
     state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
@@ -204,7 +204,7 @@ inline auto detect_reporter(State& state) -> void {
 // Set the report format of `state` according to the string `format`.
 //
 // Returns `false` if the `format` is invalid.
-inline auto set_report_format(State& state, std::string_view format) -> bool {
+inline auto set_report_format(State &state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
@@ -238,15 +238,15 @@ inline auto disable_stdio() -> void {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string> &args)
     -> void {
-  auto& state = this->state();
+  auto &state = this->state();
 
   detail::detect_reporter(state);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
 
-  for (const auto& [key, value] : parsed_args.vars) {
+  for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
         panic(cplib::format("Unknown {} option: {}", key, value));
@@ -256,7 +256,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
     }
   }
 
-  for (const auto& flag : parsed_args.flags) {
+  for (const auto &flag : parsed_args.flags) {
     if (flag == "help") {
       detail::print_help_message(arg0);
     } else {
@@ -313,7 +313,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> int {
+inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
       {"status", json::Value(json::String(report.status.to_string()))},
       {"score", json::Value(report.score)},
@@ -324,7 +324,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
     json::List trace_stacks;
     trace_stacks.reserve(trace_stacks_.size());
     std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
-                           [](auto& s) { return json::Value(s.to_json()); });
+                           [](auto &s) { return json::Value(s.to_json()); });
     map.emplace("reader_trace_stacks", trace_stacks);
   }
 
@@ -333,7 +333,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
   return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> int {
+inline auto PlainTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2) << detail::status_to_title_string(report.status)
@@ -345,8 +345,8 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& stack : trace_stacks_) {
-      for (const auto& line : stack.to_plain_text_lines()) {
+    for (const auto &stack : trace_stacks_) {
+      for (const auto &line : stack.to_plain_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';
@@ -356,7 +356,7 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
   return report.status == Report::Status::ACCEPTED ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> int {
+inline auto ColoredTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << std::fixed << std::setprecision(2)
@@ -368,8 +368,8 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& stack : trace_stacks_) {
-      for (const auto& line : stack.to_colored_text_lines()) {
+    for (const auto &stack : trace_stacks_) {
+      for (const auto &line : stack.to_colored_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';

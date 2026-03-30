@@ -16,11 +16,11 @@
 #ifndef CPLIB_RANDOM_HPP_
 #define CPLIB_RANDOM_HPP_
 
+#include <array>
 #include <concepts>
 #include <cstdint>
 #include <initializer_list>
 #include <iterator>
-#include <random>
 #include <ranges>
 #include <string>
 #include <vector>
@@ -30,9 +30,9 @@ namespace cplib {
 // Concept to check if a type behaves like a map for weighted choice.
 // It must be a range, and its elements must have a 'second' member we can use as a weight.
 template <typename T>
-concept MapLike = std::ranges::range<T> && requires(const std::ranges::range_value_t<T>& value) {
+concept MapLike = std::ranges::range<T> && requires(const std::ranges::range_value_t<T> &value) {
   typename T::mapped_type;
-  { value.second } -> std::convertible_to<const typename T::mapped_type&>;
+  { value.second } -> std::convertible_to<const typename T::mapped_type &>;
 };
 
 /**
@@ -41,7 +41,24 @@ concept MapLike = std::ranges::range<T> && requires(const std::ranges::range_val
  */
 struct Random {
  public:
-  using Engine = std::mt19937_64;
+  struct Engine {
+   public:
+    using result_type = std::uint64_t;
+
+    Engine() noexcept;
+    explicit Engine(std::uint64_t seed) noexcept;
+
+    static constexpr auto min() noexcept -> result_type { return 0; }
+    static constexpr auto max() noexcept -> result_type { return ~static_cast<result_type>(0); }
+
+    auto seed(std::uint64_t seed) noexcept -> void;
+    auto operator()() noexcept -> result_type;
+    auto jump() noexcept -> void;
+    auto long_jump() noexcept -> void;
+
+   private:
+    std::array<result_type, 4> state_{};
+  };
 
   /**
    * Construct a random generator with default seed.
@@ -60,7 +77,7 @@ struct Random {
    *
    * @param args The command-line arguments.
    */
-  explicit Random(const std::vector<std::string>& args);
+  explicit Random(const std::vector<std::string> &args);
 
   /**
    * Reseed the generator with a new seed.
@@ -74,14 +91,14 @@ struct Random {
    *
    * @param args The command-line arguments.
    */
-  auto reseed(const std::vector<std::string>& args) -> void;
+  auto reseed(const std::vector<std::string> &args) -> void;
 
   /**
    * Get the engine used by the random generator.
    *
    * @return A reference to the engine.
    */
-  auto engine() -> Engine&;
+  auto engine() -> Engine &;
 
   /**
    * Generate a random integer in the range [from, to].
@@ -163,7 +180,7 @@ struct Random {
    * @return A random iterator from the container.
    */
   template <std::ranges::forward_range Container>
-  auto choice(Container& container);
+  auto choice(Container &container);
 
   /**
    * Return a random iterator from the given map container by utilizing the values of the map
@@ -174,7 +191,7 @@ struct Random {
    * @return A random iterator from the map container.
    */
   template <MapLike Map>
-  auto weighted_choice(const Map& map);
+  auto weighted_choice(const Map &map);
 
   /**
    * Shuffle the elements in the given range.
@@ -193,7 +210,7 @@ struct Random {
    * @param container The container to shuffle.
    */
   template <std::ranges::random_access_range Container>
-  auto shuffle(Container& container) -> void;
+  auto shuffle(Container &container) -> void;
 
  private:
   Engine engine_;

@@ -38,7 +38,7 @@
 
 namespace cplib {
 namespace detail {
-inline auto get_regex_err_msg(int err_code, regex_t* re) -> std::string {
+inline auto get_regex_err_msg(int err_code, regex_t *re) -> std::string {
   std::size_t len = regerror(err_code, re, nullptr, 0);
   std::string buf(len, 0);
   regerror(err_code, re, buf.data(), len);
@@ -47,7 +47,7 @@ inline auto get_regex_err_msg(int err_code, regex_t* re) -> std::string {
 }  // namespace detail
 
 inline Pattern::Pattern(std::string src)
-    : src_(std::move(src)), re_(new std::pair<regex_t, bool>, [](std::pair<regex_t, bool>* p) {
+    : src_(std::move(src)), re_(new std::pair<regex_t, bool>, [](std::pair<regex_t, bool> *p) {
         if (p->second) regfree(&p->first);
         delete p;
       }) {

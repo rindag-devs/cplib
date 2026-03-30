@@ -121,12 +121,12 @@ struct Initializer {
  public:
   virtual ~Initializer() = 0;
 
-  auto set_state(State& state) -> void;
+  auto set_state(State &state) -> void;
 
-  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string> &args) -> void = 0;
 
  protected:
-  auto state() -> State&;
+  auto state() -> State &;
   auto set_inf_fileno(int fileno, trace::Level trace_level) -> void;
   auto set_ouf_fileno(int fileno, trace::Level trace_level) -> void;
   auto set_ans_fileno(int fileno, trace::Level trace_level) -> void;
@@ -136,7 +136,7 @@ struct Initializer {
   auto set_evaluator(trace::Level trace_level) -> void;
 
  private:
-  State* state_{};
+  State *state_{};
 };
 
 /**
@@ -146,13 +146,13 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
+  [[nodiscard]] virtual auto report(const Report &report) -> int = 0;
 
   auto attach_reader_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
   auto attach_evaluator_trace_stack(trace::TraceStack<evaluate::EvaluatorTrace> trace_stack)
       -> void;
   [[nodiscard]] auto get_evaluator_trace_stacks() const
-      -> const std::vector<trace::TraceStack<evaluate::EvaluatorTrace>>&;
+      -> const std::vector<trace::TraceStack<evaluate::EvaluatorTrace>> &;
 
  protected:
   std::vector<trace::TraceStack<var::ReaderTrace>> reader_trace_stacks_{};
@@ -248,28 +248,28 @@ struct DefaultInitializer : Initializer {
    * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string> &args) -> void override;
 };
 
 /**
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
@@ -279,11 +279,11 @@ struct ColoredTextReporter : Reporter {
  */
 #define CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, initializer_)                    \
   static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
-  static_assert(::cplib::var::Readable<output_struct_, const input_struct_&>,                      \
+  static_assert(::cplib::var::Readable<output_struct_, const input_struct_ &>,                     \
                 "`" #output_struct_ "` should be Readable");                                       \
-  static_assert(::cplib::evaluate::Evaluatable<output_struct_, const input_struct_&>,              \
+  static_assert(::cplib::evaluate::Evaluatable<output_struct_, const input_struct_ &>,             \
                 "`" #output_struct_ "` should be Evaluatable");                                    \
-  auto main(int argc, char** argv) -> int {                                                        \
+  auto main(int argc, char **argv) -> int {                                                        \
     ::std::vector<::std::string> args;                                                             \
     args.reserve(argc);                                                                            \
     for (int i = 1; i < argc; ++i) {                                                               \
@@ -299,7 +299,7 @@ struct ColoredTextReporter : Reporter {
     ::cplib::evaluate::Result result = state.evaluator("output", output, answer, input);           \
     ::std::string report_message;                                                                  \
     auto evaluator_trace_stacks = state.reporter->get_evaluator_trace_stacks();                    \
-    auto it = ::std::ranges::find_if(evaluator_trace_stacks, [](const auto& x) -> bool {           \
+    auto it = ::std::ranges::find_if(evaluator_trace_stacks, [](const auto &x) -> bool {           \
       return !x.stack.empty() && x.stack.back().result.has_value() &&                              \
              !x.stack.back().result->message.empty();                                              \
     });                                                                                            \

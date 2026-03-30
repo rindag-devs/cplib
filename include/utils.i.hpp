@@ -105,12 +105,12 @@ inline auto panic(std::string_view message) -> void {
 
 #ifdef CPLIB_USE_FMT_LIB
 template <class... Args>
-[[nodiscard]] inline auto format(fmt::format_string<Args...> fmt, Args&&... args) -> std::string {
+[[nodiscard]] inline auto format(fmt::format_string<Args...> fmt, Args &&...args) -> std::string {
   return fmt::vformat(fmt.get(), fmt::make_format_args(args...));
 }
 #else
 template <class... Args>
-[[nodiscard]] inline auto format(std::format_string<Args...> fmt, Args&&... args) -> std::string {
+[[nodiscard]] inline auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string {
   return std::vformat(fmt.get(), std::make_format_args(args...));
 }
 #endif
@@ -246,11 +246,11 @@ auto UniqueFunction<Ret(Args...)>::operator()(Args... args) const -> Ret {
 
 template <typename Ret, typename... Args>
 template <class T>
-UniqueFunction<Ret(Args...)>::Data<T>::Data(T&& t) : func(std::forward<T>(t)) {}
+UniqueFunction<Ret(Args...)>::Data<T>::Data(T &&t) : func(std::forward<T>(t)) {}
 
 template <typename Ret, typename... Args>
 template <class T>
-auto UniqueFunction<Ret(Args...)>::Data<T>::operator()(Args&&... args) -> Ret {
+auto UniqueFunction<Ret(Args...)>::Data<T>::operator()(Args &&...args) -> Ret {
   return func(std::forward<Args>(args)...);
 }
 
@@ -266,7 +266,7 @@ struct PairKeyCompare {
 
   // Compare pair with key
   template <typename Pair, typename Key>
-  auto operator()(const Pair& p, const Key& k) const -> bool {
+  auto operator()(const Pair &p, const Key &k) const -> bool {
     return key_comp(p.first, k);
   }
 };
@@ -276,18 +276,18 @@ struct PairKeyCompare {
 // Constructors & Assignment
 
 template <typename Key, typename T, typename Compare>
-inline FlatMap<Key, T, Compare>::FlatMap(const Compare& comp) : comp_(comp) {}
+inline FlatMap<Key, T, Compare>::FlatMap(const Compare &comp) : comp_(comp) {}
 
 template <typename Key, typename T, typename Compare>
 template <std::input_iterator It>
-inline FlatMap<Key, T, Compare>::FlatMap(It first, It last, const Compare& comp)
+inline FlatMap<Key, T, Compare>::FlatMap(It first, It last, const Compare &comp)
     : data_(first, last), comp_(comp) {
   sort_and_unique();
 }
 
 template <typename Key, typename T, typename Compare>
 inline FlatMap<Key, T, Compare>::FlatMap(std::initializer_list<value_type> ilist,
-                                         const Compare& comp)
+                                         const Compare &comp)
     : data_(ilist), comp_(comp) {
   sort_and_unique();
 }
@@ -295,20 +295,20 @@ inline FlatMap<Key, T, Compare>::FlatMap(std::initializer_list<value_type> ilist
 // Comparison Operators
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::operator==(const FlatMap& other) const -> bool {
+inline auto FlatMap<Key, T, Compare>::operator==(const FlatMap &other) const -> bool {
   return data_ == other.data_;
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::operator<=>(const FlatMap& other) const {
+inline auto FlatMap<Key, T, Compare>::operator<=>(const FlatMap &other) const {
   return data_ <=> other.data_;
 }
 
 // Element Access
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::at(const key_type& key) ->
-    typename FlatMap<Key, T, Compare>::mapped_type& {
+inline auto FlatMap<Key, T, Compare>::at(const key_type &key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = find(key);
   if (it == end()) {
     cplib::panic(cplib::format("FlatMap::at: key not found"));
@@ -317,8 +317,8 @@ inline auto FlatMap<Key, T, Compare>::at(const key_type& key) ->
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::at(const key_type& key) const -> const
-    typename FlatMap<Key, T, Compare>::mapped_type& {
+inline auto FlatMap<Key, T, Compare>::at(const key_type &key) const -> const
+    typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = find(key);
   if (it == end()) {
     cplib::panic(cplib::format("FlatMap::at: key not found"));
@@ -327,8 +327,8 @@ inline auto FlatMap<Key, T, Compare>::at(const key_type& key) const -> const
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::operator[](const key_type& key) ->
-    typename FlatMap<Key, T, Compare>::mapped_type& {
+inline auto FlatMap<Key, T, Compare>::operator[](const key_type &key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = lower_bound(key);
   if (it != end() && !comp_(key, it->first)) {
     // Key already exists
@@ -340,8 +340,8 @@ inline auto FlatMap<Key, T, Compare>::operator[](const key_type& key) ->
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::operator[](key_type&& key) ->
-    typename FlatMap<Key, T, Compare>::mapped_type& {
+inline auto FlatMap<Key, T, Compare>::operator[](key_type &&key) ->
+    typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = lower_bound(key);
   if (it != end() && !comp_(key, it->first)) {
     // Key already exists
@@ -445,7 +445,7 @@ inline auto FlatMap<Key, T, Compare>::max_size() const ->
 // Modifiers
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::insert(const value_type& value)
+inline auto FlatMap<Key, T, Compare>::insert(const value_type &value)
     -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
   auto it = lower_bound(value.first);
   if (it != end() && !comp_(value.first, it->first)) {
@@ -456,7 +456,7 @@ inline auto FlatMap<Key, T, Compare>::insert(const value_type& value)
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::insert(value_type&& value)
+inline auto FlatMap<Key, T, Compare>::insert(value_type &&value)
     -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
   auto it = lower_bound(value.first);
   if (it != end() && !comp_(value.first, it->first)) {
@@ -468,7 +468,7 @@ inline auto FlatMap<Key, T, Compare>::insert(value_type&& value)
 
 template <typename Key, typename T, typename Compare>
 template <typename... Args>
-inline auto FlatMap<Key, T, Compare>::emplace(Args&&... args)
+inline auto FlatMap<Key, T, Compare>::emplace(Args &&...args)
     -> std::pair<typename FlatMap<Key, T, Compare>::iterator, bool> {
   value_type temp_val(std::forward<Args>(args)...);
   auto it = lower_bound(temp_val.first);
@@ -486,7 +486,7 @@ inline auto FlatMap<Key, T, Compare>::erase(const_iterator pos) ->
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::erase(const key_type& key) ->
+inline auto FlatMap<Key, T, Compare>::erase(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::size_type {
   auto it = find(key);
   if (it == end()) {
@@ -499,7 +499,7 @@ inline auto FlatMap<Key, T, Compare>::erase(const key_type& key) ->
 // Lookup
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::find(const key_type& key) ->
+inline auto FlatMap<Key, T, Compare>::find(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::iterator {
   auto it = lower_bound(key);
   if (it != end() && !comp_(key, it->first)) {
@@ -509,7 +509,7 @@ inline auto FlatMap<Key, T, Compare>::find(const key_type& key) ->
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::find(const key_type& key) const ->
+inline auto FlatMap<Key, T, Compare>::find(const key_type &key) const ->
     typename FlatMap<Key, T, Compare>::const_iterator {
   auto it = lower_bound(key);
   if (it != end() && !comp_(key, it->first)) {
@@ -519,30 +519,30 @@ inline auto FlatMap<Key, T, Compare>::find(const key_type& key) const ->
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::contains(const key_type& key) const -> bool {
+inline auto FlatMap<Key, T, Compare>::contains(const key_type &key) const -> bool {
   return find(key) != end();
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type& key) ->
+inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::iterator {
   return std::lower_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type& key) const ->
+inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type &key) const ->
     typename FlatMap<Key, T, Compare>::const_iterator {
   return std::lower_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type& key) ->
+inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::iterator {
   return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
 }
 
 template <typename Key, typename T, typename Compare>
-inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type& key) const ->
+inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type &key) const ->
     typename FlatMap<Key, T, Compare>::const_iterator {
   return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
 }
@@ -553,11 +553,11 @@ template <typename Key, typename T, typename Compare>
 inline auto FlatMap<Key, T, Compare>::sort_and_unique() -> void {
   // Sort by key
   std::sort(data_.begin(), data_.end(),
-            [this](const value_type& a, const value_type& b) { return comp_(a.first, b.first); });
+            [this](const value_type &a, const value_type &b) { return comp_(a.first, b.first); });
 
   // Remove duplicate keys. std::unique keeps the first element in a group of duplicates.
   auto last =
-      std::unique(data_.begin(), data_.end(), [this](const value_type& a, const value_type& b) {
+      std::unique(data_.begin(), data_.end(), [this](const value_type &a, const value_type &b) {
         // Two keys are equivalent if !(a < b) && !(b < a)
         return !comp_(a.first, b.first) && !comp_(b.first, a.first);
       });

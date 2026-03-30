@@ -96,9 +96,9 @@ inline Reader::Reader(std::unique_ptr<io::InStream> inner, trace::Level trace_le
       inner_(std::move(inner)),
       fail_func_(std::move(fail_func)) {}
 
-inline auto Reader::inner() -> io::InStream& { return *inner_; }
+inline auto Reader::inner() -> io::InStream & { return *inner_; }
 
-inline auto Reader::inner() const -> const io::InStream& { return *inner_; }
+inline auto Reader::inner() const -> const io::InStream & { return *inner_; }
 
 [[noreturn]] inline auto Reader::fail(std::string_view message) -> void {
   fail_func_(*this, message);
@@ -106,7 +106,7 @@ inline auto Reader::inner() const -> const io::InStream& { return *inner_; }
 }
 
 template <class T, class D>
-inline auto Reader::read(const Var<T, D>& v) -> T {
+inline auto Reader::read(const Var<T, D> &v) -> T {
   auto trace_level = get_trace_level();
 
   if (trace_level >= trace::Level::STACK_ONLY) {
@@ -165,13 +165,13 @@ inline auto Var<T, D>::name() const -> std::string_view {
 
 template <class T, class D>
 inline auto Var<T, D>::clone() const -> D {
-  D clone = *static_cast<const D*>(this);
+  D clone = *static_cast<const D *>(this);
   return clone;
 }
 
 template <class T, class D>
 inline auto Var<T, D>::renamed(std::string_view name) const -> D {
-  D clone = *static_cast<const D*>(this);
+  D clone = *static_cast<const D *>(this);
   clone.name_ = name;
   return clone;
 }
@@ -180,7 +180,7 @@ template <class T, class D>
 inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
   auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
-                       trace::Level::NONE, [](const Reader&, std::string_view msg) -> void {
+                       trace::Level::NONE, [](const Reader &, std::string_view msg) -> void {
                          panic(std::string("Var::parse failed: ") + msg.data());
                        });
   T result = reader.read(*this);
@@ -192,7 +192,7 @@ inline auto Var<T, D>::parse(std::string_view s) const -> T {
 
 template <class T, class D>
 inline auto Var<T, D>::operator*(std::size_t len) const -> Vec<D> {
-  return Vec<D>(*static_cast<const D*>(this), len);
+  return Vec<D>(*static_cast<const D *>(this), len);
 }
 
 template <class T, class D>
@@ -216,7 +216,7 @@ inline Int<T>::Int(std::string name, std::optional<T> min, std::optional<T> max)
     : Var<T, Int<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
 template <std::integral T>
-inline auto Int<T>::read_from(Reader& in) const -> T {
+inline auto Int<T>::read_from(Reader &in) const -> T {
   auto token = in.inner().read_word();
 
   if (token.empty()) {
@@ -229,8 +229,8 @@ inline auto Int<T>::read_from(Reader& in) const -> T {
   }
 
   T result{};
-  const char* first = token.data();
-  const char* last = token.data() + token.length();
+  const char *first = token.data();
+  const char *last = token.data() + token.length();
   auto [ptr, ec] = std::from_chars(first, last, result);
 
   if (ec == std::errc::invalid_argument || ptr != last) {
@@ -277,7 +277,7 @@ inline Float<T>::Float(std::string name, std::optional<T> min, std::optional<T> 
     : Var<T, Float<T>>(std::move(name)), min(std::move(min)), max(std::move(max)) {}
 
 template <std::floating_point T>
-inline auto Float<T>::read_from(Reader& in) const -> T {
+inline auto Float<T>::read_from(Reader &in) const -> T {
   auto token = in.inner().read_token();
 
   if (token.empty()) {
@@ -290,8 +290,8 @@ inline auto Float<T>::read_from(Reader& in) const -> T {
   }
 
   T result{};
-  const char* first = token.data();
-  const char* last = token.data() + token.length();
+  const char *first = token.data();
+  const char *last = token.data() + token.length();
 
   // `Float<T>` usually uses with non-strict streams, so it should support both fixed format and
   // scientific.
@@ -362,7 +362,7 @@ inline StrictFloat<T>::StrictFloat(std::string name, T min, T max, size_t min_n_
 }
 
 template <std::floating_point T>
-inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
+inline auto StrictFloat<T>::read_from(Reader &in) const -> T {
   auto token = in.inner().read_word();
 
   if (token.empty()) {
@@ -375,8 +375,8 @@ inline auto StrictFloat<T>::read_from(Reader& in) const -> T {
   }
 
   T result;
-  const char* first = token.data();
-  const char* last = token.data() + token.length();
+  const char *first = token.data();
+  const char *last = token.data() + token.length();
 
   // Use std::chars_format::fixed for strict float parsing (no scientific notation)
   auto [ptr, ec] = std::from_chars(first, last, result, std::chars_format::fixed);
@@ -425,7 +425,7 @@ inline YesNo::YesNo() : YesNo(std::string(detail::VAR_DEFAULT_NAME)) {}
 
 inline YesNo::YesNo(std::string name) : Var<bool, YesNo>(std::move(name)) {}
 
-inline auto YesNo::read_from(Reader& in) const -> bool {
+inline auto YesNo::read_from(Reader &in) const -> bool {
   auto word = in.inner().read_word();
   auto lower_token = word;
   std::ranges::transform(lower_token, lower_token.begin(), ::tolower);
@@ -475,7 +475,7 @@ inline String::String(std::string name, Pattern pat)
 inline String::String(std::string name, Mode mode, Pattern pat)
     : Var<std::string, String>(std::move(name)), pat(std::move(pat)), mode(mode) {}
 
-inline auto String::read_from(Reader& in) const -> std::string {
+inline auto String::read_from(Reader &in) const -> std::string {
   std::string result;
   std::string kind;
 
@@ -539,7 +539,7 @@ inline Separator::Separator(std::optional<unsigned char> sep)
 inline Separator::Separator(std::string name, std::optional<unsigned char> sep)
     : Var<std::nullopt_t, Separator>(std::move(name)), sep(sep) {}
 
-inline auto Separator::read_from(Reader& in) const -> std::nullopt_t {
+inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
   if (in.get_trace_level() >= trace::Level::FULL) {
     in.attach_tag("#hidden", json::Value(true));
   }
@@ -590,7 +590,7 @@ inline Vec<T>::Vec(T element, size_t len, Separator sep)
       sep(std::move(sep)) {}
 
 template <class T>
-inline auto Vec<T>::read_from(Reader& in) const -> std::vector<typename T::Var::Target> {
+inline auto Vec<T>::read_from(Reader &in) const -> std::vector<typename T::Var::Target> {
   std::vector<typename T::Var::Target> result(len);
   for (std::size_t i = 0; i < len; ++i) {
     if (i > 0) in.read(sep);
@@ -613,7 +613,7 @@ inline Mat<T>::Mat(T element, size_t len0, size_t len1, Separator sep0, Separato
       sep1(std::move(sep1)) {}
 
 template <class T>
-inline auto Mat<T>::read_from(Reader& in) const
+inline auto Mat<T>::read_from(Reader &in) const
     -> std::vector<std::vector<typename T::Var::Target>> {
   std::vector<std::vector<typename T::Var::Target>> result(
       len0, std::vector<typename T::Var::Target>(len1));
@@ -644,7 +644,7 @@ inline Pair<F, S>::Pair(std::string name, std::pair<F, S> pr, Separator sep)
       sep(std::move(sep)) {}
 
 template <class F, class S>
-inline auto Pair<F, S>::read_from(Reader& in) const
+inline auto Pair<F, S>::read_from(Reader &in) const
     -> std::pair<typename F::Var::Target, typename S::Var::Target> {
   auto result_first = in.read(first.renamed("first"));
   in.read(sep);
@@ -667,14 +667,14 @@ inline Tuple<T...>::Tuple(std::string name, std::tuple<T...> elements, Separator
       sep(std::move(sep)) {}
 
 template <class... T>
-inline auto Tuple<T...>::read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> {
+inline auto Tuple<T...>::read_from(Reader &in) const -> std::tuple<typename T::Var::Target...> {
   // Delegate to the implementation helper with a generated index sequence.
   return read_from_impl(in, std::index_sequence_for<T...>{});
 }
 
 template <class... T>
 template <std::size_t... Is>
-inline auto Tuple<T...>::read_from_impl(Reader& in, std::index_sequence<Is...>) const
+inline auto Tuple<T...>::read_from_impl(Reader &in, std::index_sequence<Is...>) const
     -> std::tuple<typename T::Var::Target...> {
   // Create the result tuple that will be populated.
   std::tuple<typename T::Var::Target...> result;
@@ -704,16 +704,16 @@ template <class... Args>
 inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args... args)
     : Var<typename std::function<F>::result_type, FnVar<F>>(std::move(name)),
       inner_function_(
-          [captured_args = std::make_tuple(std::forward<Args>(args)...), f](Reader& in) {
+          [captured_args = std::make_tuple(std::forward<Args>(args)...), f](Reader &in) {
             return std::apply(
-                [&in, f](auto&&... unpacked_args) {
+                [&in, f](auto &&...unpacked_args) {
                   return f(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
                 },
                 captured_args);
           }) {}
 
 template <class F>
-inline auto FnVar<F>::read_from(Reader& in) const -> typename std::function<F>::result_type {
+inline auto FnVar<F>::read_from(Reader &in) const -> typename std::function<F>::result_type {
   return inner_function_(in);
 }
 
@@ -724,9 +724,9 @@ inline ExtVar<T>::ExtVar(std::string name, Args... args)
     : Var<T, ExtVar<T>>(std::move(name)),
       // Capture arguments into a tuple, then use std::apply to call T::read.
       // This is a robust way to handle variadic arguments within std::function.
-      inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...)](Reader& in) {
+      inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...)](Reader &in) {
         return std::apply(
-            [&in](auto&&... unpacked_args) {
+            [&in](auto &&...unpacked_args) {
               // Call T::read with the Reader and the unpacked arguments
               return T::read(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
             },
@@ -734,25 +734,25 @@ inline ExtVar<T>::ExtVar(std::string name, Args... args)
       }) {}
 
 template <class T>
-inline auto ExtVar<T>::read_from(Reader& in) const -> T {
+inline auto ExtVar<T>::read_from(Reader &in) const -> T {
   return inner_function_(in);
 }
 
 template <class T>
 template <std::ranges::range Range, class... Args>
-inline ExtVec<T>::ExtVec(std::string name, Range&& range, Separator sep, Args... args)
+inline ExtVec<T>::ExtVec(std::string name, Range &&range, Separator sep, Args... args)
   requires Readable<T, Args..., std::ranges::range_value_t<Range>>
     : Var<std::vector<T>, ExtVec<T>>(std::move(name)),
       inner_function_([range = std::forward<Range>(range), sep,
                        captured_args = std::make_tuple(std::forward<Args>(args)...)](
-                          Reader& in) -> std::vector<T> {
+                          Reader &in) -> std::vector<T> {
         std::vector<T> result;
         if constexpr (std::ranges::sized_range<Range>) {
           result.reserve(std::ranges::size(range));
         }
 
         std::size_t i = 0;
-        for (const auto& range_element : range) {
+        for (const auto &range_element : range) {
           if (i > 0) {
             in.read(sep);
           }
@@ -762,7 +762,7 @@ inline ExtVec<T>::ExtVec(std::string name, Range&& range, Separator sep, Args...
           // current range_element, to the ExtVar constructor. This correctly sets up
           // the call to T::read with all necessary arguments and handles tracing.
           auto element = std::apply(
-              [&](auto&&... fixed_args) {
+              [&](auto &&...fixed_args) {
                 return in.read(ExtVar<T>(std::to_string(i),
                                          std::forward<decltype(fixed_args)>(fixed_args)...,
                                          range_element));
@@ -776,7 +776,7 @@ inline ExtVec<T>::ExtVec(std::string name, Range&& range, Separator sep, Args...
       }) {}
 
 template <class T>
-inline auto ExtVec<T>::read_from(Reader& in) const -> std::vector<T> {
+inline auto ExtVec<T>::read_from(Reader &in) const -> std::vector<T> {
   return inner_function_(in);
 }
 }  // namespace cplib::var

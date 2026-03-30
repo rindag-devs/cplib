@@ -145,18 +145,18 @@ struct Initializer {
  public:
   virtual ~Initializer() = 0;
 
-  auto set_state(State& state) -> void;
+  auto set_state(State &state) -> void;
 
-  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string> &args) -> void = 0;
 
  protected:
-  auto state() -> State&;
+  auto state() -> State &;
 
   auto set_inf_fileno(int fileno, trace::Level level) -> void;
   auto set_inf_path(std::string_view path, trace::Level level) -> void;
 
  private:
-  State* state_{};
+  State *state_{};
 };
 
 /**
@@ -166,17 +166,17 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
+  [[nodiscard]] virtual auto report(const Report &report) -> int = 0;
 
   auto attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
 
-  auto attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* root) -> void;
+  auto attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace> *root) -> void;
 
-  auto attach_trait_status(const std::map<std::string, bool>& trait_status) -> void;
+  auto attach_trait_status(const std::map<std::string, bool> &trait_status) -> void;
 
  protected:
   std::vector<trace::TraceStack<var::ReaderTrace>> trace_stacks_{};
-  const trace::TraceTreeNode<var::ReaderTrace>* trace_tree_{};
+  const trace::TraceTreeNode<var::ReaderTrace> *trace_tree_{};
   std::map<std::string, bool> trait_status_{};
 };
 
@@ -255,28 +255,28 @@ struct DefaultInitializer : Initializer {
    * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string> &args) -> void override;
 };
 
 /**
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
@@ -287,7 +287,7 @@ struct ColoredTextReporter : Reporter {
  */
 #define CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_, initializer_)                    \
   static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
-  auto main(int argc, char** argv) -> int {                                                        \
+  auto main(int argc, char **argv) -> int {                                                        \
     ::std::vector<::std::string> args;                                                             \
     args.reserve(argc);                                                                            \
     for (int i = 1; i < argc; ++i) {                                                               \
@@ -298,7 +298,7 @@ struct ColoredTextReporter : Reporter {
         ::cplib::validator::State(std::unique_ptr<decltype(initializer_)>(new initializer_));      \
     state.initializer->init(argv[0], args);                                                        \
     input_struct_ input{state.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};             \
-    std::function<auto(const input_struct_&)->::std::vector<::cplib::validator::Trait>>            \
+    std::function<auto(const input_struct_ &)->::std::vector<::cplib::validator::Trait>>           \
         traits_func = traits_func_;                                                                \
     state.traits(traits_func(input));                                                              \
     state.quit_valid();                                                                            \

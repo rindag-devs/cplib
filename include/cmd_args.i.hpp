@@ -40,10 +40,10 @@ inline auto split_var(std::string_view var) -> std::pair<std::string_view, std::
 }
 }  // namespace detail
 
-inline ParsedArgs::ParsedArgs(const std::vector<std::string>& args) {
+inline ParsedArgs::ParsedArgs(const std::vector<std::string> &args) {
   std::optional<std::string> last_flag;
 
-  for (const auto& arg : args) {
+  for (const auto &arg : args) {
     if (arg.size() >= 2 && arg[0] == '-' && arg[1] == '-') {
       if (arg.find('=') != std::string::npos) {
         // `--var=value`

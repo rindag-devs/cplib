@@ -41,7 +41,7 @@ enum struct Level : std::uint8_t {
 };
 
 template <typename T>
-concept Trace = requires(const T& t) {
+concept Trace = requires(const T &t) {
   { t.node_name() } -> std::same_as<std::string>;
   { t.to_plain_text() } -> std::same_as<std::string>;
   { t.to_colored_text() } -> std::same_as<std::string>;
@@ -92,30 +92,30 @@ struct TraceTreeNode {
   explicit TraceTreeNode(T trace);
 
   /// Copy constructor (deleted to prevent copying).
-  TraceTreeNode(const TraceTreeNode&) = delete;
+  TraceTreeNode(const TraceTreeNode &) = delete;
 
   /// Copy assignment operator (deleted to prevent copying).
-  auto operator=(const TraceTreeNode&) -> TraceTreeNode& = delete;
+  auto operator=(const TraceTreeNode &) -> TraceTreeNode & = delete;
 
   /// Move constructor.
-  TraceTreeNode(TraceTreeNode&&) noexcept = default;
+  TraceTreeNode(TraceTreeNode &&) noexcept = default;
 
   /// Move assignment operator.
-  auto operator=(TraceTreeNode&&) noexcept -> TraceTreeNode& = default;
+  auto operator=(TraceTreeNode &&) noexcept -> TraceTreeNode & = default;
 
   /**
    * Get the children of the node.
    *
    * @return The children of the node.
    */
-  [[nodiscard]] auto get_children() const -> const std::vector<std::unique_ptr<TraceTreeNode>>&;
+  [[nodiscard]] auto get_children() const -> const std::vector<std::unique_ptr<TraceTreeNode>> &;
 
   /**
    * Get the parent of the node.
    *
    * @return The parent of the node.
    */
-  [[nodiscard]] auto get_parent() -> TraceTreeNode*;
+  [[nodiscard]] auto get_parent() -> TraceTreeNode *;
 
   /**
    * Convert to JSON value.
@@ -135,13 +135,13 @@ struct TraceTreeNode {
    * @param child The child node.
    * @return The child node.
    */
-  auto add_child(std::unique_ptr<TraceTreeNode> child) -> std::unique_ptr<TraceTreeNode>&;
+  auto add_child(std::unique_ptr<TraceTreeNode> child) -> std::unique_ptr<TraceTreeNode> &;
 
  private:
   std::vector<std::unique_ptr<TraceTreeNode>> children_{};
-  TraceTreeNode* parent_{nullptr};
+  TraceTreeNode *parent_{nullptr};
 
-  auto write_json(std::streambuf& buf) const -> void;
+  auto write_json(std::streambuf &buf) const -> void;
 };
 
 /**
@@ -152,10 +152,10 @@ struct Traced {
  public:
   explicit Traced(Level trace_level, T root);
   virtual ~Traced() = 0;
-  Traced(const Traced&) = delete;
-  auto operator=(const Traced&) -> Traced& = delete;
-  Traced(Traced&&) noexcept = default;
-  auto operator=(Traced&&) noexcept -> Traced& = default;
+  Traced(const Traced &) = delete;
+  auto operator=(const Traced &) -> Traced & = delete;
+  Traced(Traced &&) noexcept = default;
+  auto operator=(Traced &&) noexcept -> Traced & = default;
 
   /**
    * Get the trace level.
@@ -176,7 +176,7 @@ struct Traced {
    * Only available when `TraceLevel::FULL` is set.
    * Otherwise, an error will be panicked.
    */
-  [[nodiscard]] auto get_trace_tree() const -> const TraceTreeNode<T>*;
+  [[nodiscard]] auto get_trace_tree() const -> const TraceTreeNode<T> *;
 
   /**
    * Attach a tag to the current trace.
@@ -192,7 +192,7 @@ struct Traced {
    * Only available when `TraceLevel::STACK_ONLY` or higher is set.
    * Otherwise, an error will be panicked.
    */
-  auto get_current_trace() const -> const T&;
+  auto get_current_trace() const -> const T &;
 
  protected:
   /**
@@ -220,7 +220,7 @@ struct Traced {
   trace::Level trace_level_;
   std::vector<T> active_traces_;
   std::unique_ptr<TraceTreeNode<T>> trace_tree_root_;
-  TraceTreeNode<T>* trace_tree_current_;
+  TraceTreeNode<T> *trace_tree_current_;
 };
 
 }  // namespace cplib::trace

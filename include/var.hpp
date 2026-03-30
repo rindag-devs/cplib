@@ -80,37 +80,37 @@ struct ReaderTrace {
  */
 struct Reader : trace::Traced<ReaderTrace> {
  public:
-  using FailFunc = UniqueFunction<auto(const Reader&, std::string_view)->void>;
+  using FailFunc = UniqueFunction<auto(const Reader &, std::string_view)->void>;
 
   /// Create a reader of input stream.
   explicit Reader(std::unique_ptr<io::InStream> inner, trace::Level trace_level,
                   FailFunc fail_func);
 
   /// Copy constructor (deleted to prevent copying).
-  Reader(const Reader&) = delete;
+  Reader(const Reader &) = delete;
 
   /// Copy assignment operator (deleted to prevent copying).
-  auto operator=(const Reader&) -> Reader& = delete;
+  auto operator=(const Reader &) -> Reader & = delete;
 
   /// Move constructor.
-  Reader(Reader&&) noexcept = default;
+  Reader(Reader &&) noexcept = default;
 
   /// Move assignment operator.
-  auto operator=(Reader&&) noexcept -> Reader& = default;
+  auto operator=(Reader &&) noexcept -> Reader & = default;
 
   /**
    * Get the inner wrapped input stream.
    *
    * @return Reference to the inner input stream.
    */
-  [[nodiscard]] auto inner() -> io::InStream&;
+  [[nodiscard]] auto inner() -> io::InStream &;
 
   /**
    * Get the inner wrapped input stream.
    *
    * @return Reference to the inner input stream.
    */
-  [[nodiscard]] auto inner() const -> const io::InStream&;
+  [[nodiscard]] auto inner() const -> const io::InStream &;
 
   /**
    * Call fail func with a message.
@@ -128,7 +128,7 @@ struct Reader : trace::Traced<ReaderTrace> {
    * @return The value read from the input stream.
    */
   template <class T, class D>
-  auto read(const Var<T, D>& v) -> T;
+  auto read(const Var<T, D> &v) -> T;
 
   /**
    * Read multiple variables and put them into a tuple.
@@ -210,7 +210,7 @@ struct Var {
    * @param in The `Reader` object to read from.
    * @return The value of the variable.
    */
-  virtual auto read_from(Reader& in) const -> T = 0;
+  virtual auto read_from(Reader &in) const -> T = 0;
 
  private:
   /**
@@ -276,7 +276,7 @@ struct Int : Var<T, Int<T>> {
    * @param in The reader to read from.
    * @return The read value.
    */
-  auto read_from(Reader& in) const -> T override;
+  auto read_from(Reader &in) const -> T override;
 };
 
 /**
@@ -323,7 +323,7 @@ struct Float : Var<T, Float<T>> {
    * @param in The input reader.
    * @return The value read from the input reader.
    */
-  auto read_from(Reader& in) const -> T override;
+  auto read_from(Reader &in) const -> T override;
 };
 
 /**
@@ -364,7 +364,7 @@ struct StrictFloat : Var<T, StrictFloat<T>> {
    * @param in The input reader.
    * @return The value read from the input reader.
    */
-  auto read_from(Reader& in) const -> T override;
+  auto read_from(Reader &in) const -> T override;
 };
 
 /**
@@ -394,7 +394,7 @@ struct YesNo : Var<bool, YesNo> {
    * @param in The reader to read from.
    * @return The read value.
    */
-  auto read_from(Reader& in) const -> bool override;
+  auto read_from(Reader &in) const -> bool override;
 };
 
 /**
@@ -464,7 +464,7 @@ struct String : Var<std::string, String> {
    * @param in The input reader.
    * @return The value read from the input reader.
    */
-  auto read_from(Reader& in) const -> std::string override;
+  auto read_from(Reader &in) const -> std::string override;
 };
 
 /**
@@ -501,7 +501,7 @@ struct Separator : Var<std::nullopt_t, Separator> {
    * @param in The input reader.
    * @return `std::nullopt` to indicate that no value is read.
    */
-  auto read_from(Reader& in) const -> std::nullopt_t override;
+  auto read_from(Reader &in) const -> std::nullopt_t override;
 };
 
 /**
@@ -543,7 +543,7 @@ struct Vec : Var<std::vector<typename T::Var::Target>, Vec<T>> {
    * @param in The reader object.
    * @return The vector of elements.
    */
-  auto read_from(Reader& in) const -> std::vector<typename T::Var::Target> override;
+  auto read_from(Reader &in) const -> std::vector<typename T::Var::Target> override;
 };
 
 /**
@@ -592,7 +592,7 @@ struct Mat : Var<std::vector<std::vector<typename T::Var::Target>>, Mat<T>> {
    * @param in The reader object.
    * @return The matrix of elements.
    */
-  auto read_from(Reader& in) const -> std::vector<std::vector<typename T::Var::Target>> override;
+  auto read_from(Reader &in) const -> std::vector<std::vector<typename T::Var::Target>> override;
 };
 
 /**
@@ -650,7 +650,7 @@ struct Pair : Var<std::pair<typename F::Var::Target, typename S::Var::Target>, P
    * @param in The reader object.
    * @return The pair of elements.
    */
-  auto read_from(Reader& in) const
+  auto read_from(Reader &in) const
       -> std::pair<typename F::Var::Target, typename S::Var::Target> override;
 };
 
@@ -705,7 +705,7 @@ struct Tuple : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
    * @param in The reader object.
    * @return The tuple of elements.
    */
-  auto read_from(Reader& in) const -> std::tuple<typename T::Var::Target...> override;
+  auto read_from(Reader &in) const -> std::tuple<typename T::Var::Target...> override;
 
  private:
   /**
@@ -721,7 +721,7 @@ struct Tuple : Var<std::tuple<typename T::Var::Target...>, Tuple<T...>> {
    * @return The tuple of elements read from the stream.
    */
   template <std::size_t... Is>
-  auto read_from_impl(Reader& in, std::index_sequence<Is...>) const
+  auto read_from_impl(Reader &in, std::index_sequence<Is...>) const
       -> std::tuple<typename T::Var::Target...>;
 };
 
@@ -756,17 +756,17 @@ struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
    * @param in The reader object.
    * @return The result of the function.
    */
-  auto read_from(Reader& in) const -> typename std::function<F>::result_type override;
+  auto read_from(Reader &in) const -> typename std::function<F>::result_type override;
 
  private:
   /// The inner function.
-  std::function<typename std::function<F>::result_type(Reader& in)> inner_function_;
+  std::function<typename std::function<F>::result_type(Reader &in)> inner_function_;
 };
 
 // Defines the requirements for a type T to be "readable"
 // with a static 'read' method that takes a Reader and additional arguments.
 template <typename T, typename... Args>
-concept Readable = requires(Reader& reader, Args&&... args) {
+concept Readable = requires(Reader &reader, Args &&...args) {
   // T must have a static member function named 'read'.
   // It must be callable with a Reader& and the given Args.
   // Its return type must be convertible to T (or exactly T).
@@ -802,11 +802,11 @@ struct ExtVar : Var<T, ExtVar<T>> {
    * @param in The reader object.
    * @return The result of `T::read`.
    */
-  auto read_from(Reader& in) const -> T override;
+  auto read_from(Reader &in) const -> T override;
 
  private:
   /// The inner function that encapsulates the call to T::read.
-  std::function<T(Reader&)> inner_function_;
+  std::function<T(Reader &)> inner_function_;
 };
 
 /**
@@ -833,7 +833,7 @@ struct ExtVec : Var<std::vector<T>, ExtVec<T>> {
    * @param args The fixed arguments to be passed to `T::read` before the range element.
    */
   template <std::ranges::range Range, class... Args>
-  explicit ExtVec(std::string name, Range&& range, Separator sep, Args... args)
+  explicit ExtVec(std::string name, Range &&range, Separator sep, Args... args)
     requires Readable<T, Args..., std::ranges::range_value_t<Range>>;
 
   /**
@@ -842,11 +842,11 @@ struct ExtVec : Var<std::vector<T>, ExtVec<T>> {
    * @param in The reader object.
    * @return The vector of elements.
    */
-  auto read_from(Reader& in) const -> std::vector<T> override;
+  auto read_from(Reader &in) const -> std::vector<T> override;
 
  private:
   /// The inner function that encapsulates the call to T::read for each element.
-  std::function<std::vector<T>(Reader&)> inner_function_;
+  std::function<std::vector<T>(Reader &)> inner_function_;
 };
 
 using i8 = Int<std::int8_t>;

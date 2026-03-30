@@ -139,7 +139,7 @@ struct Result {
   /// then by score (lower score is "worse"). Message is not part of comparison logic.
   /// @param other The Result to compare with.
   /// @return A std::strong_ordering indicating the relationship.
-  constexpr auto operator<=>(const Result& other) const -> std::strong_ordering;
+  constexpr auto operator<=>(const Result &other) const -> std::strong_ordering;
 
   /// Scales the score of the Result by a given factor.
   /// @param scale The scaling factor.
@@ -149,19 +149,19 @@ struct Result {
   /// Scales the score of this Result by a given factor in-place. The message remains unchanged.
   /// @param scale The scaling factor.
   /// @return A reference to this Result object.
-  auto operator*=(double scale) -> Result&;
+  auto operator*=(double scale) -> Result &;
 
   /// Combines two Results by adding their scores. The message remains unchanged.
   /// The resulting status is the "worst" (minimum enum value) of the two statuses.
   /// @param other The Result to add.
   /// @return A new Result object representing the sum.
-  [[nodiscard]] auto operator+(const Result& other) const -> Result;
+  [[nodiscard]] auto operator+(const Result &other) const -> Result;
 
   /// Combines this Result with another by adding scores in-place. The message remains unchanged.
   /// The resulting status is the "worst" (minimum enum value) of the two statuses.
   /// @param other The Result to add.
   /// @return A reference to this Result object.
-  auto operator+=(const Result& other) -> Result&;
+  auto operator+=(const Result &other) -> Result &;
 
   /// Combines two Results by taking the minimum of their scores. The message remains unchanged.
   /// The resulting status is the "worst" (minimum enum value) of the two statuses.
@@ -169,14 +169,14 @@ struct Result {
   /// the lowest score dictates the overall outcome.
   /// @param other The Result to combine with (min operation).
   /// @return A new Result object representing the minimum.
-  [[nodiscard]] auto operator&(const Result& other) const -> Result;
+  [[nodiscard]] auto operator&(const Result &other) const -> Result;
 
   /// Combines this Result with another by taking the minimum of their scores in-place. The message
   /// remains unchanged. The resulting status is the "worst" (minimum enum value) of the two
   /// statuses.
   /// @param other The Result to combine with (min operation).
   /// @return A reference to this Result object.
-  auto operator&=(const Result& other) -> Result&;
+  auto operator&=(const Result &other) -> Result &;
 
   /**
    * Convert to json value.
@@ -201,7 +201,7 @@ struct Evaluator;
  * answer/correct output) and additional arguments and returns a `cplib::Result`.
  */
 template <typename T, typename... Args>
-concept Evaluatable = requires(Evaluator& ev, const T& pans, const T& jans, Args&&... args) {
+concept Evaluatable = requires(Evaluator &ev, const T &pans, const T &jans, Args &&...args) {
   { T::evaluate(ev, pans, jans, std::forward<Args>(args)...) } -> std::same_as<Result>;
 };
 
@@ -228,8 +228,8 @@ struct EvaluatorTrace {
 };
 
 struct Evaluator : trace::Traced<EvaluatorTrace> {
-  using FailFunc = UniqueFunction<auto(const Evaluator&, std::string_view)->void>;
-  using EvaluationHook = UniqueFunction<auto(const Evaluator&, const Result&)->void>;
+  using FailFunc = UniqueFunction<auto(const Evaluator &, std::string_view)->void>;
+  using EvaluationHook = UniqueFunction<auto(const Evaluator &, const Result &)->void>;
 
   /**
    * Create an evaluator.
@@ -237,16 +237,16 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
   explicit Evaluator(trace::Level trace_level, FailFunc fail_func, EvaluationHook evaluation_hook);
 
   /// Copy constructor (deleted to prevent copying).
-  Evaluator(const Evaluator&) = delete;
+  Evaluator(const Evaluator &) = delete;
 
   /// Copy assignment operator (deleted to prevent copying).
-  auto operator=(const Evaluator&) -> Evaluator& = delete;
+  auto operator=(const Evaluator &) -> Evaluator & = delete;
 
   /// Move constructor.
-  Evaluator(Evaluator&&) noexcept = default;
+  Evaluator(Evaluator &&) noexcept = default;
 
   /// Move assignment operator.
-  auto operator=(Evaluator&&) noexcept -> Evaluator& = default;
+  auto operator=(Evaluator &&) noexcept -> Evaluator & = default;
 
   /**
    * Call fail func with a message.
@@ -265,17 +265,17 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
    * @return Result of the evaluation.
    */
   template <typename T, class... Args>
-  auto operator()(std::string_view var_name, const T& pans, const T& jans, Args... args) -> Result
+  auto operator()(std::string_view var_name, const T &pans, const T &jans, Args... args) -> Result
     requires Evaluatable<T, Args...>;
 
   template <std::equality_comparable T>
-  auto eq(std::string_view var_name, const T& pans, const T& jans) -> Result;
+  auto eq(std::string_view var_name, const T &pans, const T &jans) -> Result;
 
   template <std::floating_point T>
-  auto approx(std::string_view var_name, const T& pans, const T& jans, const T& max_err) -> Result;
+  auto approx(std::string_view var_name, const T &pans, const T &jans, const T &max_err) -> Result;
 
   template <class T>
-  auto approx_abs(std::string_view var_name, const T& pans, const T& jans, const T& abs_err)
+  auto approx_abs(std::string_view var_name, const T &pans, const T &jans, const T &abs_err)
       -> Result
     requires std::is_arithmetic_v<T>;
 
@@ -284,7 +284,7 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
   EvaluationHook evaluation_hook_;
 
   auto pre_evaluate(std::string_view var_name) -> void;
-  auto post_evaluate(Result& result) -> void;
+  auto post_evaluate(Result &result) -> void;
 };
 
 }  // namespace cplib::evaluate

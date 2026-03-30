@@ -53,7 +53,7 @@ template <Trace T>
   json::List stack_list;
 
   stack_list.reserve(stack.size());
-  for (const auto& trace : stack) {
+  for (const auto &trace : stack) {
     stack_list.emplace_back(trace.to_stack_json());
   }
 
@@ -72,7 +72,7 @@ template <Trace T>
   }
 
   std::size_t id = 0;
-  for (const auto& trace : stack) {
+  for (const auto &trace : stack) {
     auto line = cplib::format("#{}: {}", id, trace.to_plain_text());
     ++id;
     lines.emplace_back(std::move(line));
@@ -91,7 +91,7 @@ template <Trace T>
   }
 
   std::size_t id = 0;
-  for (const auto& trace : stack) {
+  for (const auto &trace : stack) {
     auto line = cplib::format("#{}: {}", id, trace.to_colored_text());
     ++id;
     lines.emplace_back(std::move(line));
@@ -152,12 +152,12 @@ inline TraceTreeNode<T>::TraceTreeNode(T trace) : trace(std::move(trace)) {}
 
 template <Trace T>
 [[nodiscard]] inline auto TraceTreeNode<T>::get_children() const
-    -> const std::vector<std::unique_ptr<TraceTreeNode>>& {
+    -> const std::vector<std::unique_ptr<TraceTreeNode>> & {
   return children_;
 }
 
 template <Trace T>
-[[nodiscard]] inline auto TraceTreeNode<T>::get_parent() -> TraceTreeNode* {
+[[nodiscard]] inline auto TraceTreeNode<T>::get_parent() -> TraceTreeNode * {
   return parent_;
 }
 
@@ -173,13 +173,13 @@ template <Trace T>
 
 template <Trace T>
 inline auto TraceTreeNode<T>::add_child(std::unique_ptr<TraceTreeNode> child)
-    -> std::unique_ptr<TraceTreeNode>& {
+    -> std::unique_ptr<TraceTreeNode> & {
   child->parent_ = this;
   return children_.emplace_back(std::move(child));
 }
 
 template <Trace T>
-inline auto TraceTreeNode<T>::write_json(std::streambuf& buf) const -> void {
+inline auto TraceTreeNode<T>::write_json(std::streambuf &buf) const -> void {
   assert(!tags.contains("#hidden"));
 
   constexpr std::string_view TRACE_HEADER = "{\"trace\":";
@@ -192,12 +192,12 @@ inline auto TraceTreeNode<T>::write_json(std::streambuf& buf) const -> void {
     json::Value::encode_map(buf, tags);
   }
 
-  if (const auto& children = get_children();
-      std::ranges::any_of(children, [](const auto& c) { return !c->tags.contains("#hidden"); })) {
+  if (const auto &children = get_children();
+      std::ranges::any_of(children, [](const auto &c) { return !c->tags.contains("#hidden"); })) {
     constexpr std::string_view CHILDREN_HEADER = ",\"children\":[";
     buf.sputn(CHILDREN_HEADER.data(), CHILDREN_HEADER.size());
     bool first = true;
-    for (const auto& child : children) {
+    for (const auto &child : children) {
       if (child->tags.contains("#hidden")) continue;
       if (first) {
         first = false;
@@ -233,7 +233,7 @@ template <Trace T>
 }
 
 template <Trace T>
-[[nodiscard]] inline auto Traced<T>::get_trace_tree() const -> const TraceTreeNode<T>* {
+[[nodiscard]] inline auto Traced<T>::get_trace_tree() const -> const TraceTreeNode<T> * {
   if (get_trace_level() < Level::FULL) {
     panic("Traced::get_trace_tree requires `Level::FULL`");
   }
@@ -251,7 +251,7 @@ inline auto Traced<T>::attach_tag(std::string_view key, json::Value value) -> vo
 }
 
 template <Trace T>
-inline auto Traced<T>::get_current_trace() const -> const T& {
+inline auto Traced<T>::get_current_trace() const -> const T & {
   if (get_trace_level() < Level::STACK_ONLY) {
     panic("Traced::get_current_trace requires `Level::STACK_ONLY`");
   }
@@ -285,7 +285,7 @@ inline auto Traced<T>::push_trace(T trace) -> void {
     return;
   }
 
-  auto& child =
+  auto &child =
       trace_tree_current_->add_child(std::make_unique<trace::TraceTreeNode<T>>(std::move(trace)));
   trace_tree_current_ = child.get();
 }

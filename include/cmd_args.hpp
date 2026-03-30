@@ -38,7 +38,7 @@ struct ParsedArgs {
   ParsedArgs() = default;
 
   /// Parse from raw command-line args.
-  explicit ParsedArgs(const std::vector<std::string>& args);
+  explicit ParsedArgs(const std::vector<std::string> &args);
 
   [[nodiscard]] auto has_flag(std::string_view name) const -> bool;
 };

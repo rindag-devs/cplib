@@ -67,9 +67,9 @@ inline Report::Report(Report::Status status, std::string message)
 
 inline Initializer::~Initializer() = default;
 
-inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
+inline auto Initializer::set_state(State &state) -> void { state_ = &state; };
 
-inline auto Initializer::state() -> State& { return *state_; };
+inline auto Initializer::state() -> State & { return *state_; };
 
 inline Reporter::~Reporter() = default;
 
@@ -93,7 +93,7 @@ inline State::~State() {
   if (!exited_) panic("Generator must exit by calling method `State::quit*`");
 }
 
-inline auto State::quit(const Report& report) -> void {
+inline auto State::quit(const Report &report) -> void {
   exited_ = true;
 
   auto exit_code = reporter->report(report);
@@ -128,7 +128,7 @@ inline auto print_help_message(std::string_view program_name, std::string_view a
   panic(msg);
 }
 
-inline auto detect_reporter(State& state) -> void {
+inline auto detect_reporter(State &state) -> void {
   if (!isatty(fileno(stderr))) {
     state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
@@ -141,7 +141,7 @@ inline auto detect_reporter(State& state) -> void {
 // Set the report format of `state` according to the string `format`.
 //
 // Returns `false` if the `format` is invalid.
-inline auto set_report_format(State& state, std::string_view format) -> bool {
+inline auto set_report_format(State &state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
@@ -158,19 +158,19 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
   return true;
 }
 
-inline auto validate_required_arguments(const State& state,
-                                        const std::map<std::string, std::string>& var_args)
+inline auto validate_required_arguments(const State &state,
+                                        const std::map<std::string, std::string> &var_args)
     -> void {
-  for (const auto& var : state.required_var_args) {
+  for (const auto &var : state.required_var_args) {
     if (!var_args.count(var)) panic("Missing variable: " + var);
   }
 }
 
-inline auto get_args_usage(const State& state) {
+inline auto get_args_usage(const State &state) {
   std::vector<std::string> builder;
   builder.reserve(state.required_flag_args.size() + state.required_var_args.size());
-  for (const auto& arg : state.required_flag_args) builder.emplace_back("[--" + arg + "]");
-  for (const auto& arg : state.required_var_args) builder.emplace_back("--" + arg + "=<value>");
+  for (const auto &arg : state.required_flag_args) builder.emplace_back("[--" + arg + "]");
+  for (const auto &arg : state.required_var_args) builder.emplace_back("--" + arg + "=<value>");
   builder.emplace_back("[--report-format={auto|json|text}]");
 
   return join(builder.begin(), builder.end(), ' ');
@@ -187,9 +187,9 @@ inline auto set_binary_mode() {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string> &args)
     -> void {
-  auto& state = this->state();
+  auto &state = this->state();
 
   detail::detect_reporter(state);
 
@@ -202,7 +202,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   std::set<std::string> flag_args;
   std::map<std::string, std::string> var_args;
 
-  for (const auto& [key, value] : parsed_args.vars) {
+  for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
         panic(cplib::format("Unknown {} option: {}", key, value));
@@ -220,7 +220,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
     }
   }
 
-  for (const auto& flag : parsed_args.flags) {
+  for (const auto &flag : parsed_args.flags) {
     if (flag == "help") {
       detail::print_help_message(arg0, args_usage);
     } else {
@@ -233,8 +233,8 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
 
   detail::validate_required_arguments(state, var_args);
 
-  for (const auto& parser : state.flag_parsers) parser(flag_args);
-  for (const auto& parser : state.var_parsers) parser(var_args);
+  for (const auto &parser : state.flag_parsers) parser(flag_args);
+  for (const auto &parser : state.var_parsers) parser(var_args);
 
   // Unsynchronize to speed up std::cout output.
   std::ios_base::sync_with_stdio(false);
@@ -272,7 +272,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> int {
+inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
       {"status", json::Value(json::String(report.status.to_string()))},
       {"message", json::Value(report.message)},
@@ -283,7 +283,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
   return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> int {
+inline auto PlainTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   if (report.status == Report::Status::OK && report.message.empty()) {
@@ -296,7 +296,7 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
   return report.status == Report::Status::OK ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> int {
+inline auto ColoredTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   if (report.status == Report::Status::OK && report.message.empty()) {

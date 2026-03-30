@@ -107,15 +107,15 @@ struct Initializer {
  public:
   virtual ~Initializer() = 0;
 
-  auto set_state(State& state) -> void;
+  auto set_state(State &state) -> void;
 
-  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string> &args) -> void = 0;
 
  protected:
-  auto state() -> State&;
+  auto state() -> State &;
 
  private:
-  State* state_{};
+  State *state_{};
 };
 
 /**
@@ -125,7 +125,7 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
+  [[nodiscard]] virtual auto report(const Report &report) -> int = 0;
 };
 
 struct State {
@@ -174,7 +174,7 @@ struct State {
    *
    * @param report The report to be reported.
    */
-  [[noreturn]] auto quit(const Report& report) -> void;
+  [[noreturn]] auto quit(const Report &report) -> void;
 
   /**
    * Quits the generator with the `report::Status::OK` status.
@@ -196,28 +196,28 @@ struct DefaultInitializer : Initializer {
    * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string> &args) -> void override;
 };
 
 /**
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 #define CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_)                                 \
@@ -232,12 +232,12 @@ struct ColoredTextReporter : Reporter {
     explicit Flag(std::string name_) : name(std::move(name_)) {                                  \
       state_var_name_.required_flag_args.emplace_back(name);                                     \
       auto name = this->name;                                                                    \
-      state_var_name_.flag_parsers.emplace_back([name](const std::set<std::string>& flag_args) { \
+      state_var_name_.flag_parsers.emplace_back([name](const std::set<std::string> &flag_args) { \
         *std::any_cast<ResultType>(&value_map_[name]) =                                          \
             static_cast<ResultType>(flag_args.count(name));                                      \
       });                                                                                        \
     }                                                                                            \
-    inline auto operator|(AsResultTag_) const -> const ResultType& {                             \
+    inline auto operator|(AsResultTag_) const -> const ResultType & {                            \
       return *std::any_cast<ResultType>(&(value_map_[name] = ResultType{}));                     \
     }                                                                                            \
   };                                                                                             \
@@ -251,12 +251,12 @@ struct ColoredTextReporter : Reporter {
       state_var_name_.required_var_args.emplace_back(var.name());                                \
       auto var = this->var;                                                                      \
       state_var_name_.var_parsers.emplace_back(                                                  \
-          [var](const std::map<std::string, std::string>& var_args) {                            \
+          [var](const std::map<std::string, std::string> &var_args) {                            \
             auto name = std::string(var.name());                                                 \
             *std::any_cast<ResultType>(&value_map_[name]) = var.parse(var_args.at(name));        \
           });                                                                                    \
     }                                                                                            \
-    inline auto operator|(AsResultTag_) const -> const ResultType& {                             \
+    inline auto operator|(AsResultTag_) const -> const ResultType & {                            \
       return *std::any_cast<ResultType>(&(value_map_[std::string(var.name())] = ResultType{}));  \
     }                                                                                            \
   };                                                                                             \
@@ -272,7 +272,7 @@ struct ColoredTextReporter : Reporter {
 
 #define CPLIB_REGISTER_GENERATOR_ARGS_1_(arg)                       \
   namespace cplib_generator_args_ {                                 \
-  const auto& arg | ::cplib_generator_args_detail_::AsResultTag_{}; \
+  const auto &arg | ::cplib_generator_args_detail_::AsResultTag_{}; \
   }
 
 #define CPLIB_REGISTER_GENERATOR_ARGS_2_(arg0, ...) \
@@ -579,7 +579,7 @@ struct ColoredTextReporter : Reporter {
   CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_);                                    \
   CPLIB_REGISTER_GENERATOR_ARGS_(__VA_ARGS__);                                                 \
   namespace args_namespace_name_ = ::cplib_generator_args_;                                    \
-  auto main(int argc, char** argv) -> int {                                                    \
+  auto main(int argc, char **argv) -> int {                                                    \
     ::std::vector<::std::string> args;                                                         \
     args.reserve(argc);                                                                        \
     for (int i = 1; i < argc; ++i) {                                                           \

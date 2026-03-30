@@ -57,18 +57,18 @@ template <class... Args>
  */
 #ifdef CPLIB_USE_FMT_LIB
 template <class... Args>
-[[nodiscard]] auto format(fmt::format_string<Args...> fmt, Args&&... args) -> std::string;
+[[nodiscard]] auto format(fmt::format_string<Args...> fmt, Args &&...args) -> std::string;
 
 template <typename T>
-concept formattable = requires(T& v, fmt::format_context ctx) {
+concept formattable = requires(T &v, fmt::format_context ctx) {
   fmt::formatter<std::remove_cvref_t<T>>().format(v, ctx);
 };
 #else
 template <class... Args>
-[[nodiscard]] auto format(std::format_string<Args...> fmt, Args&&... args) -> std::string;
+[[nodiscard]] auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string;
 
 template <typename T>
-concept formattable = requires(T& v, std::format_context ctx) {
+concept formattable = requires(T &v, std::format_context ctx) {
   std::formatter<std::remove_cvref_t<T>>().format(v, ctx);
 };
 #endif
@@ -217,7 +217,7 @@ struct UniqueFunction<Ret(Args...)> {
      * @param args The arguments to be passed to the derived function.
      * @return The return value of the derived function.
      */
-    virtual auto operator()(Args&&... args) -> Ret = 0;
+    virtual auto operator()(Args &&...args) -> Ret = 0;
   };
 
   /**
@@ -229,7 +229,7 @@ struct UniqueFunction<Ret(Args...)> {
   struct Data : Base {
     T func;
 
-    explicit Data(T&& t);
+    explicit Data(T &&t);
 
     /**
      * Function call operator implementation.
@@ -237,7 +237,7 @@ struct UniqueFunction<Ret(Args...)> {
      * @param args The arguments to be passed to the stored function.
      * @return The return value of the stored function.
      */
-    auto operator()(Args&&... args) -> Ret override;
+    auto operator()(Args &&...args) -> Ret override;
   };
 
   std::unique_ptr<Base> ptr{nullptr};
@@ -264,8 +264,8 @@ struct FlatMap {
   using mapped_type = T;
   using value_type = std::pair<Key, T>;
   using key_compare = Compare;
-  using reference = value_type&;
-  using const_reference = const value_type&;
+  using reference = value_type &;
+  using const_reference = const value_type &;
   using size_type = std::size_t;
   using difference_type = std::ptrdiff_t;
   using iterator = typename std::vector<value_type>::iterator;
@@ -285,33 +285,33 @@ struct FlatMap {
   FlatMap() = default;
 
   /** @brief Constructs with a specific comparator. */
-  explicit FlatMap(const Compare& comp);
+  explicit FlatMap(const Compare &comp);
 
   /** @brief Constructs from a range of elements. */
   template <std::input_iterator It>
-  explicit FlatMap(It first, It last, const Compare& comp = Compare{});
+  explicit FlatMap(It first, It last, const Compare &comp = Compare{});
 
   /** @brief Constructs from an initializer list. */
-  FlatMap(std::initializer_list<value_type> ilist, const Compare& comp = Compare{});
+  FlatMap(std::initializer_list<value_type> ilist, const Compare &comp = Compare{});
 
   // Defaulted copy/move constructors and assignment operators are sufficient.
-  FlatMap(const FlatMap&) = default;
-  FlatMap(FlatMap&&) = default;
-  auto operator=(const FlatMap&) -> FlatMap& = default;
-  auto operator=(FlatMap&&) -> FlatMap& = default;
+  FlatMap(const FlatMap &) = default;
+  FlatMap(FlatMap &&) = default;
+  auto operator=(const FlatMap &) -> FlatMap & = default;
+  auto operator=(FlatMap &&) -> FlatMap & = default;
 
   // Comparison Operators
-  auto operator==(const FlatMap& other) const -> bool;
-  auto operator<=>(const FlatMap& other) const;
+  auto operator==(const FlatMap &other) const -> bool;
+  auto operator<=>(const FlatMap &other) const;
 
   // Element Access
   /** @brief Access specified element with bounds checking. */
-  auto at(const key_type& key) -> mapped_type&;
-  auto at(const key_type& key) const -> const mapped_type&;
+  auto at(const key_type &key) -> mapped_type &;
+  auto at(const key_type &key) const -> const mapped_type &;
 
   /** @brief Access or insert specified element. */
-  auto operator[](const key_type& key) -> mapped_type&;
-  auto operator[](key_type&& key) -> mapped_type&;
+  auto operator[](const key_type &key) -> mapped_type &;
+  auto operator[](key_type &&key) -> mapped_type &;
 
   // Iterators
 
@@ -345,35 +345,35 @@ struct FlatMap {
   // Modifiers
 
   /** @brief Inserts a new element into the container. */
-  auto insert(const value_type& value) -> std::pair<iterator, bool>;
-  auto insert(value_type&& value) -> std::pair<iterator, bool>;
+  auto insert(const value_type &value) -> std::pair<iterator, bool>;
+  auto insert(value_type &&value) -> std::pair<iterator, bool>;
 
   /** @brief Constructs an element in-place. */
   template <typename... Args>
-  auto emplace(Args&&... args) -> std::pair<iterator, bool>;
+  auto emplace(Args &&...args) -> std::pair<iterator, bool>;
 
   /** @brief Erases an element at a specific position. */
   auto erase(const_iterator pos) -> iterator;
 
   /** @brief Erases an element with a specific key. */
-  auto erase(const key_type& key) -> size_type;
+  auto erase(const key_type &key) -> size_type;
 
   // Lookup
 
   /** @brief Finds an element with a specific key. */
-  auto find(const key_type& key) -> iterator;
-  auto find(const key_type& key) const -> const_iterator;
+  auto find(const key_type &key) -> iterator;
+  auto find(const key_type &key) const -> const_iterator;
 
   /** @brief Checks if the container contains an element with a specific key. */
-  auto contains(const key_type& key) const -> bool;
+  auto contains(const key_type &key) const -> bool;
 
   /** @brief Returns an iterator to the first element not less than the given key. */
-  auto lower_bound(const key_type& key) -> iterator;
-  auto lower_bound(const key_type& key) const -> const_iterator;
+  auto lower_bound(const key_type &key) -> iterator;
+  auto lower_bound(const key_type &key) const -> const_iterator;
 
   /** @brief Returns an iterator to the first element greater than the given key. */
-  auto upper_bound(const key_type& key) -> iterator;
-  auto upper_bound(const key_type& key) const -> const_iterator;
+  auto upper_bound(const key_type &key) -> iterator;
+  auto upper_bound(const key_type &key) const -> const_iterator;
 
  private:
   /**

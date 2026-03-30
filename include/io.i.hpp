@@ -291,21 +291,21 @@ inline auto OutBuf::overflow(int_type c) -> int_type {
   return c;
 }
 
-inline auto OutBuf::xsputn(const char* s, std::streamsize num) -> std::streamsize {
+inline auto OutBuf::xsputn(const char *s, std::streamsize num) -> std::streamsize {
   return write(fd_, s, num);
 }
 
 namespace detail {
 // Open the givin file and create a `std::::ostream`
-inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf>& buf,
-                                 std::ostream& stream) -> void {
+inline auto make_ostream_by_path(std::string_view path, std::unique_ptr<std::streambuf> &buf,
+                                 std::ostream &stream) -> void {
   buf = std::make_unique<io::OutBuf>(path);
   stream.rdbuf(buf.get());
 }
 
 // Use file with givin fileno as output stream and create a `std::::ostream`
-inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf>& buf,
-                                   std::ostream& stream) -> void {
+inline auto make_ostream_by_fileno(int fileno, std::unique_ptr<std::streambuf> &buf,
+                                   std::ostream &stream) -> void {
   buf = std::make_unique<io::OutBuf>(fileno);
   stream.rdbuf(buf.get());
 }

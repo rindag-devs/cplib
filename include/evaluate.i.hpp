@@ -63,7 +63,7 @@ inline constexpr auto Result::Status::to_string() const -> std::string_view {
 
 // Impl Result {{{
 namespace detail {
-inline auto merge_message(const std::string& a, const std::string& b) -> std::string {
+inline auto merge_message(const std::string &a, const std::string &b) -> std::string {
   if (a.empty()) {
     return b;
   }
@@ -109,7 +109,7 @@ inline auto Result::pc(double score, std::string message) -> Result {
   return {Status::PARTIALLY_CORRECT, score, std::move(message)};
 }
 
-inline constexpr auto Result::operator<=>(const Result& other) const -> std::strong_ordering {
+inline constexpr auto Result::operator<=>(const Result &other) const -> std::strong_ordering {
   if (status != other.status) {
     return status <=> other.status;
   }
@@ -125,12 +125,12 @@ inline auto Result::operator*(double scale) const -> Result {
   return res;
 }
 
-inline auto Result::operator*=(double scale) -> Result& {
+inline auto Result::operator*=(double scale) -> Result & {
   score *= scale;
   return *this;
 }
 
-inline auto Result::operator+(const Result& other) const -> Result {
+inline auto Result::operator+(const Result &other) const -> Result {
   Result res;
   res.status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
@@ -143,7 +143,7 @@ inline auto Result::operator+(const Result& other) const -> Result {
   return res;
 }
 
-inline auto Result::operator+=(const Result& other) -> Result& {
+inline auto Result::operator+=(const Result &other) -> Result & {
   status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
   score += other.score;
@@ -153,7 +153,7 @@ inline auto Result::operator+=(const Result& other) -> Result& {
   return *this;
 }
 
-inline auto Result::operator&(const Result& other) const -> Result {
+inline auto Result::operator&(const Result &other) const -> Result {
   Result res;
   res.status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
@@ -166,7 +166,7 @@ inline auto Result::operator&(const Result& other) const -> Result {
   return res;
 }
 
-inline auto Result::operator&=(const Result& other) -> Result& {
+inline auto Result::operator&=(const Result &other) -> Result & {
   status = static_cast<Status::Value>(
       std::min(static_cast<Status::Value>(status), static_cast<Status::Value>(other.status)));
   score = std::min(score, other.score);
@@ -275,7 +275,7 @@ inline auto Evaluator::pre_evaluate(std::string_view var_name) -> void {
   }
 }
 
-inline auto Evaluator::post_evaluate(Result& result) -> void {
+inline auto Evaluator::post_evaluate(Result &result) -> void {
   result.named = true;
 
   auto trace_level = get_trace_level();
@@ -295,7 +295,7 @@ inline auto Evaluator::post_evaluate(Result& result) -> void {
 }
 
 template <typename T, class... Args>
-inline auto Evaluator::operator()(std::string_view var_name, const T& pans, const T& jans,
+inline auto Evaluator::operator()(std::string_view var_name, const T &pans, const T &jans,
                                   Args... args) -> Result
   requires Evaluatable<T, Args...>
 {
@@ -306,7 +306,7 @@ inline auto Evaluator::operator()(std::string_view var_name, const T& pans, cons
 }
 
 template <std::equality_comparable T>
-inline auto Evaluator::eq(std::string_view var_name, const T& pans, const T& jans) -> Result {
+inline auto Evaluator::eq(std::string_view var_name, const T &pans, const T &jans) -> Result {
   pre_evaluate(var_name);
   Result result = Result::ac();
   if (pans != jans) {
@@ -328,8 +328,8 @@ inline auto Evaluator::eq(std::string_view var_name, const T& pans, const T& jan
 }
 
 template <std::floating_point T>
-inline auto Evaluator::approx(std::string_view var_name, const T& pans, const T& jans,
-                              const T& max_err) -> Result {
+inline auto Evaluator::approx(std::string_view var_name, const T &pans, const T &jans,
+                              const T &max_err) -> Result {
   pre_evaluate(var_name);
   Result result = Result::ac();
   if (!float_equals(pans, jans, max_err)) {
@@ -343,8 +343,8 @@ inline auto Evaluator::approx(std::string_view var_name, const T& pans, const T&
 }
 
 template <class T>
-inline auto Evaluator::approx_abs(std::string_view var_name, const T& pans, const T& jans,
-                                  const T& abs_err) -> Result
+inline auto Evaluator::approx_abs(std::string_view var_name, const T &pans, const T &jans,
+                                  const T &abs_err) -> Result
   requires std::is_arithmetic_v<T>
 {
   pre_evaluate(var_name);

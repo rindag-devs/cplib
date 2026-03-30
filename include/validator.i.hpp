@@ -84,14 +84,14 @@ inline Trait::Trait(std::string name, CheckFunc check_func,
 
 inline Initializer::~Initializer() = default;
 
-inline auto Initializer::set_state(State& state) -> void { state_ = &state; };
+inline auto Initializer::set_state(State &state) -> void { state_ = &state; };
 
-inline auto Initializer::state() -> State& { return *state_; };
+inline auto Initializer::state() -> State & { return *state_; };
 
 inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", true, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -102,7 +102,7 @@ inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", true, trace_level,
-      [this, trace_level](const var::Reader& reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -116,7 +116,7 @@ inline auto Reporter::attach_trace_stack(trace::TraceStack<var::ReaderTrace> tra
   trace_stacks_.emplace_back(std::move(trace_stack));
 }
 
-inline auto Reporter::attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* root)
+inline auto Reporter::attach_trace_tree(const trace::TraceTreeNode<var::ReaderTrace> *root)
     -> void {
   if (!root) {
     panic("Reporter::attach_trace_tree failed: Trace tree root pointer is nullptr");
@@ -125,7 +125,7 @@ inline auto Reporter::attach_trace_tree(const trace::TraceTreeNode<var::ReaderTr
   trace_tree_ = root;
 }
 
-inline auto Reporter::attach_trait_status(const std::map<std::string, bool>& trait_status) -> void {
+inline auto Reporter::attach_trait_status(const std::map<std::string, bool> &trait_status) -> void {
   trait_status_ = trait_status;
 }
 
@@ -137,12 +137,12 @@ namespace detail {
  * If `follow_unmatched_edge` is false, outgoing edges with a value different from the value
  * returned by the callback for the current node will not be visited.
  */
-inline auto topo_sort(const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges,
+inline auto topo_sort(const std::vector<std::vector<std::pair<std::size_t, bool>>> &edges,
                       const bool follow_unmatched_edge,
-                      const std::function<auto(std::size_t)->bool>& callback) -> void {
+                      const std::function<auto(std::size_t)->bool> &callback) -> void {
   std::vector<std::size_t> degree(edges.size(), 0);
 
-  for (const auto& edge : edges) {
+  for (const auto &edge : edges) {
     for (auto [to, v] : edge) ++degree[to];
   }
 
@@ -165,11 +165,11 @@ inline auto topo_sort(const std::vector<std::vector<std::pair<std::size_t, bool>
 }
 
 // Returns std::nullopt if failed
-inline auto build_edges(std::vector<Trait>& traits)
+inline auto build_edges(std::vector<Trait> &traits)
     -> std::optional<std::vector<std::vector<std::pair<std::size_t, bool>>>> {
   // Check duplicate name
-  std::ranges::sort(traits, [](const Trait& x, const Trait& y) { return x.name < y.name; });
-  if (std::ranges::unique(traits, [](const Trait& x, const Trait& y) {
+  std::ranges::sort(traits, [](const Trait &x, const Trait &y) { return x.name < y.name; });
+  if (std::ranges::unique(traits, [](const Trait &x, const Trait &y) {
         return x.name == y.name;
       }).end() != traits.end()) {
     // Found duplicate name
@@ -179,8 +179,8 @@ inline auto build_edges(std::vector<Trait>& traits)
   std::vector<std::vector<std::pair<std::size_t, bool>>> edges(traits.size());
 
   for (std::size_t i = 0; i < traits.size(); ++i) {
-    auto& trait = traits[i];
-    for (const auto& [name, value] : trait.dependencies) {
+    auto &trait = traits[i];
+    for (const auto &[name, value] : trait.dependencies) {
       auto it = std::ranges::lower_bound(traits, name, std::less{}, &Trait::name);
       // IMPORTANT: Check if the dependency was actually found and is an exact match.
       if (it == traits.end() || it->name != name) {
@@ -194,7 +194,7 @@ inline auto build_edges(std::vector<Trait>& traits)
   return edges;
 }
 
-inline auto have_loop(const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges) -> bool {
+inline auto have_loop(const std::vector<std::vector<std::pair<std::size_t, bool>>> &edges) -> bool {
   std::vector<std::uint8_t> visited(edges.size(), 0);  // Never use std::vector<bool>
 
   topo_sort(edges, true, [&](std::size_t node) {
@@ -208,13 +208,13 @@ inline auto have_loop(const std::vector<std::vector<std::pair<std::size_t, bool>
   return false;
 }
 
-inline auto validate_traits(const std::vector<Trait>& traits,
-                            const std::vector<std::vector<std::pair<std::size_t, bool>>>& edges)
+inline auto validate_traits(const std::vector<Trait> &traits,
+                            const std::vector<std::vector<std::pair<std::size_t, bool>>> &edges)
     -> std::map<std::string, bool> {
   std::map<std::string, bool> results;
 
   topo_sort(edges, true, [&](std::size_t id) {
-    auto& node = traits[id];
+    auto &node = traits[id];
     auto result = node.check_func();
     results.emplace(node.name, result);
     return result;
@@ -298,7 +298,7 @@ inline auto print_help_message(std::string_view program_name) -> void {
   panic(msg);
 }
 
-inline auto detect_reporter(State& state) -> void {
+inline auto detect_reporter(State &state) -> void {
   if (!isatty(fileno(stderr))) {
     state.reporter = std::make_unique<JsonReporter>();
   } else if (cplib::detail::has_colors()) {
@@ -311,7 +311,7 @@ inline auto detect_reporter(State& state) -> void {
 // Set the report format of `state` according to the string `format`.
 //
 // Returns `false` if the `format` is invalid.
-inline auto set_report_format(State& state, std::string_view format) -> bool {
+inline auto set_report_format(State &state, std::string_view format) -> bool {
   if (format == "auto") {
     detect_reporter(state);
   } else if (format == "json") {
@@ -329,16 +329,16 @@ inline auto set_report_format(State& state, std::string_view format) -> bool {
 }
 }  // namespace detail
 
-inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string>& args)
+inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<std::string> &args)
     -> void {
-  auto& state = this->state();
+  auto &state = this->state();
 
   detail::detect_reporter(state);
 
   auto parsed_args = cmd_args::ParsedArgs(args);
   auto reader_trace_level = trace::Level::STACK_ONLY;
 
-  for (const auto& [key, value] : parsed_args.vars) {
+  for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
         panic(cplib::format("Unknown {} option: {}", key, value));
@@ -353,7 +353,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
     }
   }
 
-  for (const auto& flag : parsed_args.flags) {
+  for (const auto &flag : parsed_args.flags) {
     if (flag == "help") {
       detail::print_help_message(arg0);
     } else {
@@ -404,16 +404,16 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
   }
 }
 
-inline auto trait_status_to_json(const std::map<std::string, bool>& traits) -> json::Value {
+inline auto trait_status_to_json(const std::map<std::string, bool> &traits) -> json::Value {
   json::Map map;
-  for (const auto& [k, v] : traits) {
+  for (const auto &[k, v] : traits) {
     map.emplace(k, json::Value(v));
   }
   return json::Value(map);
 }
 
-inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node, std::size_t depth,
-                             std::size_t& n_remaining_node, bool colored_output, std::ostream& os)
+inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace> *node, std::size_t depth,
+                             std::size_t &n_remaining_node, bool colored_output, std::ostream &os)
     -> void {
   if (!node || depth >= 8 || (node->tags.contains("#hidden"))) {
     return;
@@ -445,13 +445,13 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node,
   }
 
   std::size_t n_visible_children = 0;
-  for (const auto& child : node->get_children()) {
+  for (const auto &child : node->get_children()) {
     if (!child->tags.contains("#hidden")) {
       ++n_visible_children;
     }
   }
 
-  for (const auto& child : node->get_children()) {
+  for (const auto &child : node->get_children()) {
     if (child->tags.contains("#hidden")) {
       continue;
     }
@@ -468,7 +468,7 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace>* node,
 }
 }  // namespace detail
 
-inline auto JsonReporter::report(const Report& report) -> int {
+inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
       {"status", json::Value(json::String(report.status.to_string()))},
       {"message", json::Value(report.message)},
@@ -478,7 +478,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
     json::List trace_stacks;
     trace_stacks.reserve(trace_stacks_.size());
     std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
-                           [](auto& s) { return json::Value(s.to_json()); });
+                           [](auto &s) { return json::Value(s.to_json()); });
     map.emplace("reader_trace_stacks", trace_stacks);
   }
 
@@ -496,7 +496,7 @@ inline auto JsonReporter::report(const Report& report) -> int {
   return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto PlainTextReporter::report(const Report& report) -> int {
+inline auto PlainTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << detail::status_to_title_string(report.status) << ".\n";
@@ -507,8 +507,8 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& stack : trace_stacks_) {
-      for (const auto& line : stack.to_plain_text_lines()) {
+    for (const auto &stack : trace_stacks_) {
+      for (const auto &line : stack.to_plain_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';
@@ -519,7 +519,7 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
     stream << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (const auto& [name, satisfaction] : trait_status_) {
+    for (const auto &[name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.emplace_back(name);
       } else {
@@ -527,10 +527,10 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
       }
     }
 
-    for (const auto& name : satisfied) {
+    for (const auto &name : satisfied) {
       stream << "+ " << cplib::detail::hex_encode(name) << '\n';
     }
-    for (const auto& name : dissatisfied) {
+    for (const auto &name : dissatisfied) {
       stream << "- " << cplib::detail::hex_encode(name) << '\n';
     }
   }
@@ -544,7 +544,7 @@ inline auto PlainTextReporter::report(const Report& report) -> int {
   return report.status == Report::Status::VALID ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-inline auto ColoredTextReporter::report(const Report& report) -> int {
+inline auto ColoredTextReporter::report(const Report &report) -> int {
   std::ostream stream(std::clog.rdbuf());
 
   stream << detail::status_to_colored_title_string(report.status) << ".\n";
@@ -555,8 +555,8 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
 
   if (!trace_stacks_.empty()) {
     stream << "\nReader trace stacks (most recent variable last):";
-    for (const auto& stack : trace_stacks_) {
-      for (const auto& line : stack.to_colored_text_lines()) {
+    for (const auto &stack : trace_stacks_) {
+      for (const auto &line : stack.to_colored_text_lines()) {
         stream << '\n' << "  " << line;
       }
       stream << '\n';
@@ -567,7 +567,7 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
     stream << "\nTraits satisfactions:\n";
 
     std::vector<std::string> satisfied, dissatisfied;
-    for (const auto& [name, satisfaction] : trait_status_) {
+    for (const auto &[name, satisfaction] : trait_status_) {
       if (satisfaction) {
         satisfied.emplace_back(name);
       } else {
@@ -575,10 +575,10 @@ inline auto ColoredTextReporter::report(const Report& report) -> int {
       }
     }
 
-    for (const auto& name : satisfied) {
+    for (const auto &name : satisfied) {
       stream << "\x1b[0;32m+\x1b[0m " << name << '\n';
     }
-    for (const auto& name : dissatisfied) {
+    for (const auto &name : dissatisfied) {
       stream << "\x1b[0;31m-\x1b[0m " << name << '\n';
     }
   }

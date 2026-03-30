@@ -231,7 +231,7 @@ struct OutBuf : std::streambuf {
   /// Write one character
   auto overflow(int_type c) -> int_type override;
   /// Write multiple characters
-  auto xsputn(const char* s, std::streamsize num) -> std::streamsize override;
+  auto xsputn(const char *s, std::streamsize num) -> std::streamsize override;
 
   int fd_;  // File descriptor
   bool need_close_;

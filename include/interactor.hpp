@@ -115,12 +115,12 @@ struct Initializer {
  public:
   virtual ~Initializer() = 0;
 
-  auto set_state(State& state) -> void;
+  auto set_state(State &state) -> void;
 
-  virtual auto init(std::string_view arg0, const std::vector<std::string>& args) -> void = 0;
+  virtual auto init(std::string_view arg0, const std::vector<std::string> &args) -> void = 0;
 
  protected:
-  auto state() -> State&;
+  auto state() -> State &;
 
   auto set_inf_fileno(int fileno, trace::Level trace_level) -> void;
   auto set_from_user_fileno(int fileno, trace::Level trace_level) -> void;
@@ -130,7 +130,7 @@ struct Initializer {
   auto set_to_user_path(std::string_view path) -> void;
 
  private:
-  State* state_{};
+  State *state_{};
 };
 
 /**
@@ -140,7 +140,7 @@ struct Reporter {
  public:
   virtual ~Reporter() = 0;
 
-  [[nodiscard]] virtual auto report(const Report& report) -> int = 0;
+  [[nodiscard]] virtual auto report(const Report &report) -> int = 0;
 
   auto attach_trace_stack(trace::TraceStack<var::ReaderTrace> trace_stack) -> void;
 
@@ -191,7 +191,7 @@ struct State {
    *
    * @param report The report to be reported.
    */
-  [[noreturn]] auto quit(const Report& report) -> void;
+  [[noreturn]] auto quit(const Report &report) -> void;
 
   /**
    * Quits the interactor with the `report::Status::ACCEPTED` status.
@@ -229,28 +229,28 @@ struct DefaultInitializer : Initializer {
    * @param arg0 The name of the program.
    * @param args The command-line arguments.
    */
-  auto init(std::string_view arg0, const std::vector<std::string>& args) -> void override;
+  auto init(std::string_view arg0, const std::vector<std::string> &args) -> void override;
 };
 
 /**
  * `JsonReporter` reports the given report in JSON format.
  */
 struct JsonReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in plain text format for human reading.
  */
 struct PlainTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
  * Report the given report in colored text format for human reading.
  */
 struct ColoredTextReporter : Reporter {
-  [[nodiscard]] auto report(const Report& report) -> int override;
+  [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
 /**
@@ -262,7 +262,7 @@ struct ColoredTextReporter : Reporter {
 #define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_)                                    \
   auto var_ =                                                                                \
       ::cplib::interactor::State(std::unique_ptr<decltype(initializer_)>(new initializer_)); \
-  auto main(int argc, char** argv) -> int {                                                  \
+  auto main(int argc, char **argv) -> int {                                                  \
     ::std::vector<::std::string> args;                                                       \
     args.reserve(argc);                                                                      \
     for (int i = 1; i < argc; ++i) {                                                         \

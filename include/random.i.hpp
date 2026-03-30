@@ -25,7 +25,7 @@
 /* cplib_embed_ignore end */
 
 #include <algorithm>
-#include <bit>
+#include <array>
 #include <cmath>
 #include <concepts>
 #include <cstdint>
@@ -45,36 +45,43 @@
 namespace cplib {
 namespace detail {
 
-inline constexpr auto int_log2(std::uint64_t x) noexcept -> std::uint32_t {
-  if (x == 0) return 0;
-  return std::numeric_limits<std::uint64_t>::digits - 1 - std::countl_zero(x);
+inline constexpr auto rotl(std::uint64_t x, int k) noexcept -> std::uint64_t {
+  return (x << k) | (x >> (64 - k));
 }
 
-template <class T>
-inline constexpr auto scale_int(std::uint64_t x, T size) -> T {
-  auto lg = int_log2(size);
-  if (std::has_single_bit(static_cast<std::make_unsigned_t<T>>(size))) {
-    return x & (size - 1);
-  }
-  if (lg >= 8 * sizeof(T) - 1) {
-    return static_cast<T>(x);
-  }
-  return x & ((T(1) << (lg + 1)) - 1);
+inline constexpr auto splitmix64(std::uint64_t &x) noexcept -> std::uint64_t {
+  x += 0x9e3779b97f4a7c15ull;
+  std::uint64_t z = x;
+  z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ull;
+  z = (z ^ (z >> 27)) * 0x94d049bb133111ebull;
+  return z ^ (z >> 31);
 }
 
-/// Get random integer in [0, size).
+template <std::unsigned_integral T>
+inline auto rand_int_range(Random::Engine &rnd, T size) -> T {
+  if (size == 0) {
+    return 0;
+  }
+
+  const auto size64 = static_cast<std::uint64_t>(size);
+  const auto threshold = (static_cast<std::uint64_t>(0) - size64) % size64;
+  while (true) {
+    const std::uint64_t x = rnd();
+    if (x >= threshold) {
+      return static_cast<T>(x % size64);
+    }
+  }
+}
+
 template <std::integral T>
-inline auto rand_int_range(Random::Engine& rnd, T size) -> T {
-  T result;
-  do {
-    result = scale_int<T>(rnd(), size);
-  } while (result >= size);
-  return result;
+inline auto rand_int_range(Random::Engine &rnd, T size) -> T {
+  using UnsignedT = std::make_unsigned_t<T>;
+  return static_cast<T>(rand_int_range(rnd, static_cast<UnsignedT>(size)));
 }
 
 /// Get random integer in [l,r].
 template <std::integral T>
-inline auto rand_int_between(Random::Engine& rnd, T l, T r) -> T {
+inline auto rand_int_between(Random::Engine &rnd, T l, T r) -> T {
   using UnsignedT = std::make_unsigned_t<T>;
 
   if (l > r) panic("rand_int_between failed: l must be <= r");
@@ -90,63 +97,130 @@ inline auto rand_int_between(Random::Engine& rnd, T l, T r) -> T {
 
 /// Get random float in [0,1).
 template <std::floating_point T>
-inline auto rand_float(Random::Engine& rnd) -> T {
-  return static_cast<T>(rnd()) / rnd.max();
+inline auto rand_float(Random::Engine &rnd) -> T {
+  constexpr int digits = std::numeric_limits<T>::digits;
+  const std::uint64_t x = rnd() >> (64 - digits);
+  return std::ldexp(static_cast<T>(x), -digits);
 }
 
 /// Get random float in [l,r).
 template <std::floating_point T>
-inline auto rand_float_between(Random::Engine& rnd, T l, T r) -> T {
+inline auto rand_float_between(Random::Engine &rnd, T l, T r) -> T {
   if (l > r) panic("rand_float_between failed: l must be <= r");
-
+  if (l == r) return l;
   T size = r - l;
-  if (float_delta(l, r) <= 1E-9) return l;
-
-  return rand_float<T>(rnd) * size + l;
+  return std::fma(rand_float<T>(rnd), size, l);
 }
 }  // namespace detail
+
+inline Random::Engine::Engine() noexcept { seed(0); }
+
+inline Random::Engine::Engine(std::uint64_t seed_value) noexcept { seed(seed_value); }
+
+inline auto Random::Engine::seed(std::uint64_t seed_value) noexcept -> void {
+  std::uint64_t x = seed_value;
+  for (auto &word : state_) {
+    word = detail::splitmix64(x);
+  }
+  if ((state_[0] | state_[1] | state_[2] | state_[3]) == 0) {
+    state_[0] = 1;
+  }
+}
+
+inline auto Random::Engine::operator()() noexcept -> result_type {
+  const std::uint64_t result = detail::rotl(state_[0] + state_[3], 23) + state_[0];
+  const std::uint64_t t = state_[1] << 17;
+
+  state_[2] ^= state_[0];
+  state_[3] ^= state_[1];
+  state_[1] ^= state_[2];
+  state_[0] ^= state_[3];
+  state_[2] ^= t;
+  state_[3] = detail::rotl(state_[3], 45);
+
+  return result;
+}
+
+inline auto Random::Engine::jump() noexcept -> void {
+  constexpr std::array<std::uint64_t, 4> K_JUMP = {0x180ec6d33cfd0abaull, 0xd5a61266f0c9392cull,
+                                                   0xa9582618e03fc9aaull, 0x39abdc4529b1661cull};
+
+  std::array<std::uint64_t, 4> next_state{};
+  for (std::uint64_t jump : K_JUMP) {
+    for (int bit = 0; bit < 64; ++bit) {
+      if ((jump & (UINT64_C(1) << bit)) != 0) {
+        next_state[0] ^= state_[0];
+        next_state[1] ^= state_[1];
+        next_state[2] ^= state_[2];
+        next_state[3] ^= state_[3];
+      }
+      (*this)();
+    }
+  }
+  state_ = next_state;
+}
+
+inline auto Random::Engine::long_jump() noexcept -> void {
+  constexpr std::array<std::uint64_t, 4> K_LONG_JUMP = {
+      0x76e15d3efefdcbbfull, 0xc5004e441c522fb3ull, 0x77710069854ee241ull, 0x39109bb02acbe635ull};
+
+  std::array<std::uint64_t, 4> next_state{};
+  for (std::uint64_t jump : K_LONG_JUMP) {
+    for (int bit = 0; bit < 64; ++bit) {
+      if ((jump & (UINT64_C(1) << bit)) != 0) {
+        next_state[0] ^= state_[0];
+        next_state[1] ^= state_[1];
+        next_state[2] ^= state_[2];
+        next_state[3] ^= state_[3];
+      }
+      (*this)();
+    }
+  }
+  state_ = next_state;
+}
 
 inline Random::Random() : engine_() {}
 
 inline Random::Random(std::uint64_t seed) : engine_(seed) {}
 
-inline Random::Random(const std::vector<std::string>& args) : engine_() { reseed(args); }
+inline Random::Random(const std::vector<std::string> &args) : engine_() { reseed(args); }
 
 inline auto Random::reseed(std::uint64_t seed) -> void { engine().seed(seed); }
 
-inline auto Random::reseed(const std::vector<std::string>& args) -> void {
-  // Magic numbers from https://docs.oracle.com/javase/8/docs/api/java/util/Random.html#next-int-
-  constexpr std::uint64_t multiplier = 0x5DEECE66Dull;
-  constexpr std::uint64_t addend = 0xBull;
-  std::uint64_t seed = 3905348978240129619ull;
+inline auto Random::reseed(const std::vector<std::string> &args) -> void {
+  std::uint64_t seed = 0;
 
-  for (const auto& arg : args) {
-    for (char c : arg) {
-      seed = seed * multiplier + static_cast<std::uint32_t>(c) + addend;
+  for (const auto &arg : args) {
+    // Add a delimiter before each argument so ["ab", "c"] and ["a", "bc"]
+    // do not collapse to the same byte stream.
+    seed = detail::splitmix64(seed);
+    for (unsigned char c : arg) {
+      seed ^= static_cast<std::uint64_t>(c) + 1;
+      seed = detail::splitmix64(seed);
     }
-    seed += multiplier / addend;
+    seed ^= static_cast<std::uint64_t>(arg.size()) + 1;
+    seed = detail::splitmix64(seed);
   }
 
-  reseed(seed & ((1ull << 48) - 1));
+  reseed(seed);
 }
 
-inline auto Random::engine() -> Engine& { return engine_; }
+inline auto Random::engine() -> Engine & { return engine_; }
 
 template <std::integral T>
 inline auto Random::next(T from, T to) -> T {
-  if (from <= to) {
-    return detail::rand_int_between<T>(engine(), from, to);
+  if (from > to) {
+    panic("Random::next failed: from must be <= to");
   }
-  panic("Random::next failed: from must be <= to");
+  return detail::rand_int_between<T>(engine(), from, to);
 }
 
 template <std::floating_point T>
 inline auto Random::next(T from, T to) -> T {
-  // Allow range from higher to lower
-  if (from <= to) {
-    return detail::rand_float_between<T>(engine(), from, to);
+  if (from > to) {
+    panic("Random::next failed: from must be <= to");
   }
-  panic("Random::next failed: from must be <= to");
+  return detail::rand_float_between<T>(engine(), from, to);
 }
 
 inline auto Random::next_bool() -> bool { return next_bool(0.5); }
@@ -155,6 +229,8 @@ inline auto Random::next_bool(double true_prob) -> bool {
   if (true_prob < 0 || true_prob > 1) {
     panic("Random::next_bool failed: true_prob must be in [0, 1]");
   }
+  if (true_prob == 0) return false;
+  if (true_prob == 1) return true;
   return detail::rand_float<double>(engine()) < true_prob;
 }
 
@@ -238,25 +314,29 @@ inline auto Random::choice(It first, It last) -> It {
 }
 
 template <std::ranges::forward_range Container>
-inline auto Random::choice(Container& container) {
+inline auto Random::choice(Container &container) {
   return choice(std::begin(container), std::end(container));
 }
 
 template <MapLike Map>
-inline auto Random::weighted_choice(const Map& map) {
+inline auto Random::weighted_choice(const Map &map) {
   using MappedType = typename Map::mapped_type;
+  using UnsignedWeight = std::make_unsigned_t<MappedType>;
 
-  MappedType total_weight{};
-  for (const auto& pair : map) {
-    total_weight += pair.second;
+  UnsignedWeight total_weight{};
+  for (const auto &pair : map) {
+    if (pair.second < MappedType(0)) {
+      panic("Random::weighted_choice failed: weights must be non-negative");
+    }
+    total_weight += static_cast<UnsignedWeight>(pair.second);
   }
-  if (total_weight == MappedType(0)) return std::end(map);
+  if (total_weight == UnsignedWeight(0)) return std::end(map);
 
-  MappedType random_weight = next(MappedType(0), total_weight - 1);
-  MappedType cumulative_weight{};
+  UnsignedWeight random_weight = detail::rand_int_range(engine(), total_weight);
+  UnsignedWeight cumulative_weight{};
 
   for (auto it = std::begin(map); it != std::end(map); ++it) {
-    cumulative_weight += it->second;
+    cumulative_weight += static_cast<UnsignedWeight>(it->second);
     if (cumulative_weight > random_weight) return it;
   }
   return std::end(map);  // Should not be reached if total_weight > 0
@@ -264,11 +344,17 @@ inline auto Random::weighted_choice(const Map& map) {
 
 template <std::random_access_iterator RandomIt>
 inline auto Random::shuffle(RandomIt first, RandomIt last) -> void {
-  std::shuffle(first, last, engine());
+  using diff_t = std::iter_difference_t<RandomIt>;
+
+  const diff_t n = last - first;
+  for (diff_t i = n; i > 1; --i) {
+    const auto j = detail::rand_int_range<diff_t>(engine(), i);
+    std::iter_swap(first + (i - 1), first + j);
+  }
 }
 
 template <std::ranges::random_access_range Container>
-inline auto Random::shuffle(Container& container) -> void {
+inline auto Random::shuffle(Container &container) -> void {
   shuffle(std::begin(container), std::end(container));
 }
 }  // namespace cplib
