@@ -99,7 +99,7 @@ inline auto Initializer::state() -> State & { return *state_; };
 inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", false, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -110,7 +110,7 @@ inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_ouf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->ouf = var::detail::make_reader_by_fileno(
       fileno, "ouf", false, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -121,7 +121,7 @@ inline auto Initializer::set_ouf_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_ans_fileno(int fileno, trace::Level trace_level) -> void {
   state_->ans = var::detail::make_reader_by_fileno(
       fileno, "ans", false, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -132,7 +132,7 @@ inline auto Initializer::set_ans_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -143,7 +143,7 @@ inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_
 inline auto Initializer::set_ouf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->ouf = var::detail::make_reader_by_path(
       path, "ouf", false, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -154,7 +154,7 @@ inline auto Initializer::set_ouf_path(std::string_view path, trace::Level trace_
 inline auto Initializer::set_ans_path(std::string_view path, trace::Level trace_level) -> void {
   state_->ans = var::detail::make_reader_by_path(
       path, "ans", false, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_reader_trace_stack(reader.make_trace_stack(true));
         }
@@ -165,13 +165,14 @@ inline auto Initializer::set_ans_path(std::string_view path, trace::Level trace_
 inline auto Initializer::set_evaluator(trace::Level trace_level) -> void {
   state_->evaluator = evaluate::Evaluator(
       trace_level,
-      [this, trace_level](const evaluate::Evaluator &evaluator, std::string_view msg) {
+      [this, trace_level](const evaluate::Evaluator &evaluator, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_evaluator_trace_stack(evaluator.make_trace_stack(true));
         }
         panic(msg);
       },
-      [this, trace_level](const evaluate::Evaluator &evaluator, const evaluate::Result &result) {
+      [this, trace_level](const evaluate::Evaluator &evaluator,
+                          const evaluate::Result &result) -> void {
         if (trace_level >= trace::Level::STACK_ONLY && !result.message.empty()) {
           state_->reporter->attach_evaluator_trace_stack(evaluator.make_trace_stack(false));
         }
@@ -206,7 +207,7 @@ inline State::State(std::unique_ptr<Initializer> initializer)
       initializer(std::move(initializer)),
       reporter(std::make_unique<JsonReporter>()) {
   this->initializer->set_state(*this);
-  cplib::detail::panic_impl = [this](std::string_view msg) {
+  cplib::detail::panic_impl = [this](std::string_view msg) -> void {
     quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
   };
   cplib::detail::work_mode = WorkMode::CHECKER;
@@ -378,7 +379,7 @@ inline auto JsonReporter::report(const Report &report) -> int {
     json::List trace_stacks;
     trace_stacks.reserve(reader_trace_stacks_.size());
     std::ranges::transform(reader_trace_stacks_, std::back_inserter(trace_stacks),
-                           [](const auto &s) { return json::Value(s.to_json()); });
+                           [](const auto &s) -> json::Value { return json::Value(s.to_json()); });
     map.emplace("reader_trace_stacks", trace_stacks);
   }
 
@@ -386,7 +387,7 @@ inline auto JsonReporter::report(const Report &report) -> int {
     json::List trace_stacks;
     trace_stacks.reserve(evaluator_trace_stacks_.size());
     std::ranges::transform(evaluator_trace_stacks_, std::back_inserter(trace_stacks),
-                           [](const auto &s) { return json::Value(s.to_json()); });
+                           [](const auto &s) -> json::Value { return json::Value(s.to_json()); });
     map.emplace("evaluator_trace_stacks", trace_stacks);
   }
 

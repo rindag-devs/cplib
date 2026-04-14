@@ -316,20 +316,20 @@ struct FlatMap {
   // Iterators
 
   auto begin() -> iterator;
-  auto begin() const -> const_iterator;
-  auto cbegin() const -> const_iterator;
+  [[nodiscard]] auto begin() const -> const_iterator;
+  [[nodiscard]] auto cbegin() const -> const_iterator;
 
   auto end() -> iterator;
-  auto end() const -> const_iterator;
-  auto cend() const -> const_iterator;
+  [[nodiscard]] auto end() const -> const_iterator;
+  [[nodiscard]] auto cend() const -> const_iterator;
 
   auto rbegin() -> reverse_iterator;
-  auto rbegin() const -> const_reverse_iterator;
-  auto crbegin() const -> const_reverse_iterator;
+  [[nodiscard]] auto rbegin() const -> const_reverse_iterator;
+  [[nodiscard]] auto crbegin() const -> const_reverse_iterator;
 
   auto rend() -> reverse_iterator;
-  auto rend() const -> const_reverse_iterator;
-  auto crend() const -> const_reverse_iterator;
+  [[nodiscard]] auto rend() const -> const_reverse_iterator;
+  [[nodiscard]] auto crend() const -> const_reverse_iterator;
 
   // Capacity
 
