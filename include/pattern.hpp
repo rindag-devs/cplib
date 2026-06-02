@@ -19,11 +19,12 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <utility>
-
-#include "regex.h"
 
 namespace cplib {
+namespace detail {
+struct RegexHandle;
+}
+
 /**
  * Regex pattern in POSIX-Extended style. Used for matching strings.
  *
@@ -56,9 +57,7 @@ struct Pattern {
 
  private:
   std::string src_;
-
-  // `re->second` represents whether regex is compiled successfully
-  std::shared_ptr<std::pair<regex_t, bool>> re_;
+  std::shared_ptr<detail::RegexHandle> re_;
 };
 }  // namespace cplib
 

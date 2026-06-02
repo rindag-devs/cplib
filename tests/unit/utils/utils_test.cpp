@@ -1,4 +1,7 @@
+#include <stdexcept>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "cplib.hpp"
@@ -34,4 +37,17 @@ TEST(UtilsTest, Trim) {
 TEST(UtilsTest, FloatEquals) {
   EXPECT_TRUE(cplib::float_equals(1.0, 1.000000001, 1e-8));
   EXPECT_FALSE(cplib::float_equals(1.0, 1.1, 1e-8));
+}
+
+TEST(UtilsTest, UniqueFunctionPanicsWhenEmpty) {
+  auto old_handler = std::move(cplib::detail::panic_impl);
+  cplib::detail::panic_impl = [](std::string_view message) -> void {
+    throw std::runtime_error(std::string(message));
+  };
+
+  cplib::UniqueFunction<auto()->int> fn(nullptr);
+  EXPECT_FALSE(static_cast<bool>(fn));
+  EXPECT_THROW(static_cast<void>(fn()), std::runtime_error);
+
+  cplib::detail::panic_impl = std::move(old_handler);
 }

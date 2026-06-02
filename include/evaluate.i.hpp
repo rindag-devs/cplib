@@ -28,7 +28,6 @@
 #include <cmath>
 #include <compare>
 #include <concepts>
-#include <cstdio>
 #include <cstdlib>
 #include <optional>
 #include <string>
@@ -296,7 +295,7 @@ inline auto Evaluator::post_evaluate(Result &result) -> void {
 
 template <typename T, class... Args>
 inline auto Evaluator::operator()(std::string_view var_name, const T &pans, const T &jans,
-                                  Args... args) -> Result
+                                  Args &&...args) -> Result
   requires Evaluatable<T, Args...>
 {
   pre_evaluate(var_name);

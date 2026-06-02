@@ -31,8 +31,7 @@ TEST(VarContainerTest, VecWithSeparator) {
 }
 
 TEST(VarContainerTest, Mat) {
-  // 2x2 matrix
-  auto reader = make_test_reader("1 2 3 4");
+  auto reader = make_test_reader("1 2\n3 4", true);
   auto m = reader.read(cplib::var::Mat(cplib::var::i32("m"), 2, 2));
 
   ASSERT_EQ(m.size(), 2);
@@ -41,6 +40,14 @@ TEST(VarContainerTest, Mat) {
   EXPECT_EQ(m[0][1], 2);
   EXPECT_EQ(m[1][0], 3);
   EXPECT_EQ(m[1][1], 4);
+}
+
+TEST(VarContainerTest, MatCustomSeparatorsStillSupported) {
+  auto reader = make_test_reader("1 2 3 4");
+  auto m = reader.read(
+      cplib::var::Mat(cplib::var::i32("m"), 2, 2, cplib::var::space, cplib::var::space));
+
+  EXPECT_EQ(m, (std::vector<std::vector<int>>{{1, 2}, {3, 4}}));
 }
 
 TEST(VarContainerTest, Pair) {

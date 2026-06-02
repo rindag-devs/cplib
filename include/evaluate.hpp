@@ -265,7 +265,7 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
    * @return Result of the evaluation.
    */
   template <typename T, class... Args>
-  auto operator()(std::string_view var_name, const T &pans, const T &jans, Args... args) -> Result
+  auto operator()(std::string_view var_name, const T &pans, const T &jans, Args &&...args) -> Result
     requires Evaluatable<T, Args...>;
 
   template <std::equality_comparable T>

@@ -17,7 +17,7 @@ using namespace cplib;
 struct Input {
   int a, b;
 
-  static Input read(var::Reader& in) {
+  static Input read(var::Reader &in) {
     // Read integer 'a' within range [-1000, 1000]
     auto a = in.read(var::i32("a", -1000, 1000));
     // Read integer 'b' within range [-1000, 1000]
@@ -32,7 +32,7 @@ struct Output {
 
   // Static read method to parse participant/jury output
   // It receives a var::Reader and the Input struct for context if needed.
-  static Output read(var::Reader& in, const Input&) {
+  static Output read(var::Reader &in, const Input &) {
     // Read integer 'ans' within range [-2000, 2000]
     auto ans = in.read(var::i32("ans", -2000, 2000));
     return {ans};
@@ -41,8 +41,8 @@ struct Output {
   // Static evaluate method to compare participant's output with jury's output
   // It receives an evaluate::Evaluator, participant's output (pans),
   // jury's output (jans), and the original Input.
-  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
-                                   const Input&) {
+  static evaluate::Result evaluate(evaluate::Evaluator &ev, const Output &pans, const Output &jans,
+                                   const Input &) {
     // Use ev.eq to compare the 'ans' field.
     // If pans.ans == jans.ans, it contributes to AC. Otherwise, it marks WA.
     auto res = evaluate::Result::ac();

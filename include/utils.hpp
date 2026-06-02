@@ -196,6 +196,8 @@ struct UniqueFunction<Ret(Args...)> {
   template <class T>
   UniqueFunction(T t);  // NOLINT(google-explicit-constructor)
 
+  [[nodiscard]] explicit operator bool() const noexcept;
+
   /**
    * Function call operator.
    *
@@ -341,6 +343,12 @@ struct FlatMap {
 
   /** @brief Returns the maximum possible number of elements. */
   [[nodiscard]] auto max_size() const -> size_type;
+
+  /** @brief Reserves storage for at least the specified number of elements. */
+  auto reserve(size_type new_cap) -> void;
+
+  /** @brief Returns the current storage capacity. */
+  [[nodiscard]] auto capacity() const -> size_type;
 
   // Modifiers
 

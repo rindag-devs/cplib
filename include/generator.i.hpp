@@ -25,7 +25,6 @@
 /* cplib_embed_ignore end */
 
 #include <algorithm>
-#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <map>
@@ -83,7 +82,7 @@ inline State::State(std::unique_ptr<Initializer> initializer)
       flag_parsers(),
       var_parsers() {
   this->initializer->set_state(*this);
-  cplib::detail::panic_impl = [this](std::string_view msg) {
+  cplib::detail::panic_impl = [this](std::string_view msg) -> void {
     quit(Report(Report::Status::INTERNAL_ERROR, std::string(msg)));
   };
   cplib::detail::work_mode = WorkMode::GENERATOR;

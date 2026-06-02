@@ -745,7 +745,7 @@ struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
    * parameters of `f`.
    */
   template <class... Args>
-  FnVar(std::string name, std::function<F> f, Args... args);
+  FnVar(std::string name, std::function<F> f, Args &&...args);
 
   /**
    * Read from reader.
@@ -790,7 +790,7 @@ struct ExtVar : Var<T, ExtVar<T>> {
    * @param args The second to last arguments to the function `T::read`.
    */
   template <class... Args>
-  explicit ExtVar(std::string name, Args... args)
+  explicit ExtVar(std::string name, Args &&...args)
     requires Readable<T, Args...>;
 
   /**
@@ -833,7 +833,7 @@ struct ExtVec : Var<std::vector<T>, ExtVec<T>> {
    * @param args The fixed arguments to be passed to `T::read` before the range element.
    */
   template <std::ranges::range Range, class... Args>
-  explicit ExtVec(std::string name, Range &&range, Separator sep, Args... args)
+  explicit ExtVec(std::string name, Range &&range, Separator sep, Args &&...args)
     requires Readable<T, Args..., std::ranges::range_value_t<Range>>;
 
   /**

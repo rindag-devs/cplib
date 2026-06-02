@@ -23,14 +23,14 @@ using namespace cplib;
 struct Input {
   int32_t n;
 
-  static Input read(var::Reader& in) {
+  static Input read(var::Reader &in) {
     int32_t n = in.read(var::i32("n"));
     return {n};
   }
 };
 
 struct Set : std::vector<int32_t> {
-  static Set read(var::Reader& in, const Input& input) {
+  static Set read(var::Reader &in, const Input &input) {
     auto len = in.read(var::i32("len", 1, input.n));
     auto result = in.read(var::i32("set", 1, input.n) * len);
 
@@ -47,7 +47,7 @@ struct Output {
   int32_t len;
   std::vector<Set> sets;
 
-  static Output read(var::Reader& in, const Input& input) {
+  static Output read(var::Reader &in, const Input &input) {
     auto len = in.read(var::i32("len", 0, std::nullopt));
     auto sets = in.read(var::ExtVar<Set>("sets", input) * len);
 
@@ -55,8 +55,8 @@ struct Output {
     return {len, std::move(sets)};
   }
 
-  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
-                                   const Input&) {
+  static evaluate::Result evaluate(evaluate::Evaluator &ev, const Output &pans, const Output &jans,
+                                   const Input &) {
     auto res = evaluate::Result::ac();
     res &= ev.eq("len", pans.len, jans.len);
     res &= ev.eq("sets", pans.sets, jans.sets);

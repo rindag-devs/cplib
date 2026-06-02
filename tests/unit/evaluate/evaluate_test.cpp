@@ -77,14 +77,14 @@ class EvaluatorTest : public ::testing::Test {
     fail_hook_called_ = false;
     eval_hook_called_ = false;
 
-    auto fail_func = [this](const cplib::evaluate::Evaluator&, std::string_view) -> void {
+    auto fail_func = [this](const cplib::evaluate::Evaluator &, std::string_view) -> void {
       fail_hook_called_ = true;
       // Throw to prevent std::exit in a test environment
       throw std::runtime_error("fail_func called");
     };
 
-    auto eval_hook = [this](const cplib::evaluate::Evaluator&,
-                            const cplib::evaluate::Result&) -> void { eval_hook_called_ = true; };
+    auto eval_hook = [this](const cplib::evaluate::Evaluator &,
+                            const cplib::evaluate::Result &) -> void { eval_hook_called_ = true; };
 
     ev_ = std::make_unique<cplib::evaluate::Evaluator>(cplib::trace::Level::NONE,
                                                        std::move(fail_func), std::move(eval_hook));
@@ -116,13 +116,13 @@ TEST_F(EvaluatorTest, Approx) {
 // Custom struct to test the Evaluatable concept
 struct Point {
   int x, y;
-  auto operator<=>(const Point&) const = default;
+  auto operator<=>(const Point &) const = default;
 };
 
 struct PointSolution {
   Point p;
-  static auto evaluate(cplib::evaluate::Evaluator& ev, const PointSolution& pans,
-                       const PointSolution& jans) -> cplib::evaluate::Result {
+  static auto evaluate(cplib::evaluate::Evaluator &ev, const PointSolution &pans,
+                       const PointSolution &jans) -> cplib::evaluate::Result {
     auto res = cplib::evaluate::Result::ac();
     res &= ev.eq("x", pans.p.x, jans.p.x);
     res &= ev.eq("y", pans.p.y, jans.p.y);

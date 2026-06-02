@@ -27,9 +27,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <cstdarg>
 #include <cstddef>
-#include <cstdio>
 #include <cstdlib>
 #include <initializer_list>
 #include <iostream>
@@ -74,7 +72,7 @@ inline auto hex_encode(int c) -> std::string {
     return "\\r";
   } else if (c == '\t') {
     return "\\t";
-  } else if (!isprint(c)) {
+  } else if (std::isprint(static_cast<unsigned char>(c)) == 0) {
     return cplib::format("\\x{:02x}", static_cast<int>(c));
   } else {
     return {static_cast<char>(c)};
@@ -167,11 +165,14 @@ inline auto trim(std::string_view s) -> std::string {
   if (s.empty()) return std::string(s);
 
   std::ptrdiff_t left = 0;
-  while (left < static_cast<std::ptrdiff_t>(s.size()) && std::isspace(s[left])) ++left;
+  while (left < static_cast<std::ptrdiff_t>(s.size()) &&
+         std::isspace(static_cast<unsigned char>(s[left])) != 0) {
+    ++left;
+  }
   if (left >= static_cast<std::ptrdiff_t>(s.size())) return "";
 
   std::ptrdiff_t right = static_cast<std::ptrdiff_t>(s.size()) - 1;
-  while (right >= 0 && std::isspace(s[right])) --right;
+  while (right >= 0 && std::isspace(static_cast<unsigned char>(s[right])) != 0) --right;
   if (right < 0) return "";
 
   return std::string(s.substr(left, right - left + 1));
@@ -235,12 +236,20 @@ template <typename Ret, typename... Args>
 inline UniqueFunction<Ret(Args...)>::UniqueFunction(std::nullptr_t) : ptr(nullptr){};
 
 template <typename Ret, typename... Args>
+inline UniqueFunction<Ret(Args...)>::operator bool() const noexcept {
+  return ptr != nullptr;
+}
+
+template <typename Ret, typename... Args>
 template <class T>
 inline UniqueFunction<Ret(Args...)>::UniqueFunction(T t)
     : ptr(std::make_unique<Data<T>>(std::move(t))){};
 
 template <typename Ret, typename... Args>
 auto UniqueFunction<Ret(Args...)>::operator()(Args... args) const -> Ret {
+  if (!ptr) {
+    cplib::panic("Attempted to call an empty UniqueFunction");
+  }
   return (*ptr)(std::forward<Args>(args)...);
 }
 
@@ -442,6 +451,18 @@ inline auto FlatMap<Key, T, Compare>::max_size() const ->
   return data_.max_size();
 }
 
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::reserve(typename FlatMap<Key, T, Compare>::size_type new_cap)
+    -> void {
+  data_.reserve(new_cap);
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::capacity() const ->
+    typename FlatMap<Key, T, Compare>::size_type {
+  return data_.capacity();
+}
+
 // Modifiers
 
 template <typename Key, typename T, typename Compare>
@@ -538,13 +559,17 @@ inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type &key) const ->
 template <typename Key, typename T, typename Compare>
 inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::iterator {
-  return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+  return std::upper_bound(
+      data_.begin(), data_.end(), key,
+      [this](const key_type &lhs, const value_type &rhs) -> bool { return comp_(lhs, rhs.first); });
 }
 
 template <typename Key, typename T, typename Compare>
 inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type &key) const ->
     typename FlatMap<Key, T, Compare>::const_iterator {
-  return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+  return std::upper_bound(
+      data_.begin(), data_.end(), key,
+      [this](const key_type &lhs, const value_type &rhs) -> bool { return comp_(lhs, rhs.first); });
 }
 
 // Private Helpers

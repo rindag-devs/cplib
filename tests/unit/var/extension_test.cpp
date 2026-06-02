@@ -10,7 +10,7 @@ struct CustomPoint {
   int x, y;
 
   // Context-aware read: takes bounds for x and y
-  static auto read(cplib::var::Reader& in, int max_val) -> CustomPoint {
+  static auto read(cplib::var::Reader &in, int max_val) -> CustomPoint {
     auto x = in.read(cplib::var::i32("x", -max_val, max_val));
     auto y = in.read(cplib::var::i32("y", -max_val, max_val));
     return {.x = x, .y = y};
@@ -41,11 +41,11 @@ TEST(VarExtensionTest, ExtVec) {
 TEST(VarExtensionTest, FnVar) {
   auto reader = make_test_reader("42");
 
-  auto custom_logic = [](cplib::var::Reader& in, int multiplier) {
+  auto custom_logic = [](cplib::var::Reader &in, int multiplier) {
     int val = in.read(cplib::var::i32());
     return val * multiplier;
   };
 
-  int result = reader.read(cplib::var::FnVar<int(cplib::var::Reader&, int)>("f", custom_logic, 2));
+  int result = reader.read(cplib::var::FnVar<int(cplib::var::Reader &, int)>("f", custom_logic, 2));
   EXPECT_EQ(result, 84);
 }

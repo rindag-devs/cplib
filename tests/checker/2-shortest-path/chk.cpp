@@ -24,7 +24,7 @@ struct Edge {
   int u, v, w;
 
   // Edge::read takes a Reader and the graph size 'n' as context
-  static Edge read(var::Reader& in) {
+  static Edge read(var::Reader &in) {
     // Using in() operator for reading multiple variables conveniently
     auto [u, v, w] = in(var::i32("u"), var::i32("v"), var::i32("w"));
     return {u, v, w};
@@ -36,7 +36,7 @@ struct Input {
   int n, m;
   std::map<std::pair<int, int>, int> graph;  // Adjacency map for quick edge lookup
 
-  static Input read(var::Reader& in) {
+  static Input read(var::Reader &in) {
     auto [n, m] = in(var::i32("n"), var::i32("m"));
     // Read 'm' edges, passing 'n' as context to Edge::read via var::ExtVar
     auto edges = in.read(var::ExtVar<Edge>("edges") * m);
@@ -57,7 +57,7 @@ struct Output {
   std::vector<int> plan;
 
   // Output::read takes Reader and the Input struct as context
-  static Output read(var::Reader& in, const Input& input) {
+  static Output read(var::Reader &in, const Input &input) {
     // Read sum and length, with appropriate ranges
     auto sum = in.read(var::i32("sum", 0, std::nullopt));
     auto len = in.read(var::i32("len", 1, input.n * input.n));  // Max path length for N nodes
@@ -85,8 +85,8 @@ struct Output {
   }
 
   // Output::evaluate compares participant's output with jury's output
-  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
-                                   const Input&) {
+  static evaluate::Result evaluate(evaluate::Evaluator &ev, const Output &pans, const Output &jans,
+                                   const Input &) {
     auto res = evaluate::Result::ac();
 
     // If participant's sum is strictly less than jury's sum,

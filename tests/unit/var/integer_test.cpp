@@ -27,7 +27,7 @@ TEST(VarIntTest, BoundsChecking) {
       {
         try {
           reader.read(cplib::var::i32("v2", 6, 10));
-        } catch (const TestExitException& e) {
+        } catch (const TestExitException &e) {
           EXPECT_TRUE(std::string(e.what()).find(">= 6") != std::string::npos);
           throw;
         }

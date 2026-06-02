@@ -24,9 +24,12 @@
 #endif
 /* cplib_embed_ignore end */
 
+#include <sys/types.h>
+
 #include <array>
 #include <cassert>
 #include <cctype>
+#include <cerrno>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -47,6 +50,35 @@
 /* cplib_embed_ignore end */
 
 namespace cplib::io {
+
+namespace detail {
+using WriteFunc = ssize_t (*)(int, const void *, std::size_t);
+
+inline auto write_once(int fd, const void *data, std::size_t len) -> ssize_t {
+  return write(fd, data, len);
+}
+
+inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write_func = write_once)
+    -> std::streamsize {
+  std::size_t total = 0;
+  while (total < len) {
+    const auto written = write_func(fd, data + total, len - total);
+    if (written > 0) {
+      total += static_cast<std::size_t>(written);
+      continue;
+    }
+    if (written == 0) {
+      break;
+    }
+    if (errno == EINTR) {
+      continue;
+    }
+    break;
+  }
+
+  return static_cast<std::streamsize>(total);
+}
+}  // namespace detail
 
 inline Position::Position() : line(0), col(0), byte(0) {}
 
@@ -141,7 +173,7 @@ inline auto InStream::name() const -> std::string_view { return name_; }
 
 inline auto InStream::skip_blanks() -> void {
   while (true) {
-    if (int c = seek(); c == EOF || !std::isspace(c)) break;
+    if (int c = seek(); c == EOF || std::isspace(static_cast<unsigned char>(c)) == 0) break;
     read();
   }
 }
@@ -209,7 +241,7 @@ inline auto InStream::read_token() -> std::string {
 
   std::string token;
   while (true) {
-    if (int c = seek(); c == EOF || std::isspace(c)) break;
+    if (int c = seek(); c == EOF || std::isspace(static_cast<unsigned char>(c)) != 0) break;
     token.push_back(static_cast<char>(read()));
   }
   return token;
@@ -220,8 +252,8 @@ inline auto InStream::read_word() -> std::string {
 
   std::string word;
   while (true) {
-    if (int c = seek();
-        c == EOF || (!std::isalnum(c) && c != '+' && c != '-' && c != '_' && c != '.')) {
+    if (int c = seek(); c == EOF || (!std::isalnum(static_cast<unsigned char>(c)) && c != '+' &&
+                                     c != '-' && c != '_' && c != '.')) {
       break;
     }
     word.push_back(static_cast<char>(read()));
@@ -284,7 +316,7 @@ inline OutBuf::~OutBuf() {
 inline auto OutBuf::overflow(int_type c) -> int_type {
   if (c != EOF) {
     auto z = static_cast<char>(c);
-    if (write(fd_, &z, 1) != 1) {
+    if (detail::write_all(fd_, &z, 1) != 1) {
       return EOF;
     }
   }
@@ -292,7 +324,8 @@ inline auto OutBuf::overflow(int_type c) -> int_type {
 }
 
 inline auto OutBuf::xsputn(const char *s, std::streamsize num) -> std::streamsize {
-  return write(fd_, s, num);
+  if (num <= 0) return 0;
+  return detail::write_all(fd_, s, static_cast<std::size_t>(num));
 }
 
 namespace detail {

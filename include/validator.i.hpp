@@ -91,7 +91,7 @@ inline auto Initializer::state() -> State & { return *state_; };
 inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", true, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -102,7 +102,7 @@ inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", true, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -168,8 +168,8 @@ inline auto topo_sort(const std::vector<std::vector<std::pair<std::size_t, bool>
 inline auto build_edges(std::vector<Trait> &traits)
     -> std::optional<std::vector<std::vector<std::pair<std::size_t, bool>>>> {
   // Check duplicate name
-  std::ranges::sort(traits, [](const Trait &x, const Trait &y) { return x.name < y.name; });
-  if (std::ranges::unique(traits, [](const Trait &x, const Trait &y) {
+  std::ranges::sort(traits, [](const Trait &x, const Trait &y) -> bool { return x.name < y.name; });
+  if (std::ranges::unique(traits, [](const Trait &x, const Trait &y) -> bool {
         return x.name == y.name;
       }).end() != traits.end()) {
     // Found duplicate name
@@ -197,7 +197,7 @@ inline auto build_edges(std::vector<Trait> &traits)
 inline auto have_loop(const std::vector<std::vector<std::pair<std::size_t, bool>>> &edges) -> bool {
   std::vector<std::uint8_t> visited(edges.size(), 0);  // Never use std::vector<bool>
 
-  topo_sort(edges, true, [&](std::size_t node) {
+  topo_sort(edges, true, [&](std::size_t node) -> bool {
     visited[node] = 1;
     return true;
   });
@@ -213,7 +213,7 @@ inline auto validate_traits(const std::vector<Trait> &traits,
     -> std::map<std::string, bool> {
   std::map<std::string, bool> results;
 
-  topo_sort(edges, true, [&](std::size_t id) {
+  topo_sort(edges, true, [&](std::size_t id) -> bool {
     auto &node = traits[id];
     auto result = node.check_func();
     results.emplace(node.name, result);
@@ -232,7 +232,7 @@ inline State::State(std::unique_ptr<Initializer> initializer)
       traits_(),
       trait_edges_() {
   this->initializer->set_state(*this);
-  cplib::detail::panic_impl = [this](std::string_view msg) {
+  cplib::detail::panic_impl = [this](std::string_view msg) -> void {
     quit(Report(Report::Status::INTERNAL_ERROR, std::string(msg)));
   };
   cplib::detail::work_mode = WorkMode::VALIDATOR;
@@ -478,7 +478,7 @@ inline auto JsonReporter::report(const Report &report) -> int {
     json::List trace_stacks;
     trace_stacks.reserve(trace_stacks_.size());
     std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
-                           [](auto &s) { return json::Value(s.to_json()); });
+                           [](auto &s) -> json::Value { return json::Value(s.to_json()); });
     map.emplace("reader_trace_stacks", trace_stacks);
   }
 

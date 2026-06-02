@@ -24,7 +24,7 @@ constexpr double MAX_ERR = 1e-6;
 struct Input {
   int n;
 
-  static Input read(var::Reader& in) {
+  static Input read(var::Reader &in) {
     int n = in.read(var::i32("n"));
     return {n};
   }
@@ -33,12 +33,12 @@ struct Input {
 struct Output {
   std::vector<double> ans;
 
-  static Output read(var::Reader& in, Input inp) {
+  static Output read(var::Reader &in, Input inp) {
     auto ans = in.read(var::f64("ans") * inp.n);
     return {ans};
   }
 
-  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
+  static evaluate::Result evaluate(evaluate::Evaluator &ev, const Output &pans, const Output &jans,
                                    Input inp) {
     auto res = evaluate::Result::ac();
     for (int i = 0; i < inp.n; ++i) {

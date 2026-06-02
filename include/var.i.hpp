@@ -14,7 +14,6 @@
  */
 
 /* cplib_embed_ignore start */
-#include <ranges>
 #if defined(CPLIB_CLANGD) || defined(CPLIB_IWYU)
 #pragma once
 #include "var.hpp"  // IWYU pragma: associated
@@ -28,7 +27,6 @@
 #include <algorithm>
 #include <cctype>
 #include <charconv>
-#include <cmath>
 #include <concepts>
 #include <cstdio>
 #include <cstdlib>
@@ -37,6 +35,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -181,7 +180,7 @@ inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
   auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
                        trace::Level::NONE, [](const Reader &, std::string_view msg) -> void {
-                         panic(std::string("Var::parse failed: ") + msg.data());
+                         panic(std::string("Var::parse failed: ") + std::string(msg));
                        });
   T result = reader.read(*this);
   if (!reader.inner().eof()) {
@@ -428,7 +427,9 @@ inline YesNo::YesNo(std::string name) : Var<bool, YesNo>(std::move(name)) {}
 inline auto YesNo::read_from(Reader &in) const -> bool {
   auto word = in.inner().read_word();
   auto lower_token = word;
-  std::ranges::transform(lower_token, lower_token.begin(), ::tolower);
+  std::ranges::transform(lower_token, lower_token.begin(), [](unsigned char c) -> char {
+    return static_cast<char>(std::tolower(c));
+  });
 
   bool result;
   if (lower_token == "yes") {
@@ -560,9 +561,9 @@ inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
       in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
-  } else if (std::isspace(s)) {
+  } else if (std::isspace(static_cast<unsigned char>(s)) != 0) {
     auto got = in.inner().read();
-    if (!std::isspace(got)) {
+    if (std::isspace(static_cast<unsigned char>(got)) == 0) {
       in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
@@ -601,7 +602,7 @@ inline auto Vec<T>::read_from(Reader &in) const -> std::vector<typename T::Var::
 
 template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1)
-    : Mat<T>(element, len0, len1, var::space, var::eoln) {}
+    : Mat<T>(element, len0, len1, var::eoln, var::space) {}
 
 template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1, Separator sep0, Separator sep1)
@@ -701,16 +702,16 @@ inline auto Tuple<T...>::read_from_impl(Reader &in, std::index_sequence<Is...>) 
 
 template <class F>
 template <class... Args>
-inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args... args)
+inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args &&...args)
     : Var<typename std::function<F>::result_type, FnVar<F>>(std::move(name)),
-      inner_function_(
-          [captured_args = std::make_tuple(std::forward<Args>(args)...), f](Reader &in) {
-            return std::apply(
-                [&in, f](auto &&...unpacked_args) {
-                  return f(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
-                },
-                captured_args);
-          }) {}
+      inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...),
+                       f](Reader &in) -> typename std::function<F>::result_type {
+        return std::apply(
+            [&in, f](auto &&...unpacked_args) -> typename std::function<F>::result_type {
+              return f(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
+            },
+            captured_args);
+      }) {}
 
 template <class F>
 inline auto FnVar<F>::read_from(Reader &in) const -> typename std::function<F>::result_type {
@@ -719,19 +720,20 @@ inline auto FnVar<F>::read_from(Reader &in) const -> typename std::function<F>::
 
 template <class T>
 template <class... Args>
-inline ExtVar<T>::ExtVar(std::string name, Args... args)
+inline ExtVar<T>::ExtVar(std::string name, Args &&...args)
   requires Readable<T, Args...>
     : Var<T, ExtVar<T>>(std::move(name)),
       // Capture arguments into a tuple, then use std::apply to call T::read.
       // This is a robust way to handle variadic arguments within std::function.
-      inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...)](Reader &in) {
-        return std::apply(
-            [&in](auto &&...unpacked_args) {
-              // Call T::read with the Reader and the unpacked arguments
-              return T::read(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
-            },
-            captured_args);
-      }) {}
+      inner_function_(
+          [captured_args = std::make_tuple(std::forward<Args>(args)...)](Reader &in) -> T {
+            return std::apply(
+                [&in](auto &&...unpacked_args) -> T {
+                  // Call T::read with the Reader and the unpacked arguments
+                  return T::read(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
+                },
+                captured_args);
+          }) {}
 
 template <class T>
 inline auto ExtVar<T>::read_from(Reader &in) const -> T {
@@ -740,7 +742,7 @@ inline auto ExtVar<T>::read_from(Reader &in) const -> T {
 
 template <class T>
 template <std::ranges::range Range, class... Args>
-inline ExtVec<T>::ExtVec(std::string name, Range &&range, Separator sep, Args... args)
+inline ExtVec<T>::ExtVec(std::string name, Range &&range, Separator sep, Args &&...args)
   requires Readable<T, Args..., std::ranges::range_value_t<Range>>
     : Var<std::vector<T>, ExtVec<T>>(std::move(name)),
       inner_function_([range = std::forward<Range>(range), sep,

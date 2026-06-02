@@ -123,7 +123,7 @@ inline auto Value::encode_map(std::streambuf &buf, const Map &inner) -> void {
 
 inline auto Value::write_string(std::streambuf &buf) const -> void {
   std::visit(
-      [&buf](const auto &arg) {
+      [&buf](const auto &arg) -> void {
         using T = std::decay_t<decltype(arg)>;
 
         if constexpr (std::is_same_v<T, Null>) {
