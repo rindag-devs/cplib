@@ -269,6 +269,8 @@ struct UniqueFunction<Ret(Args...)> {
   template <class T>
   UniqueFunction(T t);  // NOLINT(google-explicit-constructor)
 
+  [[nodiscard]] explicit operator bool() const noexcept;
+
   /**
    * Function call operator.
    *
@@ -415,6 +417,12 @@ struct FlatMap {
   /** @brief Returns the maximum possible number of elements. */
   [[nodiscard]] auto max_size() const -> size_type;
 
+  /** @brief Reserves storage for at least the specified number of elements. */
+  auto reserve(size_type new_cap) -> void;
+
+  /** @brief Returns the current storage capacity. */
+  [[nodiscard]] auto capacity() const -> size_type;
+
   // Modifiers
 
   /** @brief Inserts a new element into the container. */
@@ -497,9 +505,7 @@ auto get_work_mode() -> WorkMode;
 #include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <cstdarg>
 #include <cstddef>
-#include <cstdio>
 #include <cstdlib>
 #include <initializer_list>
 #include <iostream>
@@ -541,7 +547,7 @@ inline auto hex_encode(int c) -> std::string {
     return "\\r";
   } else if (c == '\t') {
     return "\\t";
-  } else if (!isprint(c)) {
+  } else if (std::isprint(static_cast<unsigned char>(c)) == 0) {
     return cplib::format("\\x{:02x}", static_cast<int>(c));
   } else {
     return {static_cast<char>(c)};
@@ -634,11 +640,14 @@ inline auto trim(std::string_view s) -> std::string {
   if (s.empty()) return std::string(s);
 
   std::ptrdiff_t left = 0;
-  while (left < static_cast<std::ptrdiff_t>(s.size()) && std::isspace(s[left])) ++left;
+  while (left < static_cast<std::ptrdiff_t>(s.size()) &&
+         std::isspace(static_cast<unsigned char>(s[left])) != 0) {
+    ++left;
+  }
   if (left >= static_cast<std::ptrdiff_t>(s.size())) return "";
 
   std::ptrdiff_t right = static_cast<std::ptrdiff_t>(s.size()) - 1;
-  while (right >= 0 && std::isspace(s[right])) --right;
+  while (right >= 0 && std::isspace(static_cast<unsigned char>(s[right])) != 0) --right;
   if (right < 0) return "";
 
   return std::string(s.substr(left, right - left + 1));
@@ -702,12 +711,20 @@ template <typename Ret, typename... Args>
 inline UniqueFunction<Ret(Args...)>::UniqueFunction(std::nullptr_t) : ptr(nullptr){};
 
 template <typename Ret, typename... Args>
+inline UniqueFunction<Ret(Args...)>::operator bool() const noexcept {
+  return ptr != nullptr;
+}
+
+template <typename Ret, typename... Args>
 template <class T>
 inline UniqueFunction<Ret(Args...)>::UniqueFunction(T t)
     : ptr(std::make_unique<Data<T>>(std::move(t))){};
 
 template <typename Ret, typename... Args>
 auto UniqueFunction<Ret(Args...)>::operator()(Args... args) const -> Ret {
+  if (!ptr) {
+    cplib::panic("Attempted to call an empty UniqueFunction");
+  }
   return (*ptr)(std::forward<Args>(args)...);
 }
 
@@ -909,6 +926,18 @@ inline auto FlatMap<Key, T, Compare>::max_size() const ->
   return data_.max_size();
 }
 
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::reserve(typename FlatMap<Key, T, Compare>::size_type new_cap)
+    -> void {
+  data_.reserve(new_cap);
+}
+
+template <typename Key, typename T, typename Compare>
+inline auto FlatMap<Key, T, Compare>::capacity() const ->
+    typename FlatMap<Key, T, Compare>::size_type {
+  return data_.capacity();
+}
+
 // Modifiers
 
 template <typename Key, typename T, typename Compare>
@@ -1005,13 +1034,17 @@ inline auto FlatMap<Key, T, Compare>::lower_bound(const key_type &key) const ->
 template <typename Key, typename T, typename Compare>
 inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::iterator {
-  return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+  return std::upper_bound(
+      data_.begin(), data_.end(), key,
+      [this](const key_type &lhs, const value_type &rhs) -> bool { return comp_(lhs, rhs.first); });
 }
 
 template <typename Key, typename T, typename Compare>
 inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type &key) const ->
     typename FlatMap<Key, T, Compare>::const_iterator {
-  return std::upper_bound(data_.begin(), data_.end(), key, detail::PairKeyCompare<Compare>{comp_});
+  return std::upper_bound(
+      data_.begin(), data_.end(), key,
+      [this](const key_type &lhs, const value_type &rhs) -> bool { return comp_(lhs, rhs.first); });
 }
 
 // Private Helpers
@@ -1294,7 +1327,7 @@ inline auto Value::encode_map(std::streambuf &buf, const Map &inner) -> void {
 
 inline auto Value::write_string(std::streambuf &buf) const -> void {
   std::visit(
-      [&buf](const auto &arg) {
+      [&buf](const auto &arg) -> void {
         using T = std::decay_t<decltype(arg)>;
 
         if constexpr (std::is_same_v<T, Null>) {
@@ -1404,11 +1437,12 @@ inline auto Value::write_string(std::streambuf &buf) const -> void {
 #include <memory>
 #include <string>
 #include <string_view>
-#include <utility>
-
-#include "regex.h"
 
 namespace cplib {
+namespace detail {
+struct RegexHandle;
+}
+
 /**
  * Regex pattern in POSIX-Extended style. Used for matching strings.
  *
@@ -1441,9 +1475,7 @@ struct Pattern {
 
  private:
   std::string src_;
-
-  // `re->second` represents whether regex is compiled successfully
-  std::shared_ptr<std::pair<regex_t, bool>> re_;
+  std::shared_ptr<detail::RegexHandle> re_;
 };
 }  // namespace cplib
 
@@ -1475,6 +1507,17 @@ struct Pattern {
 
 namespace cplib {
 namespace detail {
+struct RegexHandle {
+  regex_t regex{};
+  bool compiled = false;
+
+  ~RegexHandle() {
+    if (compiled) {
+      regfree(&regex);
+    }
+  }
+};
+
 inline auto get_regex_err_msg(int err_code, regex_t *re) -> std::string {
   std::size_t len = regerror(err_code, re, nullptr, 0);
   std::string buf(len, 0);
@@ -1484,27 +1527,33 @@ inline auto get_regex_err_msg(int err_code, regex_t *re) -> std::string {
 }  // namespace detail
 
 inline Pattern::Pattern(std::string src)
-    : src_(std::move(src)), re_(new std::pair<regex_t, bool>, [](std::pair<regex_t, bool> *p) {
-        if (p->second) regfree(&p->first);
-        delete p;
-      }) {
+    : src_(std::move(src)), re_(std::make_shared<detail::RegexHandle>()) {
   // In function `regexec`, a match anywhere within the string is considered successful unless the
   // regular expression contains `^` or `$`.
-  if (int err = regcomp(&re_->first, ("^" + src_ + "$").c_str(), REG_EXTENDED | REG_NOSUB); err) {
-    auto err_msg = detail::get_regex_err_msg(err, &re_->first);
+  if (int err = regcomp(&re_->regex, ("^" + src_ + "$").c_str(), REG_EXTENDED | REG_NOSUB); err) {
+    auto err_msg = detail::get_regex_err_msg(err, &re_->regex);
     panic("Pattern constructor failed: " + err_msg);
   }
-  re_->second = true;
+  re_->compiled = true;
 }
 
 inline auto Pattern::match(std::string_view s) const -> bool {
-  int result = regexec(&re_->first, std::string(s).c_str(), 0, nullptr, 0);
+#ifdef REG_STARTEND
+  regmatch_t match_range{};
+  match_range.rm_so = 0;
+  match_range.rm_eo = static_cast<regoff_t>(s.size());
+  const char *input = s.empty() ? "" : std::addressof(s.front());
+  int result = regexec(&re_->regex, input, 1, &match_range, REG_STARTEND);
+#else
+  const std::string buffer(s);
+  int result = regexec(&re_->regex, buffer.c_str(), 0, nullptr, 0);
+#endif
 
   if (!result) return true;
 
   if (result == REG_NOMATCH) return false;
 
-  auto err_msg = detail::get_regex_err_msg(result, &re_->first);
+  auto err_msg = detail::get_regex_err_msg(result, &re_->regex);
   panic("Pattern match failed: " + err_msg);
   return false;
 }
@@ -2342,9 +2391,12 @@ struct OutBuf : std::streambuf {
  */
 
 
+#include <sys/types.h>
+
 #include <array>
 #include <cassert>
 #include <cctype>
+#include <cerrno>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -2360,6 +2412,35 @@ struct OutBuf : std::streambuf {
 
 
 namespace cplib::io {
+
+namespace detail {
+using WriteFunc = ssize_t (*)(int, const void *, std::size_t);
+
+inline auto write_once(int fd, const void *data, std::size_t len) -> ssize_t {
+  return write(fd, data, len);
+}
+
+inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write_func = write_once)
+    -> std::streamsize {
+  std::size_t total = 0;
+  while (total < len) {
+    const auto written = write_func(fd, data + total, len - total);
+    if (written > 0) {
+      total += static_cast<std::size_t>(written);
+      continue;
+    }
+    if (written == 0) {
+      break;
+    }
+    if (errno == EINTR) {
+      continue;
+    }
+    break;
+  }
+
+  return static_cast<std::streamsize>(total);
+}
+}  // namespace detail
 
 inline Position::Position() : line(0), col(0), byte(0) {}
 
@@ -2454,7 +2535,7 @@ inline auto InStream::name() const -> std::string_view { return name_; }
 
 inline auto InStream::skip_blanks() -> void {
   while (true) {
-    if (int c = seek(); c == EOF || !std::isspace(c)) break;
+    if (int c = seek(); c == EOF || std::isspace(static_cast<unsigned char>(c)) == 0) break;
     read();
   }
 }
@@ -2522,7 +2603,7 @@ inline auto InStream::read_token() -> std::string {
 
   std::string token;
   while (true) {
-    if (int c = seek(); c == EOF || std::isspace(c)) break;
+    if (int c = seek(); c == EOF || std::isspace(static_cast<unsigned char>(c)) != 0) break;
     token.push_back(static_cast<char>(read()));
   }
   return token;
@@ -2533,8 +2614,8 @@ inline auto InStream::read_word() -> std::string {
 
   std::string word;
   while (true) {
-    if (int c = seek();
-        c == EOF || (!std::isalnum(c) && c != '+' && c != '-' && c != '_' && c != '.')) {
+    if (int c = seek(); c == EOF || (!std::isalnum(static_cast<unsigned char>(c)) && c != '+' &&
+                                     c != '-' && c != '_' && c != '.')) {
       break;
     }
     word.push_back(static_cast<char>(read()));
@@ -2597,7 +2678,7 @@ inline OutBuf::~OutBuf() {
 inline auto OutBuf::overflow(int_type c) -> int_type {
   if (c != EOF) {
     auto z = static_cast<char>(c);
-    if (write(fd_, &z, 1) != 1) {
+    if (detail::write_all(fd_, &z, 1) != 1) {
       return EOF;
     }
   }
@@ -2605,7 +2686,8 @@ inline auto OutBuf::overflow(int_type c) -> int_type {
 }
 
 inline auto OutBuf::xsputn(const char *s, std::streamsize num) -> std::streamsize {
-  return write(fd_, s, num);
+  if (num <= 0) return 0;
+  return detail::write_all(fd_, s, static_cast<std::size_t>(num));
 }
 
 namespace detail {
@@ -3418,7 +3500,7 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
    * @return Result of the evaluation.
    */
   template <typename T, class... Args>
-  auto operator()(std::string_view var_name, const T &pans, const T &jans, Args... args) -> Result
+  auto operator()(std::string_view var_name, const T &pans, const T &jans, Args &&...args) -> Result
     requires Evaluatable<T, Args...>;
 
   template <std::equality_comparable T>
@@ -3463,7 +3545,6 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
 #include <cmath>
 #include <compare>
 #include <concepts>
-#include <cstdio>
 #include <cstdlib>
 #include <optional>
 #include <string>
@@ -3726,7 +3807,7 @@ inline auto Evaluator::post_evaluate(Result &result) -> void {
 
 template <typename T, class... Args>
 inline auto Evaluator::operator()(std::string_view var_name, const T &pans, const T &jans,
-                                  Args... args) -> Result
+                                  Args &&...args) -> Result
   requires Evaluatable<T, Args...>
 {
   pre_evaluate(var_name);
@@ -4538,7 +4619,7 @@ struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
    * parameters of `f`.
    */
   template <class... Args>
-  FnVar(std::string name, std::function<F> f, Args... args);
+  FnVar(std::string name, std::function<F> f, Args &&...args);
 
   /**
    * Read from reader.
@@ -4583,7 +4664,7 @@ struct ExtVar : Var<T, ExtVar<T>> {
    * @param args The second to last arguments to the function `T::read`.
    */
   template <class... Args>
-  explicit ExtVar(std::string name, Args... args)
+  explicit ExtVar(std::string name, Args &&...args)
     requires Readable<T, Args...>;
 
   /**
@@ -4626,7 +4707,7 @@ struct ExtVec : Var<std::vector<T>, ExtVec<T>> {
    * @param args The fixed arguments to be passed to `T::read` before the range element.
    */
   template <std::ranges::range Range, class... Args>
-  explicit ExtVec(std::string name, Range &&range, Separator sep, Args... args)
+  explicit ExtVec(std::string name, Range &&range, Separator sep, Args &&...args)
     requires Readable<T, Args..., std::ranges::range_value_t<Range>>;
 
   /**
@@ -4828,7 +4909,7 @@ inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
   auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
                        trace::Level::NONE, [](const Reader &, std::string_view msg) -> void {
-                         panic(std::string("Var::parse failed: ") + msg.data());
+                         panic(std::string("Var::parse failed: ") + std::string(msg));
                        });
   T result = reader.read(*this);
   if (!reader.inner().eof()) {
@@ -5075,7 +5156,9 @@ inline YesNo::YesNo(std::string name) : Var<bool, YesNo>(std::move(name)) {}
 inline auto YesNo::read_from(Reader &in) const -> bool {
   auto word = in.inner().read_word();
   auto lower_token = word;
-  std::ranges::transform(lower_token, lower_token.begin(), ::tolower);
+  std::ranges::transform(lower_token, lower_token.begin(), [](unsigned char c) -> char {
+    return static_cast<char>(std::tolower(c));
+  });
 
   bool result;
   if (lower_token == "yes") {
@@ -5207,9 +5290,9 @@ inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
       in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
-  } else if (std::isspace(s)) {
+  } else if (std::isspace(static_cast<unsigned char>(s)) != 0) {
     auto got = in.inner().read();
-    if (!std::isspace(got)) {
+    if (std::isspace(static_cast<unsigned char>(got)) == 0) {
       in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
@@ -5248,7 +5331,7 @@ inline auto Vec<T>::read_from(Reader &in) const -> std::vector<typename T::Var::
 
 template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1)
-    : Mat<T>(element, len0, len1, var::space, var::eoln) {}
+    : Mat<T>(element, len0, len1, var::eoln, var::space) {}
 
 template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1, Separator sep0, Separator sep1)
@@ -5348,16 +5431,16 @@ inline auto Tuple<T...>::read_from_impl(Reader &in, std::index_sequence<Is...>) 
 
 template <class F>
 template <class... Args>
-inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args... args)
+inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args &&...args)
     : Var<typename std::function<F>::result_type, FnVar<F>>(std::move(name)),
-      inner_function_(
-          [captured_args = std::make_tuple(std::forward<Args>(args)...), f](Reader &in) {
-            return std::apply(
-                [&in, f](auto &&...unpacked_args) {
-                  return f(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
-                },
-                captured_args);
-          }) {}
+      inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...),
+                       f](Reader &in) -> typename std::function<F>::result_type {
+        return std::apply(
+            [&in, f](auto &&...unpacked_args) -> typename std::function<F>::result_type {
+              return f(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
+            },
+            captured_args);
+      }) {}
 
 template <class F>
 inline auto FnVar<F>::read_from(Reader &in) const -> typename std::function<F>::result_type {
@@ -5366,19 +5449,20 @@ inline auto FnVar<F>::read_from(Reader &in) const -> typename std::function<F>::
 
 template <class T>
 template <class... Args>
-inline ExtVar<T>::ExtVar(std::string name, Args... args)
+inline ExtVar<T>::ExtVar(std::string name, Args &&...args)
   requires Readable<T, Args...>
     : Var<T, ExtVar<T>>(std::move(name)),
       // Capture arguments into a tuple, then use std::apply to call T::read.
       // This is a robust way to handle variadic arguments within std::function.
-      inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...)](Reader &in) {
-        return std::apply(
-            [&in](auto &&...unpacked_args) {
-              // Call T::read with the Reader and the unpacked arguments
-              return T::read(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
-            },
-            captured_args);
-      }) {}
+      inner_function_(
+          [captured_args = std::make_tuple(std::forward<Args>(args)...)](Reader &in) -> T {
+            return std::apply(
+                [&in](auto &&...unpacked_args) -> T {
+                  // Call T::read with the Reader and the unpacked arguments
+                  return T::read(in, std::forward<decltype(unpacked_args)>(unpacked_args)...);
+                },
+                captured_args);
+          }) {}
 
 template <class T>
 inline auto ExtVar<T>::read_from(Reader &in) const -> T {
@@ -5387,7 +5471,7 @@ inline auto ExtVar<T>::read_from(Reader &in) const -> T {
 
 template <class T>
 template <std::ranges::range Range, class... Args>
-inline ExtVec<T>::ExtVec(std::string name, Range &&range, Separator sep, Args... args)
+inline ExtVec<T>::ExtVec(std::string name, Range &&range, Separator sep, Args &&...args)
   requires Readable<T, Args..., std::ranges::range_value_t<Range>>
     : Var<std::vector<T>, ExtVec<T>>(std::move(name)),
       inner_function_([range = std::forward<Range>(range), sep,
@@ -7364,7 +7448,7 @@ inline auto Initializer::state() -> State & { return *state_; };
 inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", true, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -7375,7 +7459,7 @@ inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", true, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -7441,8 +7525,8 @@ inline auto topo_sort(const std::vector<std::vector<std::pair<std::size_t, bool>
 inline auto build_edges(std::vector<Trait> &traits)
     -> std::optional<std::vector<std::vector<std::pair<std::size_t, bool>>>> {
   // Check duplicate name
-  std::ranges::sort(traits, [](const Trait &x, const Trait &y) { return x.name < y.name; });
-  if (std::ranges::unique(traits, [](const Trait &x, const Trait &y) {
+  std::ranges::sort(traits, [](const Trait &x, const Trait &y) -> bool { return x.name < y.name; });
+  if (std::ranges::unique(traits, [](const Trait &x, const Trait &y) -> bool {
         return x.name == y.name;
       }).end() != traits.end()) {
     // Found duplicate name
@@ -7470,7 +7554,7 @@ inline auto build_edges(std::vector<Trait> &traits)
 inline auto have_loop(const std::vector<std::vector<std::pair<std::size_t, bool>>> &edges) -> bool {
   std::vector<std::uint8_t> visited(edges.size(), 0);  // Never use std::vector<bool>
 
-  topo_sort(edges, true, [&](std::size_t node) {
+  topo_sort(edges, true, [&](std::size_t node) -> bool {
     visited[node] = 1;
     return true;
   });
@@ -7486,7 +7570,7 @@ inline auto validate_traits(const std::vector<Trait> &traits,
     -> std::map<std::string, bool> {
   std::map<std::string, bool> results;
 
-  topo_sort(edges, true, [&](std::size_t id) {
+  topo_sort(edges, true, [&](std::size_t id) -> bool {
     auto &node = traits[id];
     auto result = node.check_func();
     results.emplace(node.name, result);
@@ -7505,7 +7589,7 @@ inline State::State(std::unique_ptr<Initializer> initializer)
       traits_(),
       trait_edges_() {
   this->initializer->set_state(*this);
-  cplib::detail::panic_impl = [this](std::string_view msg) {
+  cplib::detail::panic_impl = [this](std::string_view msg) -> void {
     quit(Report(Report::Status::INTERNAL_ERROR, std::string(msg)));
   };
   cplib::detail::work_mode = WorkMode::VALIDATOR;
@@ -7751,7 +7835,7 @@ inline auto JsonReporter::report(const Report &report) -> int {
     json::List trace_stacks;
     trace_stacks.reserve(trace_stacks_.size());
     std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
-                           [](auto &s) { return json::Value(s.to_json()); });
+                           [](auto &s) -> json::Value { return json::Value(s.to_json()); });
     map.emplace("reader_trace_stacks", trace_stacks);
   }
 
@@ -8497,7 +8581,6 @@ struct ColoredTextReporter : Reporter {
 
 
 #include <algorithm>
-#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <map>
@@ -8549,7 +8632,7 @@ inline State::State(std::unique_ptr<Initializer> initializer)
       flag_parsers(),
       var_parsers() {
   this->initializer->set_state(*this);
-  cplib::detail::panic_impl = [this](std::string_view msg) {
+  cplib::detail::panic_impl = [this](std::string_view msg) -> void {
     quit(Report(Report::Status::INTERNAL_ERROR, std::string(msg)));
   };
   cplib::detail::work_mode = WorkMode::GENERATOR;
