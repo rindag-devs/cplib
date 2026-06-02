@@ -24,11 +24,14 @@
 #endif
 /* cplib_embed_ignore end */
 
+#include <array>
+#include <charconv>
 #include <ios>
 #include <sstream>
 #include <streambuf>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -38,6 +41,27 @@
 /* cplib_embed_ignore end */
 
 namespace cplib::json {
+
+namespace detail {
+inline auto write_json_int(std::streambuf &buf, Int value) -> void {
+  std::array<char, 32> digits;
+  auto [ptr, ec] = std::to_chars(digits.data(), digits.data() + digits.size(), value);
+  if (ec != std::errc()) {
+    panic("JSON integer to string failed");
+  }
+  buf.sputn(digits.data(), ptr - digits.data());
+}
+
+inline auto write_json_real(std::streambuf &buf, Real value) -> void {
+  std::array<char, 64> digits;
+  auto [ptr, ec] = std::to_chars(digits.data(), digits.data() + digits.size(), value,
+                                 std::chars_format::general, 10);
+  if (ec != std::errc()) {
+    panic("JSON real to string failed");
+  }
+  buf.sputn(digits.data(), ptr - digits.data());
+}
+}  // namespace detail
 
 inline Raw::Raw(std::string inner) : inner(std::move(inner)) {}
 
@@ -132,11 +156,9 @@ inline auto Value::write_string(std::streambuf &buf) const -> void {
         } else if constexpr (std::is_same_v<T, String>) {
           encode_string(buf, arg);
         } else if constexpr (std::is_same_v<T, Int>) {
-          auto str = std::to_string(arg);
-          buf.sputn(str.c_str(), str.length());
+          detail::write_json_int(buf, arg);
         } else if constexpr (std::is_same_v<T, Real>) {
-          auto str = cplib::format("{:.10g}", arg);
-          buf.sputn(str.c_str(), str.length());
+          detail::write_json_real(buf, arg);
         } else if constexpr (std::is_same_v<T, Bool>) {
           if (arg) {
             constexpr std::string_view TRUE_STR = "true";

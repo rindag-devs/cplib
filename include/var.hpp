@@ -189,6 +189,23 @@ struct Var {
   [[nodiscard]] auto renamed(std::string_view name) const -> D;
 
   /**
+   * Creates a copy with an index-based name.
+   *
+   * @param index The index to use as the new name.
+   * @return A copy of the variable with the new name.
+   */
+  [[nodiscard]] auto renamed(std::size_t index) const -> D;
+
+  /**
+   * Creates a copy with a matrix-style index-based name.
+   *
+   * @param index0 The first index.
+   * @param index1 The second index.
+   * @return A copy of the variable with the new name.
+   */
+  [[nodiscard]] auto renamed(std::size_t index0, std::size_t index1) const -> D;
+
+  /**
    * Parse a variable from a string.
    *
    * @param s The string representation of the variable.
@@ -791,6 +808,10 @@ struct ExtVar : Var<T, ExtVar<T>> {
    */
   template <class... Args>
   explicit ExtVar(std::string name, Args &&...args)
+    requires Readable<T, Args...>;
+
+  template <class... Args>
+  explicit ExtVar(std::size_t index, Args &&...args)
     requires Readable<T, Args...>;
 
   /**

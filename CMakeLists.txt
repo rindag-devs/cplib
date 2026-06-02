@@ -19,20 +19,6 @@ endif()
 add_library(cplib INTERFACE)
 target_include_directories(cplib INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-option(CPLIB_USE_FMT_LIB "Use external fmt library" OFF)
-if(CPLIB_USE_FMT_LIB)
-  message(STATUS "Using external fmt library")
-  include(FetchContent)
-  FetchContent_Declare(
-    fmt
-    GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-    GIT_TAG 12.1.0
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
-  FetchContent_MakeAvailable(fmt)
-  target_link_libraries(cplib INTERFACE fmt::fmt)
-  target_compile_definitions(cplib INTERFACE CPLIB_USE_FMT_LIB)
-endif()
-
 enable_testing()
 add_subdirectory(tests)
 
@@ -47,9 +33,6 @@ file(GLOB_RECURSE CPLIB_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/include/*.i.hpp")
 
 set(EMBED_ARGS ${CMAKE_CURRENT_SOURCE_DIR}/include/cplib.hpp -I ${CMAKE_CURRENT_SOURCE_DIR}/include)
-if(CPLIB_USE_FMT_LIB)
-  list(APPEND EMBED_ARGS --embed-fmt -I ${fmt_SOURCE_DIR}/include)
-endif()
 
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cplib.hpp

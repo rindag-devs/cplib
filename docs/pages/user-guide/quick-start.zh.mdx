@@ -30,13 +30,6 @@ Invoke-WebRequest -Uri "https://github.com/rindag-devs/cplib/raw/single-header-s
 
 这将会下载基于主分支最新提交生成的单文件头快照，并保存至当前目录下的 `cplib.hpp` 文件．
 
-### 针对旧版编译器（缺少 `<format>`）
-
-如果你使用的是较旧的编译器（例如 GCC < 13），可能不支持 `<format>` 头文件．在这种情况下，你可以使用带有 `with_fmt` 的单文件头版本．该版本嵌入了 [fmt](https://github.com/fmtlib/fmt) 库以提供格式化支持．
-
-你可以从以下链接下载：
-[https://github.com/rindag-devs/cplib/raw/single-header-snapshot/with_fmt/cplib.hpp](https://github.com/rindag-devs/cplib/raw/single-header-snapshot/with_fmt/cplib.hpp)
-
 ## 从源代码构建
 
 除了直接使用快照，从源代码构建是另一种获得单文件头的方式．
@@ -60,14 +53,9 @@ cmake --build build --target single_header
 
 最终生成的代码将会保存在 `build/cplib.hpp` 文件中．
 
-### 构建嵌入 fmt 的版本
+### 编译器要求
 
-如果你需要为旧版编译器构建嵌入了 `fmt` 库的版本：
-
-```bash
-cmake -B build -DCPLIB_USE_FMT_LIB=ON
-cmake --build build --target single_header
-```
+`CPLib` 现在要求工具链具备可用的 C++20 `<format>` 支持．实际使用中，这意味着 `GCC 13+`，或等价的 Clang + 标准库组合．
 
 </Steps>
 

@@ -29,22 +29,15 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdlib>
+#include <format>
 #include <initializer_list>
 #include <iostream>
 #include <iterator>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
-
-#ifdef CPLIB_USE_FMT_LIB
-#include "fmt/base.h"
-#include "fmt/core.h"
-#else
-#include <format>
-#endif
 
 /* cplib_embed_ignore start */
 #include "macros.hpp"
@@ -104,17 +97,10 @@ inline auto panic(std::string_view message) -> void {
 }
 // /Impl panic }}}
 
-#ifdef CPLIB_USE_FMT_LIB
-template <class... Args>
-[[nodiscard]] inline auto format(fmt::format_string<Args...> fmt, Args &&...args) -> std::string {
-  return fmt::vformat(fmt.get(), fmt::make_format_args(args...));
-}
-#else
 template <class... Args>
 [[nodiscard]] inline auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string {
   return std::vformat(fmt.get(), std::make_format_args(args...));
 }
-#endif
 
 template <class T>
 inline auto float_equals(T result, T expected, T max_err) -> bool {
@@ -183,26 +169,26 @@ inline auto trim(std::string_view s) -> std::string {
 
 template <class It>
 inline auto join(It first, It last) -> std::string {
-  std::ostringstream ss;
+  std::string result;
   for (It i = first; i != last; ++i) {
-    ss << *i;
+    std::format_to(std::back_inserter(result), "{}", *i);
   }
-  return ss.str();
+  return result;
 }
 
 template <class It, class Sep>
 inline auto join(It first, It last, Sep separator) -> std::string {
-  std::ostringstream ss;
+  std::string result;
   bool repeated = false;
   for (It i = first; i != last; ++i) {
     if (repeated) {
-      ss << separator;
+      std::format_to(std::back_inserter(result), "{}", separator);
     } else {
       repeated = true;
     }
-    ss << *i;
+    std::format_to(std::back_inserter(result), "{}", *i);
   }
-  return ss.str();
+  return result;
 }
 
 inline auto split(std::string_view s, char separator) -> std::vector<std::string> {

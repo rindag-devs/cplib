@@ -14,38 +14,15 @@ jobs:
         include:
           - c_compiler: "gcc-13"
             cxx_compiler: "g++-13"
-            use_fmt: false
           - c_compiler: "gcc-14"
             cxx_compiler: "g++-14"
-            use_fmt: false
           - c_compiler: "clang-16"
             cxx_compiler: "clang++-16"
-            use_fmt: false
           - c_compiler: "clang-17"
             cxx_compiler: "clang++-17"
-            use_fmt: false
           - c_compiler: "clang-18"
             cxx_compiler: "clang++-18"
-            use_fmt: false
-          - c_compiler: "gcc-12"
-            cxx_compiler: "g++-12"
-            use_fmt: true
-          - c_compiler: "gcc-13"
-            cxx_compiler: "g++-13"
-            use_fmt: true
-          - c_compiler: "gcc-14"
-            cxx_compiler: "g++-14"
-            use_fmt: true
-          - c_compiler: "clang-16"
-            cxx_compiler: "clang++-16"
-            use_fmt: true
-          - c_compiler: "clang-17"
-            cxx_compiler: "clang++-17"
-            use_fmt: true
-          - c_compiler: "clang-18"
-            cxx_compiler: "clang++-18"
-            use_fmt: true
-    name: Test ${{ matrix.cxx_compiler }}${{ matrix.use_fmt && ' (FMT)' || '' }}
+    name: Test ${{ matrix.cxx_compiler }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repo
@@ -55,8 +32,7 @@ jobs:
         run: |
           cmake -B build \
             -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
-            -DCMAKE_CXX_COMPILER=${{ matrix.cxx_compiler }} \
-            -DCPLIB_USE_FMT_LIB=${{ matrix.use_fmt && 'ON' || 'OFF' }}
+            -DCMAKE_CXX_COMPILER=${{ matrix.cxx_compiler }}
 
       - name: Build project
         run: cmake --build build --parallel

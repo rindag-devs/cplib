@@ -44,6 +44,8 @@
 #include <utility>
 #include <vector>
 
+#include "float_parse.i.hpp"
+
 /* cplib_embed_ignore start */
 #include "io.hpp"
 #include "json.hpp"
@@ -176,6 +178,37 @@ inline auto Var<T, D>::renamed(std::string_view name) const -> D {
 }
 
 template <class T, class D>
+inline auto Var<T, D>::renamed(std::size_t index) const -> D {
+  D clone = *static_cast<const D *>(this);
+  clone.name_.resize(20);
+  auto [ptr, ec] =
+      std::to_chars(clone.name_.data(), clone.name_.data() + clone.name_.size(), index);
+  if (ec != std::errc()) {
+    panic("Var index rename failed");
+  }
+  clone.name_.resize(static_cast<std::size_t>(ptr - clone.name_.data()));
+  return clone;
+}
+
+template <class T, class D>
+inline auto Var<T, D>::renamed(std::size_t index0, std::size_t index1) const -> D {
+  D clone = *static_cast<const D *>(this);
+  clone.name_.resize(41);
+  auto begin = clone.name_.data();
+  auto [mid, ec0] = std::to_chars(begin, begin + 20, index0);
+  if (ec0 != std::errc()) {
+    panic("Var matrix index rename failed");
+  }
+  *mid++ = '_';
+  auto [end, ec1] = std::to_chars(mid, begin + clone.name_.size(), index1);
+  if (ec1 != std::errc()) {
+    panic("Var matrix index rename failed");
+  }
+  clone.name_.resize(static_cast<std::size_t>(end - begin));
+  return clone;
+}
+
+template <class T, class D>
 inline auto Var<T, D>::parse(std::string_view s) const -> T {
   auto buf = std::make_unique<std::stringbuf>(std::string(s), std::ios_base::in);
   auto reader = Reader(std::make_unique<io::InStream>(std::move(buf), "str", true),
@@ -294,17 +327,11 @@ inline auto Float<T>::read_from(Reader &in) const -> T {
 
   // `Float<T>` usually uses with non-strict streams, so it should support both fixed format and
   // scientific.
-  auto [ptr, ec] = std::from_chars(first, last, result, std::chars_format::general);
+  bool parsed = cplib::detail::float_parse::parse(
+      first, last, cplib::detail::float_parse::Mode::General, result);
 
-  if (ec == std::errc::invalid_argument || ptr != last) {
-    // * ec == std::errc::invalid_argument: String is not a valid floating point format (e.g. "abc",
-    //   "NaN", "Inf")
-    // * ptr != last: The string is not fully parsed (for example "123abc")
+  if (!parsed) {
     in.fail(cplib::format("Expected a float, got `{}`", compress(token)));
-  } else if (ec == std::errc::result_out_of_range) {
-    // The parsing is successful, but the value exceeds the range of T
-    in.fail(cplib::format("Float value `{}` is out of range for type `{}`", compress(token),
-                          typeid(T).name()));
   }
 
   if (min.has_value() && result < *min) {
@@ -377,14 +404,12 @@ inline auto StrictFloat<T>::read_from(Reader &in) const -> T {
   const char *first = token.data();
   const char *last = token.data() + token.length();
 
-  // Use std::chars_format::fixed for strict float parsing (no scientific notation)
-  auto [ptr, ec] = std::from_chars(first, last, result, std::chars_format::fixed);
+  // Strict float accepts fixed decimal syntax only, without scientific notation.
+  bool parsed = cplib::detail::float_parse::parse(first, last,
+                                                  cplib::detail::float_parse::Mode::Fixed, result);
 
-  if (ec == std::errc::invalid_argument || ptr != last) {
+  if (!parsed) {
     in.fail(cplib::format("Expected a strict float, got `{}`", compress(token)));
-  } else if (ec == std::errc::result_out_of_range) {
-    in.fail(cplib::format("Strict float value `{}` is out of range for type `{}`", compress(token),
-                          typeid(T).name()));
   }
 
   std::size_t n_after_point = detail::get_decimal_places(token);
@@ -595,7 +620,7 @@ inline auto Vec<T>::read_from(Reader &in) const -> std::vector<typename T::Var::
   std::vector<typename T::Var::Target> result(len);
   for (std::size_t i = 0; i < len; ++i) {
     if (i > 0) in.read(sep);
-    result[i] = in.read(element.renamed(std::to_string(i)));
+    result[i] = in.read(element.renamed(i));
   }
   return result;
 }
@@ -620,10 +645,9 @@ inline auto Mat<T>::read_from(Reader &in) const
       len0, std::vector<typename T::Var::Target>(len1));
   for (std::size_t i = 0; i < len0; ++i) {
     if (i > 0) in.read(sep0);
-    auto name_prefix = std::to_string(i) + "_";
     for (std::size_t j = 0; j < len1; ++j) {
       if (j > 0) in.read(sep1);
-      result[i][j] = in.read(element.renamed(name_prefix + std::to_string(j)));
+      result[i][j] = in.read(element.renamed(i, j));
     }
   }
   return result;
@@ -680,7 +704,7 @@ inline auto Tuple<T...>::read_from_impl(Reader &in, std::index_sequence<Is...>) 
   // Create the result tuple that will be populated.
   std::tuple<typename T::Var::Target...> result;
   std::size_t cnt = 0;
-  auto renamed_inc = [&cnt](auto var) { return var.renamed(std::to_string(cnt++)); };
+  auto renamed_inc = [&cnt](auto var) -> decltype(var) { return var.renamed(cnt++); };
 
   // Use a C++17 fold expression over the comma operator to process each element sequentially.
   // This is a concise way to apply an operation to each element of a parameter pack.
@@ -736,6 +760,20 @@ inline ExtVar<T>::ExtVar(std::string name, Args &&...args)
           }) {}
 
 template <class T>
+template <class... Args>
+inline ExtVar<T>::ExtVar(std::size_t index, Args &&...args)
+  requires Readable<T, Args...>
+    : ExtVar<T>(std::string(), std::forward<Args>(args)...) {
+  this->name_.resize(20);
+  auto [ptr, ec] =
+      std::to_chars(this->name_.data(), this->name_.data() + this->name_.size(), index);
+  if (ec != std::errc()) {
+    panic("ExtVar index rename failed");
+  }
+  this->name_.resize(static_cast<std::size_t>(ptr - this->name_.data()));
+}
+
+template <class T>
 inline auto ExtVar<T>::read_from(Reader &in) const -> T {
   return inner_function_(in);
 }
@@ -765,9 +803,8 @@ inline ExtVec<T>::ExtVec(std::string name, Range &&range, Separator sep, Args &&
           // the call to T::read with all necessary arguments and handles tracing.
           auto element = std::apply(
               [&](auto &&...fixed_args) {
-                return in.read(ExtVar<T>(std::to_string(i),
-                                         std::forward<decltype(fixed_args)>(fixed_args)...,
-                                         range_element));
+                return in.read(
+                    ExtVar<T>(i, std::forward<decltype(fixed_args)>(fixed_args)..., range_element));
               },
               captured_args);
 

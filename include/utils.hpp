@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <format>
 #include <functional>
 #include <initializer_list>
 #include <iterator>
@@ -27,14 +28,6 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-#ifdef CPLIB_USE_FMT_LIB
-#define FMT_HEADER_ONLY
-#include "fmt/base.h"
-#include "fmt/core.h"
-#else
-#include <format>
-#endif
 
 namespace cplib {
 /**
@@ -55,15 +48,6 @@ template <class... Args>
  * @param args The variadic arguments to be formatted.
  * @return The formatted string.
  */
-#ifdef CPLIB_USE_FMT_LIB
-template <class... Args>
-[[nodiscard]] auto format(fmt::format_string<Args...> fmt, Args &&...args) -> std::string;
-
-template <typename T>
-concept formattable = requires(T &v, fmt::format_context ctx) {
-  fmt::formatter<std::remove_cvref_t<T>>().format(v, ctx);
-};
-#else
 template <class... Args>
 [[nodiscard]] auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string;
 
@@ -71,7 +55,6 @@ template <typename T>
 concept formattable = requires(T &v, std::format_context ctx) {
   std::formatter<std::remove_cvref_t<T>>().format(v, ctx);
 };
-#endif
 
 /**
  * Determine whether the two floating-point values are equals within the accuracy range.

@@ -10,7 +10,7 @@ INCLUDE_REGEX = re.compile(r'#\s*include "([^"]+)"')
 EMBED_IGNORE_START_REGEX = re.compile(r"/\*\s*cplib_embed_ignore start\s*\*/")
 EMBED_IGNORE_END_REGEX = re.compile(r"/\*\s*cplib_embed_ignore end\s*\*/")
 IWYU_PRAGMA_REGEX = re.compile(r"//\s*IWYU pragma:.*|/\*\s*IWYU pragma:.*\*/")
-DEFAULT_IGNORE_HEADERS = {"regex.h", "fmt/base.h", "fmt/core.h"}
+DEFAULT_IGNORE_HEADERS = {"regex.h"}
 
 
 def process_file(
@@ -104,29 +104,17 @@ def main():
         default=[],
         help="Directories to search for included files.",
     )
-    parser.add_argument(
-        "--embed-fmt",
-        action="store_true",
-        help="Embed fmt/base.h and fmt/core.h instead of ignoring them.",
-    )
-
     args = parser.parse_args()
 
     main_header = args.main_header.resolve()
     include_paths = [p.resolve() for p in args.include_dirs]
 
     ignore_headers = set(DEFAULT_IGNORE_HEADERS)
-    if args.embed_fmt:
-        ignore_headers.discard("fmt/base.h")
-        ignore_headers.discard("fmt/core.h")
 
     processed_files = set()
     final_lines = process_file(
         main_header, include_paths, processed_files, ignore_headers
     )
-
-    if args.embed_fmt:
-        final_lines.insert(0, "#define CPLIB_USE_FMT_LIB")
 
     sys.stdout.buffer.write(("\n".join(final_lines) + "\n").encode("utf-8"))
 
