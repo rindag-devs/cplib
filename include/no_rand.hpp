@@ -24,6 +24,12 @@
 #include "utils.hpp"
 /* cplib_embed_ignore end */
 
+/*
+ * CPLib generators must be exactly reproducible from their declared seed and arguments. Blocking
+ * C library RNG entry points prevents accidental use of hidden global state or implementation-
+ * defined sequences that would make generated data depend on the host environment.
+ */
+
 #ifdef __GLIBC__
 #define CPLIB_RAND_THROW_STATEMENT noexcept(true)
 #else
@@ -31,23 +37,23 @@
 #endif
 
 #if defined(__GNUC__) && !defined(__clang__)
-__attribute__((error("Don not use `rand`, use `rnd.next` instead")))
+__attribute__((error("Do not use `rand`, use `rnd.next` instead")))
 #endif
 #ifdef _MSC_VER
 #pragma warning(disable : 4273)
 #endif
 inline auto rand() CPLIB_RAND_THROW_STATEMENT -> int {
-  cplib::panic("Don not use `rand`, use `rnd.next` instead");
+  cplib::panic("Do not use `rand`, use `rnd.next` instead");
 }
 
 #if defined(__GNUC__) && !defined(__clang__)
-__attribute__((error("Don not use `srand`, you should use `cplib::Random` for random generator")))
+__attribute__((error("Do not use `srand`, use `cplib::Random` for random generator")))
 #endif
 #ifdef _MSC_VER
 #pragma warning(disable : 4273)
 #endif
 inline auto srand(unsigned int) CPLIB_RAND_THROW_STATEMENT -> void {
-  cplib::panic("Don not use `srand`, you should use `cplib::Random` for random generator");
+  cplib::panic("Do not use `srand`, use `cplib::Random` for random generator");
 }
 
 #endif
