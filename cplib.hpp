@@ -563,6 +563,9 @@ inline auto hex_encode(std::string_view s) -> std::string {
 
 // Impl panic {{{
 namespace detail {
+// `panic_impl` is process-global mutable state. Any replacement installed here must remain valid
+// for the rest of the program lifetime, because `panic()` may still be reached from static-lifetime
+// objects after the installing scope has otherwise exited.
 inline UniqueFunction<auto(std::string_view)->void> panic_impl = [](std::string_view s) -> void {
   std::ostream stream(std::cerr.rdbuf());
   stream << "Unrecoverable error: " << s << '\n';
@@ -1434,14 +1437,12 @@ inline auto Value::write_string(std::streambuf &buf) const -> void {
 #ifndef CPLIB_PATTERN_HPP_
 #define CPLIB_PATTERN_HPP_
 
-#include <memory>
 #include <string>
 #include <string_view>
 
+#include "regex.h"
+
 namespace cplib {
-namespace detail {
-struct RegexHandle;
-}
 
 /**
  * Regex pattern in POSIX-Extended style. Used for matching strings.
@@ -1457,6 +1458,11 @@ struct Pattern {
    * @param src The source string representing the regex pattern.
    */
   explicit Pattern(std::string src);
+
+  Pattern(const Pattern &other);
+  auto operator=(const Pattern &other) -> Pattern &;
+  Pattern(Pattern &&) noexcept = default;
+  auto operator=(Pattern &&) noexcept -> Pattern & = default;
 
   /**
    * Checks if given string matches the pattern.
@@ -1474,8 +1480,22 @@ struct Pattern {
   [[nodiscard]] auto src() const -> std::string_view;
 
  private:
+  struct RegexHandle {
+    regex_t regex{};
+    bool compiled = false;
+
+    RegexHandle() = default;
+    RegexHandle(const RegexHandle &) = delete;
+    auto operator=(const RegexHandle &) -> RegexHandle & = delete;
+    RegexHandle(RegexHandle &&other) noexcept;
+    auto operator=(RegexHandle &&other) noexcept -> RegexHandle &;
+    ~RegexHandle();
+  };
+
+  static auto compile_regex(std::string_view src) -> RegexHandle;
+
   std::string src_;
-  std::shared_ptr<detail::RegexHandle> re_;
+  RegexHandle re_;
 };
 }  // namespace cplib
 
@@ -1506,19 +1526,30 @@ struct Pattern {
 
 
 namespace cplib {
-namespace detail {
-struct RegexHandle {
-  regex_t regex{};
-  bool compiled = false;
+inline Pattern::RegexHandle::RegexHandle(RegexHandle &&other) noexcept
+    : regex(other.regex), compiled(std::exchange(other.compiled, false)) {}
 
-  ~RegexHandle() {
-    if (compiled) {
-      regfree(&regex);
-    }
+inline auto Pattern::RegexHandle::operator=(RegexHandle &&other) noexcept -> RegexHandle & {
+  if (this == &other) {
+    return *this;
   }
-};
+  if (compiled) {
+    regfree(&regex);
+  }
+  regex = other.regex;
+  compiled = std::exchange(other.compiled, false);
+  return *this;
+}
 
-inline auto get_regex_err_msg(int err_code, regex_t *re) -> std::string {
+inline Pattern::RegexHandle::~RegexHandle() {
+  if (compiled) {
+    regfree(&regex);
+  }
+}
+
+namespace detail {
+
+inline auto get_regex_err_msg(int err_code, const regex_t *re) -> std::string {
   std::size_t len = regerror(err_code, re, nullptr, 0);
   std::string buf(len, 0);
   regerror(err_code, re, buf.data(), len);
@@ -1526,15 +1557,29 @@ inline auto get_regex_err_msg(int err_code, regex_t *re) -> std::string {
 }
 }  // namespace detail
 
-inline Pattern::Pattern(std::string src)
-    : src_(std::move(src)), re_(std::make_shared<detail::RegexHandle>()) {
-  // In function `regexec`, a match anywhere within the string is considered successful unless the
-  // regular expression contains `^` or `$`.
-  if (int err = regcomp(&re_->regex, ("^" + src_ + "$").c_str(), REG_EXTENDED | REG_NOSUB); err) {
-    auto err_msg = detail::get_regex_err_msg(err, &re_->regex);
+inline auto Pattern::compile_regex(std::string_view src) -> RegexHandle {
+  Pattern::RegexHandle re;
+  if (int err =
+          regcomp(&re.regex, ("^" + std::string(src) + "$").c_str(), REG_EXTENDED | REG_NOSUB);
+      err) {
+    auto err_msg = detail::get_regex_err_msg(err, &re.regex);
     panic("Pattern constructor failed: " + err_msg);
   }
-  re_->compiled = true;
+  re.compiled = true;
+  return re;
+}
+
+inline Pattern::Pattern(std::string src) : src_(std::move(src)), re_(compile_regex(src_)) {}
+
+inline Pattern::Pattern(const Pattern &other) : src_(other.src_), re_(compile_regex(src_)) {}
+
+inline auto Pattern::operator=(const Pattern &other) -> Pattern & {
+  if (this == &other) {
+    return *this;
+  }
+  src_ = other.src_;
+  re_ = compile_regex(src_);
+  return *this;
 }
 
 inline auto Pattern::match(std::string_view s) const -> bool {
@@ -1543,17 +1588,17 @@ inline auto Pattern::match(std::string_view s) const -> bool {
   match_range.rm_so = 0;
   match_range.rm_eo = static_cast<regoff_t>(s.size());
   const char *input = s.empty() ? "" : std::addressof(s.front());
-  int result = regexec(&re_->regex, input, 1, &match_range, REG_STARTEND);
+  int result = regexec(&re_.regex, input, 1, &match_range, REG_STARTEND);
 #else
   const std::string buffer(s);
-  int result = regexec(&re_->regex, buffer.c_str(), 0, nullptr, 0);
+  int result = regexec(&re_.regex, buffer.c_str(), 0, nullptr, 0);
 #endif
 
   if (!result) return true;
 
   if (result == REG_NOMATCH) return false;
 
-  auto err_msg = detail::get_regex_err_msg(result, &re_->regex);
+  auto err_msg = detail::get_regex_err_msg(result, &re_.regex);
   panic("Pattern match failed: " + err_msg);
   return false;
 }
@@ -1819,6 +1864,16 @@ struct Random {
 namespace cplib {
 namespace detail {
 
+template <std::integral T>
+using wnext_uint_t =
+    std::conditional_t<(sizeof(T) < sizeof(std::uint64_t)), std::uint64_t, std::make_unsigned_t<T>>;
+
+template <std::integral T>
+inline auto wnext_integral_width(T from, T to) -> wnext_uint_t<T> {
+  using UnsignedT = wnext_uint_t<T>;
+  return static_cast<UnsignedT>(to) - static_cast<UnsignedT>(from) + UnsignedT(1);
+}
+
 inline constexpr auto rotl(std::uint64_t x, int k) noexcept -> std::uint64_t {
   return (x << k) | (x >> (64 - k));
 }
@@ -2038,7 +2093,19 @@ inline auto Random::wnext(T from, T to, int type) -> T {
       } else {
         p = 1.0 - std::pow(next(0.0, 1.0), 1.0 / (-type + 1));
       }
-      T result = static_cast<T>(from + p * static_cast<double>(to - from + 1));
+      using UnsignedT = detail::wnext_uint_t<T>;
+      const auto width = detail::wnext_integral_width(from, to);
+      UnsignedT offset;
+      if (width == 0) {
+        constexpr auto bits = std::numeric_limits<UnsignedT>::digits;
+        const auto scaled = std::ldexp(static_cast<long double>(p), bits);
+        const auto max_value = static_cast<long double>(std::numeric_limits<UnsignedT>::max());
+        offset = scaled >= max_value ? std::numeric_limits<UnsignedT>::max()
+                                     : static_cast<UnsignedT>(scaled);
+      } else {
+        offset = static_cast<UnsignedT>(p * static_cast<double>(width));
+      }
+      T result = static_cast<T>(static_cast<UnsignedT>(from) + offset);
       if (result > to) result = to;
       if (result < from) result = from;
       return result;
@@ -2414,13 +2481,32 @@ struct OutBuf : std::streambuf {
 namespace cplib::io {
 
 namespace detail {
+using ReadFunc = ssize_t (*)(int, void *, std::size_t);
 using WriteFunc = ssize_t (*)(int, const void *, std::size_t);
 
-inline auto write_once(int fd, const void *data, std::size_t len) -> ssize_t {
-  return write(fd, data, len);
+[[noreturn]] inline auto panic_io_error(std::string_view operation) -> void {
+  panic(cplib::format("{} failed: {}", operation, std::strerror(errno)));
 }
 
-inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write_func = write_once)
+inline auto read_available(int fd, char *data, std::size_t len, ReadFunc read_func)
+    -> std::streamsize {
+  while (true) {
+    const auto num_read = read_func(fd, data, len);
+    if (num_read >= 0) {
+      return static_cast<std::streamsize>(num_read);
+    }
+    if (errno == EINTR) {
+      continue;
+    }
+    panic_io_error("read");
+  }
+}
+
+inline auto read_available(int fd, char *data, std::size_t len) -> std::streamsize {
+  return read_available(fd, data, len, read);
+}
+
+inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write_func)
     -> std::streamsize {
   std::size_t total = 0;
   while (total < len) {
@@ -2435,10 +2521,17 @@ inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write
     if (errno == EINTR) {
       continue;
     }
-    break;
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      break;
+    }
+    panic_io_error("write");
   }
 
   return static_cast<std::streamsize>(total);
+}
+
+inline auto write_all(int fd, const char *data, std::size_t len) -> std::streamsize {
+  return write_all(fd, data, len, write);
 }
 }  // namespace detail
 
@@ -2513,9 +2606,8 @@ inline auto InBuf::underflow() -> int_type {
   std::memmove(buf_.data() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
 
   // Read at most bufSize new characters
-  std::ptrdiff_t num = read(fd_, buf_.data() + PB_SIZE, BUF_SIZE);
-  if (num <= 0) {
-    // Error or EOF
+  const auto num = detail::read_available(fd_, buf_.data() + PB_SIZE, BUF_SIZE, read);
+  if (num == 0) {
     return EOF;
   }
 
@@ -2678,7 +2770,7 @@ inline OutBuf::~OutBuf() {
 inline auto OutBuf::overflow(int_type c) -> int_type {
   if (c != EOF) {
     auto z = static_cast<char>(c);
-    if (detail::write_all(fd_, &z, 1) != 1) {
+    if (detail::write_all(fd_, &z, 1, write) != 1) {
       return EOF;
     }
   }
@@ -2687,7 +2779,7 @@ inline auto OutBuf::overflow(int_type c) -> int_type {
 
 inline auto OutBuf::xsputn(const char *s, std::streamsize num) -> std::streamsize {
   if (num <= 0) return 0;
-  return detail::write_all(fd_, s, static_cast<std::size_t>(num));
+  return detail::write_all(fd_, s, static_cast<std::size_t>(num), write);
 }
 
 namespace detail {
@@ -3140,7 +3232,9 @@ template <Trace T>
 inline Traced<T>::Traced(Level trace_level, T root)
     : trace_level_(trace_level),
       active_traces_({root}),
-      trace_tree_root_(std::make_unique<TraceTreeNode<T>>(std::move(root))),
+      trace_tree_root_(trace_level >= Level::FULL
+                           ? std::make_unique<TraceTreeNode<T>>(std::move(root))
+                           : nullptr),
       trace_tree_current_(trace_tree_root_.get()) {}
 
 template <Trace T>
@@ -7844,8 +7938,9 @@ inline auto JsonReporter::report(const Report &report) -> int {
   }
 
   if (trace_tree_) {
-    auto json = trace_tree_->to_json();
-    map.emplace("reader_trace_tree", std::move(*json));
+    if (auto json = trace_tree_->to_json(); json.has_value()) {
+      map.emplace("reader_trace_tree", std::move(*json));
+    }
   }
 
   std::ostream stream(std::clog.rdbuf());
