@@ -45,6 +45,16 @@
 namespace cplib {
 namespace detail {
 
+template <std::integral T>
+using wnext_uint_t =
+    std::conditional_t<(sizeof(T) < sizeof(std::uint64_t)), std::uint64_t, std::make_unsigned_t<T>>;
+
+template <std::integral T>
+inline auto wnext_integral_width(T from, T to) -> wnext_uint_t<T> {
+  using UnsignedT = wnext_uint_t<T>;
+  return static_cast<UnsignedT>(to) - static_cast<UnsignedT>(from) + UnsignedT(1);
+}
+
 inline constexpr auto rotl(std::uint64_t x, int k) noexcept -> std::uint64_t {
   return (x << k) | (x >> (64 - k));
 }
@@ -264,7 +274,19 @@ inline auto Random::wnext(T from, T to, int type) -> T {
       } else {
         p = 1.0 - std::pow(next(0.0, 1.0), 1.0 / (-type + 1));
       }
-      T result = static_cast<T>(from + p * static_cast<double>(to - from + 1));
+      using UnsignedT = detail::wnext_uint_t<T>;
+      const auto width = detail::wnext_integral_width(from, to);
+      UnsignedT offset;
+      if (width == 0) {
+        constexpr auto bits = std::numeric_limits<UnsignedT>::digits;
+        const auto scaled = std::ldexp(static_cast<long double>(p), bits);
+        const auto max_value = static_cast<long double>(std::numeric_limits<UnsignedT>::max());
+        offset = scaled >= max_value ? std::numeric_limits<UnsignedT>::max()
+                                     : static_cast<UnsignedT>(scaled);
+      } else {
+        offset = static_cast<UnsignedT>(p * static_cast<double>(width));
+      }
+      T result = static_cast<T>(static_cast<UnsignedT>(from) + offset);
       if (result > to) result = to;
       if (result < from) result = from;
       return result;

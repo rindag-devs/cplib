@@ -20,6 +20,9 @@ namespace {
 int partial_write_call_count = 0;
 int interrupted_write_call_count = 0;
 int would_block_write_call_count = 0;
+int failing_write_call_count = 0;
+int interrupted_read_call_count = 0;
+int failing_read_call_count = 0;
 
 inline auto partial_write_once(int, const void *, std::size_t len) -> ssize_t {
   ++partial_write_call_count;
@@ -44,6 +47,39 @@ inline auto partial_then_would_block(int, const void *, std::size_t len) -> ssiz
     return static_cast<ssize_t>(len > 3 ? 3 : len);
   }
   errno = EAGAIN;
+  return -1;
+}
+
+inline auto always_fail_write(int, const void *, std::size_t) -> ssize_t {
+  ++failing_write_call_count;
+  errno = EIO;
+  return -1;
+}
+
+inline auto partial_then_fail_write(int, const void *, std::size_t len) -> ssize_t {
+  ++failing_write_call_count;
+  if (failing_write_call_count == 1) {
+    return static_cast<ssize_t>(len > 3 ? 3 : len);
+  }
+  errno = EIO;
+  return -1;
+}
+
+inline auto interrupted_then_read(int, void *data, std::size_t len) -> ssize_t {
+  ++interrupted_read_call_count;
+  if (interrupted_read_call_count == 1) {
+    errno = EINTR;
+    return -1;
+  }
+  if (len > 0) {
+    static_cast<char *>(data)[0] = 'x';
+  }
+  return 1;
+}
+
+inline auto always_fail_read(int, void *, std::size_t) -> ssize_t {
+  ++failing_read_call_count;
+  errno = EIO;
   return -1;
 }
 }  // namespace
@@ -108,6 +144,61 @@ TEST(IoTest, WriteAllReturnsPartialCountOnWouldBlock) {
   constexpr char data[] = "abcdef";
   const auto written = cplib::io::detail::write_all(-1, data, 6, partial_then_would_block);
   EXPECT_EQ(written, 3);
+}
+
+TEST(IoTest, WriteAllPanicsOnHardFailureBeforeAnyByteIsWritten) {
+  failing_write_call_count = 0;
+  auto old_handler = std::move(cplib::detail::panic_impl);
+  cplib::detail::panic_impl = [](std::string_view message) -> void {
+    throw std::runtime_error(std::string(message));
+  };
+
+  constexpr char data[] = "abcdef";
+  EXPECT_THROW(static_cast<void>(cplib::io::detail::write_all(-1, data, 6, always_fail_write)),
+               std::runtime_error);
+  EXPECT_EQ(failing_write_call_count, 1);
+
+  cplib::detail::panic_impl = std::move(old_handler);
+}
+
+TEST(IoTest, WriteAllPanicsOnHardFailureAfterPartialWrite) {
+  failing_write_call_count = 0;
+  auto old_handler = std::move(cplib::detail::panic_impl);
+  cplib::detail::panic_impl = [](std::string_view message) -> void {
+    throw std::runtime_error(std::string(message));
+  };
+
+  constexpr char data[] = "abcdef";
+  EXPECT_THROW(
+      static_cast<void>(cplib::io::detail::write_all(-1, data, 6, partial_then_fail_write)),
+      std::runtime_error);
+  EXPECT_EQ(failing_write_call_count, 2);
+
+  cplib::detail::panic_impl = std::move(old_handler);
+}
+
+TEST(IoTest, ReadAvailableRetriesAfterEintr) {
+  interrupted_read_call_count = 0;
+  char buffer[1] = {'\0'};
+  const auto num_read = cplib::io::detail::read_available(-1, buffer, 1, interrupted_then_read);
+  EXPECT_EQ(num_read, 1);
+  EXPECT_EQ(buffer[0], 'x');
+}
+
+TEST(IoTest, ReadAvailablePanicsOnHardFailure) {
+  failing_read_call_count = 0;
+  auto old_handler = std::move(cplib::detail::panic_impl);
+  cplib::detail::panic_impl = [](std::string_view message) -> void {
+    throw std::runtime_error(std::string(message));
+  };
+
+  char buffer[1] = {'\0'};
+  EXPECT_THROW(
+      static_cast<void>(cplib::io::detail::read_available(-1, buffer, 1, always_fail_read)),
+      std::runtime_error);
+  EXPECT_EQ(failing_read_call_count, 1);
+
+  cplib::detail::panic_impl = std::move(old_handler);
 }
 
 TEST(IoTest, OutBufWritesCompletePayload) {

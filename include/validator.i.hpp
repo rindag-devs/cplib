@@ -487,8 +487,9 @@ inline auto JsonReporter::report(const Report &report) -> int {
   }
 
   if (trace_tree_) {
-    auto json = trace_tree_->to_json();
-    map.emplace("reader_trace_tree", std::move(*json));
+    if (auto json = trace_tree_->to_json(); json.has_value()) {
+      map.emplace("reader_trace_tree", std::move(*json));
+    }
   }
 
   std::ostream stream(std::clog.rdbuf());

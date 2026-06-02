@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <string>
 #include <vector>
@@ -68,4 +69,24 @@ TEST(RandomTest, WeightedChoiceMap) {
   }
 
   EXPECT_GT(common_cnt, 90);
+}
+
+TEST(RandomTest, WeightedNextHandlesExtremeIntegralBounds) {
+  Random rnd(42);
+  for (int i = 0; i < 32; ++i) {
+    const auto value =
+        rnd.wnext<int>(std::numeric_limits<int>::min(), std::numeric_limits<int>::max(), 100);
+    EXPECT_GE(value, std::numeric_limits<int>::min());
+    EXPECT_LE(value, std::numeric_limits<int>::max());
+  }
+}
+
+TEST(RandomTest, WeightedNextHandlesFullUnsignedRange) {
+  Random rnd(42);
+  bool saw_non_zero = false;
+  for (int i = 0; i < 32; ++i) {
+    const auto value = rnd.wnext<std::uint64_t>(0, std::numeric_limits<std::uint64_t>::max(), 100);
+    saw_non_zero |= value != 0;
+  }
+  EXPECT_TRUE(saw_non_zero);
 }

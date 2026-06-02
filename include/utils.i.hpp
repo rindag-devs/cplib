@@ -88,6 +88,9 @@ inline auto hex_encode(std::string_view s) -> std::string {
 
 // Impl panic {{{
 namespace detail {
+// `panic_impl` is process-global mutable state. Any replacement installed here must remain valid
+// for the rest of the program lifetime, because `panic()` may still be reached from static-lifetime
+// objects after the installing scope has otherwise exited.
 inline UniqueFunction<auto(std::string_view)->void> panic_impl = [](std::string_view s) -> void {
   std::ostream stream(std::cerr.rdbuf());
   stream << "Unrecoverable error: " << s << '\n';

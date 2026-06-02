@@ -37,19 +37,30 @@
 /* cplib_embed_ignore end */
 
 namespace cplib {
-namespace detail {
-struct RegexHandle {
-  regex_t regex{};
-  bool compiled = false;
+inline Pattern::RegexHandle::RegexHandle(RegexHandle &&other) noexcept
+    : regex(other.regex), compiled(std::exchange(other.compiled, false)) {}
 
-  ~RegexHandle() {
-    if (compiled) {
-      regfree(&regex);
-    }
+inline auto Pattern::RegexHandle::operator=(RegexHandle &&other) noexcept -> RegexHandle & {
+  if (this == &other) {
+    return *this;
   }
-};
+  if (compiled) {
+    regfree(&regex);
+  }
+  regex = other.regex;
+  compiled = std::exchange(other.compiled, false);
+  return *this;
+}
 
-inline auto get_regex_err_msg(int err_code, regex_t *re) -> std::string {
+inline Pattern::RegexHandle::~RegexHandle() {
+  if (compiled) {
+    regfree(&regex);
+  }
+}
+
+namespace detail {
+
+inline auto get_regex_err_msg(int err_code, const regex_t *re) -> std::string {
   std::size_t len = regerror(err_code, re, nullptr, 0);
   std::string buf(len, 0);
   regerror(err_code, re, buf.data(), len);
@@ -57,15 +68,29 @@ inline auto get_regex_err_msg(int err_code, regex_t *re) -> std::string {
 }
 }  // namespace detail
 
-inline Pattern::Pattern(std::string src)
-    : src_(std::move(src)), re_(std::make_shared<detail::RegexHandle>()) {
-  // In function `regexec`, a match anywhere within the string is considered successful unless the
-  // regular expression contains `^` or `$`.
-  if (int err = regcomp(&re_->regex, ("^" + src_ + "$").c_str(), REG_EXTENDED | REG_NOSUB); err) {
-    auto err_msg = detail::get_regex_err_msg(err, &re_->regex);
+inline auto Pattern::compile_regex(std::string_view src) -> RegexHandle {
+  Pattern::RegexHandle re;
+  if (int err =
+          regcomp(&re.regex, ("^" + std::string(src) + "$").c_str(), REG_EXTENDED | REG_NOSUB);
+      err) {
+    auto err_msg = detail::get_regex_err_msg(err, &re.regex);
     panic("Pattern constructor failed: " + err_msg);
   }
-  re_->compiled = true;
+  re.compiled = true;
+  return re;
+}
+
+inline Pattern::Pattern(std::string src) : src_(std::move(src)), re_(compile_regex(src_)) {}
+
+inline Pattern::Pattern(const Pattern &other) : src_(other.src_), re_(compile_regex(src_)) {}
+
+inline auto Pattern::operator=(const Pattern &other) -> Pattern & {
+  if (this == &other) {
+    return *this;
+  }
+  src_ = other.src_;
+  re_ = compile_regex(src_);
+  return *this;
 }
 
 inline auto Pattern::match(std::string_view s) const -> bool {
@@ -74,17 +99,17 @@ inline auto Pattern::match(std::string_view s) const -> bool {
   match_range.rm_so = 0;
   match_range.rm_eo = static_cast<regoff_t>(s.size());
   const char *input = s.empty() ? "" : std::addressof(s.front());
-  int result = regexec(&re_->regex, input, 1, &match_range, REG_STARTEND);
+  int result = regexec(&re_.regex, input, 1, &match_range, REG_STARTEND);
 #else
   const std::string buffer(s);
-  int result = regexec(&re_->regex, buffer.c_str(), 0, nullptr, 0);
+  int result = regexec(&re_.regex, buffer.c_str(), 0, nullptr, 0);
 #endif
 
   if (!result) return true;
 
   if (result == REG_NOMATCH) return false;
 
-  auto err_msg = detail::get_regex_err_msg(result, &re_->regex);
+  auto err_msg = detail::get_regex_err_msg(result, &re_.regex);
   panic("Pattern match failed: " + err_msg);
   return false;
 }

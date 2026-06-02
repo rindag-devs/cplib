@@ -7,16 +7,47 @@ import subprocess
 import sys
 
 
+DEFAULT_TIMEOUT_SECONDS = 10
+
+
+def is_success_status(status):
+    return status in {"accepted", "valid", "ok"}
+
+
+def validate_return_code(return_code, expected_status, process_name, stdout_text, stderr_text):
+    expected_success = is_success_status(expected_status)
+    if expected_success and return_code == 0:
+        return
+    if (not expected_success) and return_code != 0:
+        return
+
+    expected_desc = "0" if expected_success else "non-zero"
+    print(
+        f"FAILED: {process_name} exited with code {return_code}, expected {expected_desc} for status '{expected_status}'.",
+        file=sys.stderr,
+    )
+    print("--- Stdout ---", file=sys.stderr)
+    print(stdout_text, file=sys.stderr)
+    print("--- Stderr ---", file=sys.stderr)
+    print(stderr_text, file=sys.stderr)
+    sys.exit(1)
+
+
 def compare_json(expected, actual):
     """
-    Compares two JSON objects. Ignores fields that are not present in 'expected'.
+    Compares two JSON objects strictly.
     """
     if isinstance(expected, dict):
         if not isinstance(actual, dict):
             return False, f"Type mismatch: expected dict, got {type(actual).__name__}"
+        if set(expected.keys()) != set(actual.keys()):
+            missing = sorted(set(expected.keys()) - set(actual.keys()))
+            unexpected = sorted(set(actual.keys()) - set(expected.keys()))
+            return (
+                False,
+                f"Object keys mismatch: missing={missing}, unexpected={unexpected}",
+            )
         for key, value in expected.items():
-            if key not in actual:
-                return False, f"Missing key: '{key}'"
             match, reason = compare_json(value, actual[key])
             if not match:
                 return False, f"Mismatch at key '{key}': {reason}"
@@ -40,7 +71,7 @@ def compare_json(expected, actual):
     return True, ""
 
 
-def run_simple_test(command, stdin_path, expected_stdout_path, expected_stderr_path):
+def run_simple_test(command, stdin_path, expected_stdout_path, expected_stderr_path, timeout):
     """
     Runs a simple command and compares stdout/stderr.
     """
@@ -60,9 +91,13 @@ def run_simple_test(command, stdin_path, expected_stdout_path, expected_stderr_p
             capture_output=True,
             text=True,
             encoding="utf-8",
+            timeout=timeout,
         )
     except FileNotFoundError:
         print(f"Error: Command not found: {command}", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.TimeoutExpired:
+        print(f"FAILED: Command timed out after {timeout} seconds.", file=sys.stderr)
         sys.exit(1)
 
     # Check stdout if required
@@ -119,11 +154,26 @@ def run_simple_test(command, stdin_path, expected_stdout_path, expected_stderr_p
             print(json.dumps(actual_stderr_json, indent=2), file=sys.stderr)
             sys.exit(1)
 
+        validate_return_code(
+            result.returncode,
+            actual_stderr_json["status"],
+            "Command",
+            result.stdout,
+            result.stderr,
+        )
+    elif result.returncode != 0:
+        print(f"FAILED: Command exited with code {result.returncode}.", file=sys.stderr)
+        print("--- Stdout ---", file=sys.stderr)
+        print(result.stdout, file=sys.stderr)
+        print("--- Stderr ---", file=sys.stderr)
+        print(result.stderr, file=sys.stderr)
+        sys.exit(1)
+
     print("PASSED")
     sys.exit(0)
 
 
-def run_interactive_test(interactor_cmd, solution_cmd, expected_stderr_path):
+def run_interactive_test(interactor_cmd, solution_cmd, expected_stderr_path, timeout):
     """
     Runs an interactive test by piping the solution's stdin/stdout to the interactor.
     """
@@ -157,11 +207,16 @@ def run_interactive_test(interactor_cmd, solution_cmd, expected_stderr_path):
 
         # Wait for valid completion
         # We capture interactor's stderr here
-        _, interactor_stderr_data = p_interactor.communicate()
-        p_solution.communicate()
+        _, interactor_stderr_data = p_interactor.communicate(timeout=timeout)
+        _, solution_stderr_data = p_solution.communicate(timeout=timeout)
 
     except FileNotFoundError as e:
         print(f"Error executing command: {e}", file=sys.stderr)
+        sys.exit(1)
+    except subprocess.TimeoutExpired:
+        p_interactor.kill()
+        p_solution.kill()
+        print(f"FAILED: Interactive test timed out after {timeout} seconds.", file=sys.stderr)
         sys.exit(1)
     except Exception as e:
         print(f"An error occurred during interaction: {e}", file=sys.stderr)
@@ -198,6 +253,20 @@ def run_interactive_test(interactor_cmd, solution_cmd, expected_stderr_path):
             print(json.dumps(actual_stderr_json, indent=2), file=sys.stderr)
             sys.exit(1)
 
+        validate_return_code(
+            p_interactor.returncode,
+            actual_stderr_json["status"],
+            "Interactor",
+            "",
+            interactor_stderr_data,
+        )
+
+    if p_solution.returncode != 0:
+        print(f"FAILED: Solution exited with code {p_solution.returncode}.", file=sys.stderr)
+        print("--- Solution Stderr ---", file=sys.stderr)
+        print(solution_stderr_data, file=sys.stderr)
+        sys.exit(1)
+
     print("PASSED")
     sys.exit(0)
 
@@ -215,6 +284,12 @@ def parse_args():
         "--expected-stderr", help="File containing expected stderr JSON."
     )
     p_simple.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help="Timeout in seconds for the command.",
+    )
+    p_simple.add_argument(
         "command", nargs=argparse.REMAINDER, help="The command line to execute."
     )
 
@@ -229,6 +304,12 @@ def parse_args():
     p_inter.add_argument(
         "--expected-stderr",
         help="File containing expected stderr JSON (from interactor).",
+    )
+    p_inter.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT_SECONDS,
+        help="Timeout in seconds for the interactive session.",
     )
     p_inter.add_argument(
         "command", nargs=argparse.REMAINDER, help="The interactor command line."
@@ -256,12 +337,14 @@ def main():
             stdin_path=args.stdin,
             expected_stdout_path=args.expected_stdout,
             expected_stderr_path=args.expected_stderr,
+            timeout=args.timeout,
         )
     elif args.mode == "interactive":
         run_interactive_test(
             interactor_cmd=cmd_args,
             solution_cmd=args.solution,
             expected_stderr_path=args.expected_stderr,
+            timeout=args.timeout,
         )
 
 

@@ -16,14 +16,12 @@
 #ifndef CPLIB_PATTERN_HPP_
 #define CPLIB_PATTERN_HPP_
 
-#include <memory>
 #include <string>
 #include <string_view>
 
+#include "regex.h"
+
 namespace cplib {
-namespace detail {
-struct RegexHandle;
-}
 
 /**
  * Regex pattern in POSIX-Extended style. Used for matching strings.
@@ -39,6 +37,11 @@ struct Pattern {
    * @param src The source string representing the regex pattern.
    */
   explicit Pattern(std::string src);
+
+  Pattern(const Pattern &other);
+  auto operator=(const Pattern &other) -> Pattern &;
+  Pattern(Pattern &&) noexcept = default;
+  auto operator=(Pattern &&) noexcept -> Pattern & = default;
 
   /**
    * Checks if given string matches the pattern.
@@ -56,8 +59,22 @@ struct Pattern {
   [[nodiscard]] auto src() const -> std::string_view;
 
  private:
+  struct RegexHandle {
+    regex_t regex{};
+    bool compiled = false;
+
+    RegexHandle() = default;
+    RegexHandle(const RegexHandle &) = delete;
+    auto operator=(const RegexHandle &) -> RegexHandle & = delete;
+    RegexHandle(RegexHandle &&other) noexcept;
+    auto operator=(RegexHandle &&other) noexcept -> RegexHandle &;
+    ~RegexHandle();
+  };
+
+  static auto compile_regex(std::string_view src) -> RegexHandle;
+
   std::string src_;
-  std::shared_ptr<detail::RegexHandle> re_;
+  RegexHandle re_;
 };
 }  // namespace cplib
 

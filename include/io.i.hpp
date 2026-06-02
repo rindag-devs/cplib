@@ -52,13 +52,32 @@
 namespace cplib::io {
 
 namespace detail {
+using ReadFunc = ssize_t (*)(int, void *, std::size_t);
 using WriteFunc = ssize_t (*)(int, const void *, std::size_t);
 
-inline auto write_once(int fd, const void *data, std::size_t len) -> ssize_t {
-  return write(fd, data, len);
+[[noreturn]] inline auto panic_io_error(std::string_view operation) -> void {
+  panic(cplib::format("{} failed: {}", operation, std::strerror(errno)));
 }
 
-inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write_func = write_once)
+inline auto read_available(int fd, char *data, std::size_t len, ReadFunc read_func)
+    -> std::streamsize {
+  while (true) {
+    const auto num_read = read_func(fd, data, len);
+    if (num_read >= 0) {
+      return static_cast<std::streamsize>(num_read);
+    }
+    if (errno == EINTR) {
+      continue;
+    }
+    panic_io_error("read");
+  }
+}
+
+inline auto read_available(int fd, char *data, std::size_t len) -> std::streamsize {
+  return read_available(fd, data, len, read);
+}
+
+inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write_func)
     -> std::streamsize {
   std::size_t total = 0;
   while (total < len) {
@@ -73,10 +92,17 @@ inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write
     if (errno == EINTR) {
       continue;
     }
-    break;
+    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+      break;
+    }
+    panic_io_error("write");
   }
 
   return static_cast<std::streamsize>(total);
+}
+
+inline auto write_all(int fd, const char *data, std::size_t len) -> std::streamsize {
+  return write_all(fd, data, len, write);
 }
 }  // namespace detail
 
@@ -151,9 +177,8 @@ inline auto InBuf::underflow() -> int_type {
   std::memmove(buf_.data() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
 
   // Read at most bufSize new characters
-  std::ptrdiff_t num = read(fd_, buf_.data() + PB_SIZE, BUF_SIZE);
-  if (num <= 0) {
-    // Error or EOF
+  const auto num = detail::read_available(fd_, buf_.data() + PB_SIZE, BUF_SIZE, read);
+  if (num == 0) {
     return EOF;
   }
 
@@ -316,7 +341,7 @@ inline OutBuf::~OutBuf() {
 inline auto OutBuf::overflow(int_type c) -> int_type {
   if (c != EOF) {
     auto z = static_cast<char>(c);
-    if (detail::write_all(fd_, &z, 1) != 1) {
+    if (detail::write_all(fd_, &z, 1, write) != 1) {
       return EOF;
     }
   }
@@ -325,7 +350,7 @@ inline auto OutBuf::overflow(int_type c) -> int_type {
 
 inline auto OutBuf::xsputn(const char *s, std::streamsize num) -> std::streamsize {
   if (num <= 0) return 0;
-  return detail::write_all(fd_, s, static_cast<std::size_t>(num));
+  return detail::write_all(fd_, s, static_cast<std::size_t>(num), write);
 }
 
 namespace detail {

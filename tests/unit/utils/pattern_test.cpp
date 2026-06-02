@@ -33,3 +33,30 @@ TEST(PatternTest, InvalidPatternPanics) {
 
   EXPECT_THROW(static_cast<void>(cplib::Pattern("(")), std::runtime_error);
 }
+
+TEST(PatternTest, CopyConstructedPatternKeepsValueSemantics) {
+  cplib::Pattern original("[a-z]+");
+  cplib::Pattern copy = original;
+
+  EXPECT_TRUE(original.match("abc"));
+  EXPECT_TRUE(copy.match("xyz"));
+  EXPECT_EQ(copy.src(), original.src());
+}
+
+TEST(PatternTest, CopyAssignedPatternRecompilesRegex) {
+  cplib::Pattern target("[0-9]+");
+  cplib::Pattern source("[a-z]+");
+
+  target = source;
+
+  EXPECT_TRUE(target.match("hello"));
+  EXPECT_FALSE(target.match("123"));
+  EXPECT_EQ(target.src(), source.src());
+}
+
+TEST(PatternTest, MoveConstructedPatternStillMatches) {
+  cplib::Pattern source("[a-z]+");
+  cplib::Pattern moved(std::move(source));
+
+  EXPECT_TRUE(moved.match("world"));
+}

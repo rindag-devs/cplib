@@ -216,7 +216,9 @@ template <Trace T>
 inline Traced<T>::Traced(Level trace_level, T root)
     : trace_level_(trace_level),
       active_traces_({root}),
-      trace_tree_root_(std::make_unique<TraceTreeNode<T>>(std::move(root))),
+      trace_tree_root_(trace_level >= Level::FULL
+                           ? std::make_unique<TraceTreeNode<T>>(std::move(root))
+                           : nullptr),
       trace_tree_current_(trace_tree_root_.get()) {}
 
 template <Trace T>
