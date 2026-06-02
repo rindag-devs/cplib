@@ -55,7 +55,10 @@ The final code is stored in `build/cplib.hpp`.
 
 ### Compiler Requirement
 
-`CPLib` now requires a toolchain with working C++20 `<format>` support. In practice, this means `GCC 13+` or an equivalent Clang + standard library setup.
+CPLib now requires a toolchain with working C++20 `<format>` support. After testing, the minimum usable compiler and C++ standard library combinations are:
+
+- GCC 13 + libstdc++ 13.
+- Clang 17 + libc++ 17.
 
 </Steps>
 

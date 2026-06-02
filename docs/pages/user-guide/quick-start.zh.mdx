@@ -55,7 +55,10 @@ cmake --build build --target single_header
 
 ### 编译器要求
 
-`CPLib` 现在要求工具链具备可用的 C++20 `<format>` 支持．实际使用中，这意味着 `GCC 13+`，或等价的 Clang + 标准库组合．
+CPLib 现在要求工具链具备可用的 C++20 `<format>` 支持．经过测试，最低可用的编译器和 C++ 标准库组合为：
+
+- GCC 13 + libstdc++ 13.
+- Clang 17 + libc++ 17.
 
 </Steps>
 
