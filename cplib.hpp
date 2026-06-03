@@ -42,7 +42,7 @@
 #define CPLIB_STARTUP_TEXT       \
   "cplib (CPLib) " CPLIB_VERSION \
   "\n"                           \
-  "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023-2025\n"
+  "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023-2026\n"
 
 #if (_WIN32 || __WIN32__ || __WIN32 || _WIN64 || __WIN64__ || __WIN64 || WINNT || __WINNT || \
      __WINNT__ || __CYGWIN__)
@@ -7216,44 +7216,18 @@ struct ColoredTextReporter : Reporter {
   [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
+template <class Input, class Output>
+auto run_checker(int argc, char **argv, std::unique_ptr<Initializer> initializer) -> int;
+
 /**
  * Macro to register checker with custom initializer.
  *
  * @param initializer_ The initializer function.
  */
-#define CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, initializer_)                    \
-  static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
-  static_assert(::cplib::var::Readable<output_struct_, const input_struct_ &>,                     \
-                "`" #output_struct_ "` should be Readable");                                       \
-  static_assert(::cplib::evaluate::Evaluatable<output_struct_, const input_struct_ &>,             \
-                "`" #output_struct_ "` should be Evaluatable");                                    \
-  auto main(int argc, char **argv) -> int {                                                        \
-    ::std::vector<::std::string> args;                                                             \
-    args.reserve(argc);                                                                            \
-    for (int i = 1; i < argc; ++i) {                                                               \
-      args.emplace_back(argv[i]);                                                                  \
-    }                                                                                              \
-    /* std::exit only destroys static objects */                                                   \
-    static auto state =                                                                            \
-        ::cplib::checker::State(::std::unique_ptr<decltype(initializer_)>(new initializer_));      \
-    state.initializer->init(argv[0], args);                                                        \
-    input_struct_ input{state.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};             \
-    output_struct_ output{state.ouf.read(::cplib::var::ExtVar<output_struct_>("output", input))};  \
-    output_struct_ answer{state.ans.read(::cplib::var::ExtVar<output_struct_>("answer", input))};  \
-    ::cplib::evaluate::Result result = state.evaluator("output", output, answer, input);           \
-    ::std::string report_message;                                                                  \
-    auto evaluator_trace_stacks = state.reporter->get_evaluator_trace_stacks();                    \
-    auto it = ::std::ranges::find_if(evaluator_trace_stacks, [](const auto &x) -> bool {           \
-      return !x.stack.empty() && x.stack.back().result.has_value() &&                              \
-             !x.stack.back().result->message.empty();                                              \
-    });                                                                                            \
-    if (it != evaluator_trace_stacks.end()) {                                                      \
-      report_message = it->stack.back().result->message;                                           \
-    }                                                                                              \
-    ::cplib::checker::Report report{::cplib::checker::Report::Status(result.status), result.score, \
-                                    report_message};                                               \
-    state.quit(report);                                                                            \
-    return 0;                                                                                      \
+#define CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, initializer_)          \
+  auto main(int argc, char **argv) -> int {                                              \
+    return ::cplib::checker::run_checker<input_struct_, output_struct_>(                 \
+        argc, argv, ::std::unique_ptr<::cplib::checker::Initializer>(new initializer_)); \
   }
 
 #ifndef CPLIB_CHECKER_DEFAULT_INITIALIZER
@@ -7492,6 +7466,59 @@ inline auto State::quit_pc(double points, std::string_view message) -> void {
   quit(Report(Report::Status::PARTIALLY_CORRECT, points, std::string(message)));
 }
 // /Impl State }}}
+
+namespace detail {
+inline auto collect_args(int argc, char **argv) -> std::vector<std::string> {
+  std::vector<std::string> args;
+  args.reserve(argc);
+  for (int i = 1; i < argc; ++i) {
+    args.emplace_back(argv[i]);
+  }
+  return args;
+}
+
+inline auto first_evaluator_trace_message(
+    const std::vector<trace::TraceStack<evaluate::EvaluatorTrace>> &trace_stacks) -> std::string {
+  for (const auto &trace_stack : trace_stacks) {
+    if (trace_stack.stack.empty()) {
+      continue;
+    }
+    const auto &trace_result = trace_stack.stack.back().result;
+    if (!trace_result.has_value()) {
+      continue;
+    }
+    const auto &trace_message = trace_result->message;
+    if (trace_message.empty()) {
+      continue;
+    }
+    return trace_message;
+  }
+  return "";
+}
+}  // namespace detail
+
+template <class Input, class Output>
+auto run_checker(int argc, char **argv, std::unique_ptr<Initializer> initializer) -> int {
+  static_assert(var::Readable<Input>, "Input should be Readable");
+  static_assert(var::Readable<Output, const Input &>, "Output should be Readable");
+  static_assert(evaluate::Evaluatable<Output, const Input &>, "Output should be Evaluatable");
+
+  auto args = detail::collect_args(argc, argv);
+
+  /* std::exit only destroys static objects */
+  static auto state = State(std::move(initializer));
+  state.initializer->init(argv[0], args);
+
+  Input input{state.inf.read(var::ExtVar<Input>("input"))};
+  Output output{state.ouf.read(var::ExtVar<Output>("output", input))};
+  Output answer{state.ans.read(var::ExtVar<Output>("answer", input))};
+  evaluate::Result result = state.evaluator("output", output, answer, input);
+  std::string report_message =
+      detail::first_evaluator_trace_message(state.reporter->get_evaluator_trace_stacks());
+  Report report{Report::Status(result.status), result.score, report_message};
+  state.quit(report);
+  return 0;
+}
 
 // Impl DefaultInitializer {{{
 namespace detail {
@@ -7961,25 +7988,22 @@ struct ColoredTextReporter : Reporter {
   [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
+using MainFunc = auto (*)() -> void;
+
+auto run_interactor(State &state, int argc, char **argv, MainFunc main_func) -> int;
+
 /**
  * Macro to register interactor with custom initializer.
  *
  * @param var_ The variable name of state object to be initialized.
  * @param initializer_ The initializer function.
  */
-#define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_)                                    \
-  auto var_ =                                                                                \
-      ::cplib::interactor::State(std::unique_ptr<decltype(initializer_)>(new initializer_)); \
-  auto main(int argc, char **argv) -> int {                                                  \
-    ::std::vector<::std::string> args;                                                       \
-    args.reserve(argc);                                                                      \
-    for (int i = 1; i < argc; ++i) {                                                         \
-      args.emplace_back(argv[i]);                                                            \
-    }                                                                                        \
-    var_.initializer->init(argv[0], args);                                                   \
-    auto interactor_main(void) -> void;                                                      \
-    interactor_main();                                                                       \
-    return 0;                                                                                \
+#define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_)                          \
+  auto interactor_main() -> void;                                                  \
+  auto var_ = ::cplib::interactor::State(                                          \
+      ::std::unique_ptr<::cplib::interactor::Initializer>(new initializer_));      \
+  auto main(int argc, char **argv) -> int {                                        \
+    return ::cplib::interactor::run_interactor(var_, argc, argv, interactor_main); \
   }
 
 #ifndef CPLIB_INTERACTOR_DEFAULT_INITIALIZER
@@ -8152,6 +8176,24 @@ inline auto State::quit_pc(double points, std::string_view message) -> void {
   quit(Report(Report::Status::PARTIALLY_CORRECT, points, std::string(message)));
 }
 // /Impl State }}}
+
+namespace detail {
+inline auto collect_args(int argc, char **argv) -> std::vector<std::string> {
+  std::vector<std::string> args;
+  args.reserve(argc);
+  for (int i = 1; i < argc; ++i) {
+    args.emplace_back(argv[i]);
+  }
+  return args;
+}
+}  // namespace detail
+
+inline auto run_interactor(State &state, int argc, char **argv, MainFunc main_func) -> int {
+  auto args = detail::collect_args(argc, argv);
+  state.initializer->init(argv[0], args);
+  main_func();
+  return 0;
+}
 
 // Impl DefaultInitializer {{{
 namespace detail {
@@ -8640,30 +8682,21 @@ struct ColoredTextReporter : Reporter {
   [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
+template <class Input, class TraitsFunc>
+auto run_validator(int argc, char **argv, std::unique_ptr<Initializer> initializer,
+                   TraitsFunc traits_func) -> int;
+
 /**
  * Macro to register validator with custom initializer.
  *
  * @param initializer_ The initializer function.
  * @param traits_func_ The function returns a list of traits.
  */
-#define CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_, initializer_)                    \
-  static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
-  auto main(int argc, char **argv) -> int {                                                        \
-    ::std::vector<::std::string> args;                                                             \
-    args.reserve(argc);                                                                            \
-    for (int i = 1; i < argc; ++i) {                                                               \
-      args.emplace_back(argv[i]);                                                                  \
-    }                                                                                              \
-    /* std::exit only destroys static objects */                                                   \
-    static auto state =                                                                            \
-        ::cplib::validator::State(std::unique_ptr<decltype(initializer_)>(new initializer_));      \
-    state.initializer->init(argv[0], args);                                                        \
-    input_struct_ input{state.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};             \
-    std::function<auto(const input_struct_ &)->::std::vector<::cplib::validator::Trait>>           \
-        traits_func = traits_func_;                                                                \
-    state.traits(traits_func(input));                                                              \
-    state.quit_valid();                                                                            \
-    return 0;                                                                                      \
+#define CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_, initializer_)           \
+  auto main(int argc, char **argv) -> int {                                               \
+    return ::cplib::validator::run_validator<input_struct_>(                              \
+        argc, argv, ::std::unique_ptr<::cplib::validator::Initializer>(new initializer_), \
+        traits_func_);                                                                    \
   }
 
 #ifndef CPLIB_VALIDATOR_DEFAULT_INITIALIZER
@@ -8939,6 +8972,34 @@ inline auto State::quit_invalid(std::string_view message) -> void {
   quit(Report(Report::Status::INVALID, std::string(message)));
 }
 // /Impl State }}}
+
+namespace detail {
+inline auto collect_args(int argc, char **argv) -> std::vector<std::string> {
+  std::vector<std::string> args;
+  args.reserve(argc);
+  for (int i = 1; i < argc; ++i) {
+    args.emplace_back(argv[i]);
+  }
+  return args;
+}
+}  // namespace detail
+
+template <class Input, class TraitsFunc>
+auto run_validator(int argc, char **argv, std::unique_ptr<Initializer> initializer,
+                   TraitsFunc traits_func) -> int {
+  static_assert(var::Readable<Input>, "Input should be Readable");
+
+  auto args = detail::collect_args(argc, argv);
+
+  /* std::exit only destroys static objects */
+  static auto state = State(std::move(initializer));
+  state.initializer->init(argv[0], args);
+
+  Input input{state.inf.read(var::ExtVar<Input>("input"))};
+  state.traits(traits_func(input));
+  state.quit_valid();
+  return 0;
+}
 
 // Impl DefaultInitializer {{{
 namespace detail {
@@ -9479,352 +9540,85 @@ struct ColoredTextReporter : Reporter {
   [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
-#define CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_)                                \
-  namespace cplib_generator_args_detail_ {                                                      \
-  struct AsResultTag_ {};                                                                       \
-                                                                                                \
-  std::map<std::string, std::any> value_map_;                                                   \
-                                                                                                \
-  struct Flag {                                                                                 \
-    using ResultType = bool;                                                                    \
-    std::string name;                                                                           \
-    explicit Flag(std::string name_) : name(std::move(name_)) {                                 \
-      state_var_name_.required_flag_args.emplace_back(name);                                    \
-      auto name = this->name;                                                                   \
-      state_var_name_.flag_parsers.emplace_back(                                                \
-          [name](const std::set<std::string> &flag_args) -> void {                              \
-            *std::any_cast<ResultType>(&value_map_[name]) =                                     \
-                static_cast<ResultType>(flag_args.count(name));                                 \
-          });                                                                                   \
-    }                                                                                           \
-    inline auto operator|(AsResultTag_) const -> const ResultType & {                           \
-      return *std::any_cast<ResultType>(&(value_map_[name] = ResultType{}));                    \
-    }                                                                                           \
-  };                                                                                            \
-                                                                                                \
-  template <class T>                                                                            \
-  struct Var {                                                                                  \
-    using ResultType = typename T::Target;                                                      \
-    T var;                                                                                      \
-    template <class... Args>                                                                    \
-    explicit Var(Args &&...args) : var(std::forward<Args>(args)...) {                           \
-      state_var_name_.required_var_args.emplace_back(var.name());                               \
-      auto var = this->var;                                                                     \
-      state_var_name_.var_parsers.emplace_back(                                                 \
-          [var](const std::map<std::string, std::string> &var_args) -> void {                   \
-            auto name = std::string(var.name());                                                \
-            *std::any_cast<ResultType>(&value_map_[name]) = var.parse(var_args.at(name));       \
-          });                                                                                   \
-    }                                                                                           \
-    inline auto operator|(AsResultTag_) const -> const ResultType & {                           \
-      return *std::any_cast<ResultType>(&(value_map_[std::string(var.name())] = ResultType{})); \
-    }                                                                                           \
-  };                                                                                            \
-  }                                                                                             \
-  namespace cplib_generator_args_ {                                                             \
-  using ::cplib_generator_args_detail_::Flag;                                                   \
-  using ::cplib_generator_args_detail_::Var;                                                    \
+struct ArgumentsContext {
+  State *state{};
+  std::map<std::string, std::any> value_map{};
+
+  explicit ArgumentsContext(State &state);
+};
+
+struct ArgValueTag {};
+
+auto set_active_arguments_context(ArgumentsContext &context) -> void;
+auto active_arguments_context() -> ArgumentsContext &;
+
+struct FlagArg {
+  using ResultType = bool;
+
+  std::string name;
+  ArgumentsContext *context;
+
+  explicit FlagArg(std::string name);
+  [[nodiscard]] auto operator|(ArgValueTag) const -> const ResultType &;
+};
+
+template <class T>
+struct VarArg {
+  using ResultType = typename T::Target;
+
+  T var;
+  ArgumentsContext *context;
+
+  template <class... Args>
+  explicit VarArg(Args &&...args);
+
+  [[nodiscard]] auto operator|(ArgValueTag) const -> const ResultType &;
+};
+
+using MainFunc = auto (*)() -> void;
+
+auto run_generator(State &state, int argc, char **argv, MainFunc main_func) -> int;
+
+#define CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_)                              \
+  auto cplib_generator_args_context_ = ::cplib::generator::ArgumentsContext(state_var_name_); \
+  namespace cplib_generator_args_ {                                                           \
+  using ::cplib::generator::FlagArg;                                                          \
+  using ::cplib::generator::ArgValueTag;                                                      \
+  template <class T>                                                                          \
+  using Var = ::cplib::generator::VarArg<T>;                                                  \
+  using Flag = ::cplib::generator::FlagArg;                                                   \
   }
 
-#define CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(x) x
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_0_()
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_1_(arg)                       \
-  namespace cplib_generator_args_ {                                 \
-  const auto &arg | ::cplib_generator_args_detail_::AsResultTag_{}; \
+#define CPLIB_REGISTER_GENERATOR_ARG_(arg)             \
+  namespace cplib_generator_args_ {                    \
+  const auto &arg | ::cplib::generator::ArgValueTag{}; \
   }
 
-#define CPLIB_REGISTER_GENERATOR_ARGS_2_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)            \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_1_(__VA_ARGS__))
+#define CPLIB_REGISTER_GENERATOR_ARGS_DEFER_(id) id CPLIB_REGISTER_GENERATOR_ARGS_EMPTY_()
+#define CPLIB_REGISTER_GENERATOR_ARGS_EMPTY_()
+#define CPLIB_REGISTER_GENERATOR_ARGS_AGAIN_() CPLIB_REGISTER_GENERATOR_ARGS_FOR_EACH_
+#define CPLIB_REGISTER_GENERATOR_ARGS_EXPAND1_(...) __VA_ARGS__
+#define CPLIB_REGISTER_GENERATOR_ARGS_EXPAND2_(...)                                  \
+  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND1_(                                            \
+      CPLIB_REGISTER_GENERATOR_ARGS_EXPAND1_(CPLIB_REGISTER_GENERATOR_ARGS_EXPAND1_( \
+          CPLIB_REGISTER_GENERATOR_ARGS_EXPAND1_(__VA_ARGS__))))
+#define CPLIB_REGISTER_GENERATOR_ARGS_EXPAND3_(...)                                  \
+  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND2_(                                            \
+      CPLIB_REGISTER_GENERATOR_ARGS_EXPAND2_(CPLIB_REGISTER_GENERATOR_ARGS_EXPAND2_( \
+          CPLIB_REGISTER_GENERATOR_ARGS_EXPAND2_(__VA_ARGS__))))
+#define CPLIB_REGISTER_GENERATOR_ARGS_EXPAND4_(...)                                  \
+  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND3_(                                            \
+      CPLIB_REGISTER_GENERATOR_ARGS_EXPAND3_(CPLIB_REGISTER_GENERATOR_ARGS_EXPAND3_( \
+          CPLIB_REGISTER_GENERATOR_ARGS_EXPAND3_(__VA_ARGS__))))
 
-#define CPLIB_REGISTER_GENERATOR_ARGS_3_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)            \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_2_(__VA_ARGS__))
+#define CPLIB_REGISTER_GENERATOR_ARGS_FOR_EACH_(arg, ...) \
+  CPLIB_REGISTER_GENERATOR_ARG_(arg)                      \
+  __VA_OPT__(                                             \
+      CPLIB_REGISTER_GENERATOR_ARGS_DEFER_(CPLIB_REGISTER_GENERATOR_ARGS_AGAIN_)()(__VA_ARGS__))
 
-#define CPLIB_REGISTER_GENERATOR_ARGS_4_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)            \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_3_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_5_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)            \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_4_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_6_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)            \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_5_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_7_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)            \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_6_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_8_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)            \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_7_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_9_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)            \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_8_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_10_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_9_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_11_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_10_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_12_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_11_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_13_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_12_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_14_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_13_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_15_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_14_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_16_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_15_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_17_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_16_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_18_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_17_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_19_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_18_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_20_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_19_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_21_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_20_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_22_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_21_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_23_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_22_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_24_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_23_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_25_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_24_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_26_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_25_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_27_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_26_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_28_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_27_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_29_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_28_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_30_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_29_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_31_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_30_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_32_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_31_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_33_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_32_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_34_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_33_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_35_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_34_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_36_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_35_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_37_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_36_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_38_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_37_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_39_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_38_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_40_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_39_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_41_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_40_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_42_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_41_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_43_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_42_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_44_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_43_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_45_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_44_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_46_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_45_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_47_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_46_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_48_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_47_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_49_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_48_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_50_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_49_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_51_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_50_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_52_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_51_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_53_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_52_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_54_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_53_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_55_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_54_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_56_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_55_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_57_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_56_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_58_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_57_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_59_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_58_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_60_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_59_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_61_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_60_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_62_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_61_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_63_(arg0, ...) \
-  CPLIB_REGISTER_GENERATOR_ARGS_1_(arg0)             \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_62_(__VA_ARGS__))
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_GET_NTH_ARG_(                                                \
-    _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, \
-    _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, _33, _34, _35, _36, _37, _38, _39, \
-    _40, _41, _42, _43, _44, _45, _46, _47, _48, _49, _50, _51, _52, _53, _54, _55, _56, _57, _58, \
-    _59, _60, _61, _62, _63, N, ...)                                                               \
-  N
-
-#define CPLIB_REGISTER_GENERATOR_ARGS_(...)                                         \
-  CPLIB_REGISTER_GENERATOR_ARGS_EXPAND_(CPLIB_REGISTER_GENERATOR_ARGS_GET_NTH_ARG_( \
-      dummy __VA_OPT__(, ) __VA_ARGS__, CPLIB_REGISTER_GENERATOR_ARGS_63_,          \
-      CPLIB_REGISTER_GENERATOR_ARGS_62_, CPLIB_REGISTER_GENERATOR_ARGS_61_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_60_, CPLIB_REGISTER_GENERATOR_ARGS_59_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_58_, CPLIB_REGISTER_GENERATOR_ARGS_57_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_56_, CPLIB_REGISTER_GENERATOR_ARGS_55_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_54_, CPLIB_REGISTER_GENERATOR_ARGS_53_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_52_, CPLIB_REGISTER_GENERATOR_ARGS_51_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_50_, CPLIB_REGISTER_GENERATOR_ARGS_49_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_48_, CPLIB_REGISTER_GENERATOR_ARGS_47_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_46_, CPLIB_REGISTER_GENERATOR_ARGS_45_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_44_, CPLIB_REGISTER_GENERATOR_ARGS_43_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_42_, CPLIB_REGISTER_GENERATOR_ARGS_41_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_40_, CPLIB_REGISTER_GENERATOR_ARGS_39_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_38_, CPLIB_REGISTER_GENERATOR_ARGS_37_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_36_, CPLIB_REGISTER_GENERATOR_ARGS_35_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_34_, CPLIB_REGISTER_GENERATOR_ARGS_33_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_32_, CPLIB_REGISTER_GENERATOR_ARGS_31_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_30_, CPLIB_REGISTER_GENERATOR_ARGS_29_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_28_, CPLIB_REGISTER_GENERATOR_ARGS_27_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_26_, CPLIB_REGISTER_GENERATOR_ARGS_25_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_24_, CPLIB_REGISTER_GENERATOR_ARGS_23_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_22_, CPLIB_REGISTER_GENERATOR_ARGS_21_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_20_, CPLIB_REGISTER_GENERATOR_ARGS_19_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_18_, CPLIB_REGISTER_GENERATOR_ARGS_17_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_16_, CPLIB_REGISTER_GENERATOR_ARGS_15_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_14_, CPLIB_REGISTER_GENERATOR_ARGS_13_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_12_, CPLIB_REGISTER_GENERATOR_ARGS_11_,         \
-      CPLIB_REGISTER_GENERATOR_ARGS_10_, CPLIB_REGISTER_GENERATOR_ARGS_9_,          \
-      CPLIB_REGISTER_GENERATOR_ARGS_8_, CPLIB_REGISTER_GENERATOR_ARGS_7_,           \
-      CPLIB_REGISTER_GENERATOR_ARGS_6_, CPLIB_REGISTER_GENERATOR_ARGS_5_,           \
-      CPLIB_REGISTER_GENERATOR_ARGS_4_, CPLIB_REGISTER_GENERATOR_ARGS_3_,           \
-      CPLIB_REGISTER_GENERATOR_ARGS_2_, CPLIB_REGISTER_GENERATOR_ARGS_1_,           \
-      CPLIB_REGISTER_GENERATOR_ARGS_0_)(__VA_ARGS__))
+#define CPLIB_REGISTER_GENERATOR_ARGS_(...)          \
+  __VA_OPT__(CPLIB_REGISTER_GENERATOR_ARGS_EXPAND4_( \
+      CPLIB_REGISTER_GENERATOR_ARGS_FOR_EACH_(__VA_ARGS__)))
 
 /**
  * Macro to register generator with custom initializer.
@@ -9835,21 +9629,14 @@ struct ColoredTextReporter : Reporter {
  * @param ... The parsers of the command-line arguments.
  */
 #define CPLIB_REGISTER_GENERATOR_OPT(state_var_name_, initializer_, args_namespace_name_, ...) \
-  auto state_var_name_ =                                                                       \
-      ::cplib::generator::State(std::unique_ptr<decltype(initializer_)>(new initializer_));    \
+  auto generator_main() -> void;                                                               \
+  auto state_var_name_ = ::cplib::generator::State(                                            \
+      ::std::unique_ptr<::cplib::generator::Initializer>(new initializer_));                   \
   CPLIB_PREPARE_GENERATOR_ARGS_NAMESPACE_(state_var_name_);                                    \
   CPLIB_REGISTER_GENERATOR_ARGS_(__VA_ARGS__);                                                 \
   namespace args_namespace_name_ = ::cplib_generator_args_;                                    \
   auto main(int argc, char **argv) -> int {                                                    \
-    ::std::vector<::std::string> args;                                                         \
-    args.reserve(argc);                                                                        \
-    for (int i = 1; i < argc; ++i) {                                                           \
-      args.emplace_back(argv[i]);                                                              \
-    }                                                                                          \
-    state_var_name_.initializer->init(argv[0], args);                                          \
-    auto generator_main(void) -> void;                                                         \
-    generator_main();                                                                          \
-    return 0;                                                                                  \
+    return ::cplib::generator::run_generator(state_var_name_, argc, argv, generator_main);     \
   }
 
 #ifndef CPLIB_GENERATOR_DEFAULT_INITIALIZER
@@ -9956,6 +9743,79 @@ inline auto State::quit(const Report &report) -> void {
 
 inline auto State::quit_ok() -> void { quit(Report(Report::Status::OK, "")); }
 // /Impl State }}}
+
+inline ArgumentsContext::ArgumentsContext(State &state) : state(&state), value_map() {
+  set_active_arguments_context(*this);
+}
+
+namespace detail {
+inline ArgumentsContext *active_arguments_context_{};
+}
+
+inline auto set_active_arguments_context(ArgumentsContext &context) -> void {
+  detail::active_arguments_context_ = &context;
+}
+
+inline auto active_arguments_context() -> ArgumentsContext & {
+  if (!detail::active_arguments_context_) {
+    panic("Generator arguments context is not initialized");
+  }
+  return *detail::active_arguments_context_;
+}
+
+inline FlagArg::FlagArg(std::string name)
+    : name(std::move(name)), context(&active_arguments_context()) {
+  context->state->required_flag_args.emplace_back(this->name);
+  auto arg_name = this->name;
+  auto *arg_context = context;
+  context->state->flag_parsers.emplace_back(
+      [arg_name, arg_context](const std::set<std::string> &flag_args) -> void {
+        *std::any_cast<ResultType>(&arg_context->value_map[arg_name]) =
+            static_cast<ResultType>(flag_args.count(arg_name));
+      });
+}
+
+inline auto FlagArg::operator|(ArgValueTag) const -> const ResultType & {
+  return *std::any_cast<ResultType>(&(context->value_map[name] = ResultType{}));
+}
+
+template <class T>
+template <class... Args>
+VarArg<T>::VarArg(Args &&...args)
+    : var(std::forward<Args>(args)...), context(&active_arguments_context()) {
+  context->state->required_var_args.emplace_back(var.name());
+  auto arg_var = this->var;
+  auto *arg_context = context;
+  context->state->var_parsers.emplace_back(
+      [arg_var, arg_context](const std::map<std::string, std::string> &var_args) -> void {
+        auto arg_name = std::string(arg_var.name());
+        *std::any_cast<ResultType>(&arg_context->value_map[arg_name]) =
+            arg_var.parse(var_args.at(arg_name));
+      });
+}
+
+template <class T>
+auto VarArg<T>::operator|(ArgValueTag) const -> const ResultType & {
+  return *std::any_cast<ResultType>(&(context->value_map[std::string(var.name())] = ResultType{}));
+}
+
+namespace detail {
+inline auto collect_args(int argc, char **argv) -> std::vector<std::string> {
+  std::vector<std::string> args;
+  args.reserve(argc);
+  for (int i = 1; i < argc; ++i) {
+    args.emplace_back(argv[i]);
+  }
+  return args;
+}
+}  // namespace detail
+
+inline auto run_generator(State &state, int argc, char **argv, MainFunc main_func) -> int {
+  auto args = detail::collect_args(argc, argv);
+  state.initializer->init(argv[0], args);
+  main_func();
+  return 0;
+}
 
 // Impl DefaultInitializer {{{
 namespace detail {
