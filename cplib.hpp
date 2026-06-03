@@ -80,7 +80,6 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -94,22 +93,6 @@ namespace cplib {
  * @param message The message to print.
  */
 [[noreturn]] auto panic(std::string_view message) -> void;
-
-/**
- * Format string using std::format syntax.
-template <class... Args>
- *
- * @param fmt The format string.
- * @param args The variadic arguments to be formatted.
- * @return The formatted string.
- */
-template <class... Args>
-[[nodiscard]] auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string;
-
-template <typename T>
-concept formattable = requires(T &v, std::format_context ctx) {
-  std::formatter<std::remove_cvref_t<T>>().format(v, ctx);
-};
 
 /**
  * Determine whether the two floating-point values are equals within the accuracy range.
@@ -507,7 +490,7 @@ inline auto hex_encode(int c) -> std::string {
   } else if (c == '\t') {
     return "\\t";
   } else if (std::isprint(static_cast<unsigned char>(c)) == 0) {
-    return cplib::format("\\x{:02x}", static_cast<int>(c));
+    return std::format("\\x{:02x}", static_cast<int>(c));
   } else {
     return {static_cast<char>(c)};
   }
@@ -537,11 +520,6 @@ inline auto panic(std::string_view message) -> void {
   exit(EXIT_FAILURE);  // Usually unnecessary, but in special cases to prevent problems.
 }
 // /Impl panic }}}
-
-template <class... Args>
-[[nodiscard]] inline auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string {
-  return std::vformat(fmt.get(), std::make_format_args(args...));
-}
 
 template <class T>
 inline auto float_equals(T result, T expected, T max_err) -> bool {
@@ -748,7 +726,7 @@ inline auto FlatMap<Key, T, Compare>::at(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = find(key);
   if (it == end()) {
-    cplib::panic(cplib::format("FlatMap::at: key not found"));
+    cplib::panic(std::format("FlatMap::at: key not found"));
   }
   return it->second;
 }
@@ -758,7 +736,7 @@ inline auto FlatMap<Key, T, Compare>::at(const key_type &key) const -> const
     typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = find(key);
   if (it == end()) {
-    cplib::panic(cplib::format("FlatMap::at: key not found"));
+    cplib::panic(std::format("FlatMap::at: key not found"));
   }
   return it->second;
 }
@@ -2456,6 +2434,7 @@ struct OutBuf : std::streambuf {
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <format>
 #include <ios>
 #include <limits>
 #include <memory>
@@ -2494,7 +2473,7 @@ inline auto system_write(int fd, const void *data, std::size_t len) -> ssize_t {
 }
 
 [[noreturn]] inline auto panic_io_error(std::string_view operation) -> void {
-  panic(cplib::format("{} failed: {}", operation, std::strerror(errno)));
+  panic(std::format("{} failed: {}", operation, std::strerror(errno)));
 }
 
 inline auto read_available(int fd, char *data, std::size_t len, ReadFunc read_func)
@@ -2670,7 +2649,7 @@ inline auto InStream::is_strict() const -> bool { return strict_; }
 
 inline auto InStream::set_strict(bool b) -> void {
   if (pos().byte > 0) {
-    panic(cplib::format(
+    panic(std::format(
         "Can't set strict mode of input stream `{}` when not at the beginning of the file",
         name()));
   }
@@ -3058,6 +3037,7 @@ struct Traced {
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
 #include <ios>
 #include <memory>
 #include <optional>
@@ -3097,7 +3077,7 @@ template <Trace T>
 
   std::size_t id = 0;
   for (const auto &trace : stack) {
-    auto line = cplib::format("#{}: {}", id, trace.to_plain_text());
+    auto line = std::format("#{}: {}", id, trace.to_plain_text());
     ++id;
     lines.emplace_back(std::move(line));
   }
@@ -3116,7 +3096,7 @@ template <Trace T>
 
   std::size_t id = 0;
   for (const auto &trace : stack) {
-    auto line = cplib::format("#{}: {}", id, trace.to_colored_text());
+    auto line = std::format("#{}: {}", id, trace.to_colored_text());
     ++id;
     lines.emplace_back(std::move(line));
   }
@@ -3648,9 +3628,11 @@ struct Evaluator : trace::Traced<EvaluatorTrace> {
 #include <compare>
 #include <concepts>
 #include <cstdlib>
+#include <format>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 
@@ -3669,13 +3651,21 @@ inline constexpr auto Result::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(cplib::format("Unknown result status: {}", static_cast<int>(value_)));
+      panic(std::format("Unknown result status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
 
 // Impl Result {{{
 namespace detail {
+template <typename T>
+concept Formattable = requires(std::formatter<std::remove_cvref_t<T>, char> formatter,
+                               std::format_parse_context parse_context,
+                               std::format_context format_context, const T &value) {
+  formatter.parse(parse_context);
+  formatter.format(value, format_context);
+};
+
 inline auto merge_message(const std::string &a, const std::string &b) -> std::string {
   if (a.empty()) {
     return b;
@@ -3808,7 +3798,7 @@ inline auto status_to_title_string(Result::Status status) -> std::string {
     case Result::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(cplib::format("Unknown result status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown result status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -3822,7 +3812,7 @@ inline auto status_to_colored_title_string(Result::Status status) -> std::string
     case Result::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(cplib::format("Unknown result status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown result status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -3835,20 +3825,20 @@ inline EvaluatorTrace::EvaluatorTrace(std::string var_name)
 
 [[nodiscard]] inline auto EvaluatorTrace::to_plain_text() const -> std::string {
   if (result.has_value()) {
-    return cplib::format("{}: {} {:.2f}%, {}", var_name, result->status.to_string(),
-                         result->score * 100.0, result->message);
+    return std::format("{}: {} {:.2f}%, {}", var_name, result->status.to_string(),
+                       result->score * 100.0, result->message);
   } else {
-    return cplib::format("{}: Unfinished", var_name);
+    return std::format("{}: Unfinished", var_name);
   }
 }
 
 [[nodiscard]] inline auto EvaluatorTrace::to_colored_text() const -> std::string {
   if (result.has_value()) {
-    return cplib::format("\x1b[0;33m{}\x1b[0m: {} \x1b[0;33m{:.2f}%\x1b[0m, {}", var_name,
-                         detail::status_to_colored_title_string(result->status),
-                         result->score * 100.0, result->message);
+    return std::format("\x1b[0;33m{}\x1b[0m: {} \x1b[0;33m{:.2f}%\x1b[0m, {}", var_name,
+                       detail::status_to_colored_title_string(result->status),
+                       result->score * 100.0, result->message);
   } else {
-    return cplib::format("\x1b[0;33m{}\x1b[0m: \x1b[0;33mUnfinished\x1b[0m", var_name);
+    return std::format("\x1b[0;33m{}\x1b[0m: \x1b[0;33mUnfinished\x1b[0m", var_name);
   }
 }
 
@@ -3924,16 +3914,16 @@ inline auto Evaluator::eq(std::string_view var_name, const T &pans, const T &jan
   Result result = Result::ac();
   if (pans != jans) {
     if constexpr (std::convertible_to<T, std::string_view>) {
-      result = Result::wa(cplib::format("`{}` is not equal: expected `{}`, got `{}`", var_name,
-                                        compress(cplib::detail::hex_encode(jans)),
-                                        compress(cplib::detail::hex_encode(pans))));
-    } else if constexpr (cplib::formattable<T>) {
-      auto jans_str = cplib::format("{}", jans);
-      auto pans_str = cplib::format("{}", pans);
-      result = Result::wa(cplib::format("`{}` is not equal: expected {}, got {}", var_name,
-                                        compress(jans_str), compress(pans_str)));
+      result = Result::wa(std::format("`{}` is not equal: expected `{}`, got `{}`", var_name,
+                                      compress(cplib::detail::hex_encode(jans)),
+                                      compress(cplib::detail::hex_encode(pans))));
+    } else if constexpr (detail::Formattable<T>) {
+      auto jans_str = std::format("{}", jans);
+      auto pans_str = std::format("{}", pans);
+      result = Result::wa(std::format("`{}` is not equal: expected {}, got {}", var_name,
+                                      compress(jans_str), compress(pans_str)));
     } else {
-      result = Result::wa(cplib::format("`{}` is not equal", var_name));
+      result = Result::wa(std::format("`{}` is not equal", var_name));
     }
   }
   post_evaluate(result);
@@ -3947,9 +3937,9 @@ inline auto Evaluator::approx(std::string_view var_name, const T &pans, const T 
   Result result = Result::ac();
   if (!float_equals(pans, jans, max_err)) {
     T delta = float_delta(jans, pans);
-    result = Result::wa(cplib::format(
-        "`{}` is not approximately equal: expected {:.10g}, got {:.10g}, delta {:.10g}", var_name,
-        jans, pans, delta));
+    result = Result::wa(
+        std::format("`{}` is not approximately equal: expected {:.10g}, got {:.10g}, delta {:.10g}",
+                    var_name, jans, pans, delta));
   }
   post_evaluate(result);
   return result;
@@ -3967,7 +3957,7 @@ inline auto Evaluator::approx_abs(std::string_view var_name, const T &pans, cons
     if (delta < 0) {
       delta = -delta;
     }
-    result = Result::wa(cplib::format(
+    result = Result::wa(std::format(
         "`{}` is not approximately equal in absolute error: expected {}, got {}, delta {}",
         var_name, jans, pans, delta));
   }
@@ -4890,6 +4880,7 @@ const auto eoln = Separator("eoln", '\n');
 #include <concepts>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
 #include <functional>
 #include <ios>
 #include <iostream>
@@ -6070,12 +6061,12 @@ inline ReaderTrace::ReaderTrace(std::string var_name, io::Position pos)
 [[nodiscard]] inline auto ReaderTrace::node_name() const -> std::string { return var_name; }
 
 [[nodiscard]] inline auto ReaderTrace::to_plain_text() const -> std::string {
-  return cplib::format("{} @ line {}, col {}, byte {}", var_name, pos.line + 1, pos.col + 1,
-                       pos.byte + 1);
+  return std::format("{} @ line {}, col {}, byte {}", var_name, pos.line + 1, pos.col + 1,
+                     pos.byte + 1);
 }
 
 [[nodiscard]] inline auto ReaderTrace::to_colored_text() const -> std::string {
-  return cplib::format(
+  return std::format(
       "\x1b[0;33m{}\x1b[0m @ line \x1b[0;33m{}\x1b[0m, col \x1b[0;33m{}\x1b[0m, byte "
       "\x1b[0;33m{}\x1b[0m",
       var_name, pos.line + 1, pos.col + 1, pos.byte + 1);
@@ -6101,7 +6092,7 @@ inline Reader::Reader(std::unique_ptr<io::InStream> inner, trace::Level trace_le
     : trace::Traced<ReaderTrace>(
           static_cast<trace::Level>(
               std::min(static_cast<int>(trace_level), CPLIB_READER_TRACE_LEVEL_MAX)),
-          ReaderTrace(cplib::format("<{}>", inner ? inner->name() : "dummy"), io::Position())),
+          ReaderTrace(std::format("<{}>", inner ? inner->name() : "dummy"), io::Position())),
       inner_(std::move(inner)),
       fail_func_(std::move(fail_func)) {}
 
@@ -6263,8 +6254,8 @@ inline auto Int<T>::read_from(Reader &in) const -> T {
     if (in.inner().eof()) {
       in.fail("Expected an integer, got EOF");
     } else {
-      in.fail(cplib::format("Expected an integer, got whitespace `{}`",
-                            cplib::detail::hex_encode(in.inner().seek())));
+      in.fail(std::format("Expected an integer, got whitespace `{}`",
+                          cplib::detail::hex_encode(in.inner().seek())));
     }
   }
 
@@ -6277,21 +6268,21 @@ inline auto Int<T>::read_from(Reader &in) const -> T {
     // * ec == std::errc::invalid_argument: String is not a valid integer format (e.g. "abc",
     //   "NaN", "Inf")
     // * ptr != last: The string is not fully parsed (for example "123abc")
-    in.fail(cplib::format("Expected an integer, got `{}`", compress(token)));
+    in.fail(std::format("Expected an integer, got `{}`", compress(token)));
   } else if (ec == std::errc::result_out_of_range) {
     // The parsing is successful, but the value exceeds the range of T
-    in.fail(cplib::format("Integer value `{}` is out of range for type `{}`", compress(token),
-                          typeid(T).name()));
+    in.fail(std::format("Integer value `{}` is out of range for type `{}`", compress(token),
+                        typeid(T).name()));
   }
 
   if (min.has_value() && result < *min) {
-    in.fail(cplib::format("Expected an integer >= {}, got `{}`", std::to_string(*min),
-                          compress(token)));
+    in.fail(
+        std::format("Expected an integer >= {}, got `{}`", std::to_string(*min), compress(token)));
   }
 
   if (max.has_value() && result > *max) {
-    in.fail(cplib::format("Expected an integer <= {}, got `{}`", std::to_string(*max),
-                          compress(token)));
+    in.fail(
+        std::format("Expected an integer <= {}, got `{}`", std::to_string(*max), compress(token)));
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -6324,8 +6315,8 @@ inline auto Float<T>::read_from(Reader &in) const -> T {
     if (in.inner().eof()) {
       in.fail("Expected a float, got EOF");
     } else {
-      in.fail(cplib::format("Expected a float, got whitespace `{}`",
-                            cplib::detail::hex_encode(in.inner().seek())));
+      in.fail(std::format("Expected a float, got whitespace `{}`",
+                          cplib::detail::hex_encode(in.inner().seek())));
     }
   }
 
@@ -6339,17 +6330,15 @@ inline auto Float<T>::read_from(Reader &in) const -> T {
       first, last, cplib::detail::float_parse::Mode::General, result);
 
   if (!parsed) {
-    in.fail(cplib::format("Expected a float, got `{}`", compress(token)));
+    in.fail(std::format("Expected a float, got `{}`", compress(token)));
   }
 
   if (min.has_value() && result < *min) {
-    in.fail(
-        cplib::format("Expected a float >= {}, got `{}`", std::to_string(*min), compress(token)));
+    in.fail(std::format("Expected a float >= {}, got `{}`", std::to_string(*min), compress(token)));
   }
 
   if (max.has_value() && result > *max) {
-    in.fail(
-        cplib::format("Expected a float <= {}, got `{}`", std::to_string(*max), compress(token)));
+    in.fail(std::format("Expected a float <= {}, got `{}`", std::to_string(*max), compress(token)));
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -6403,8 +6392,8 @@ inline auto StrictFloat<T>::read_from(Reader &in) const -> T {
     if (in.inner().eof()) {
       in.fail("Expected a strict float, got EOF");
     } else {
-      in.fail(cplib::format("Expected a strict float, got whitespace `{}`",
-                            cplib::detail::hex_encode(in.inner().seek())));
+      in.fail(std::format("Expected a strict float, got whitespace `{}`",
+                          cplib::detail::hex_encode(in.inner().seek())));
     }
   }
 
@@ -6417,33 +6406,33 @@ inline auto StrictFloat<T>::read_from(Reader &in) const -> T {
                                                   cplib::detail::float_parse::Mode::Fixed, result);
 
   if (!parsed) {
-    in.fail(cplib::format("Expected a strict float, got `{}`", compress(token)));
+    in.fail(std::format("Expected a strict float, got `{}`", compress(token)));
   }
 
   std::size_t n_after_point = detail::get_decimal_places(token);
 
   if (n_after_point < min_n_digit) {
-    in.fail(cplib::format(
+    in.fail(std::format(
         "Expected a strict float with >= {} digits after point, got `{}` with {} digits "
         "after point",
         min_n_digit, compress(token), n_after_point));
   }
 
   if (n_after_point > max_n_digit) {
-    in.fail(cplib::format(
+    in.fail(std::format(
         "Expected a strict float with <= {} digits after point, got `{}` with {} digits "
         "after point",
         max_n_digit, compress(token), n_after_point));
   }
 
   if (result < min) {
-    in.fail(cplib::format("Expected a strict float >= {}, got `{}`", std::to_string(min),
-                          compress(token)));
+    in.fail(std::format("Expected a strict float >= {}, got `{}`", std::to_string(min),
+                        compress(token)));
   }
 
   if (result > max) {
-    in.fail(cplib::format("Expected a strict float <= {}, got `{}`", std::to_string(max),
-                          compress(token)));
+    in.fail(std::format("Expected a strict float <= {}, got `{}`", std::to_string(max),
+                        compress(token)));
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -6521,8 +6510,8 @@ inline auto String::read_from(Reader &in) const -> std::string {
         if (in.inner().eof()) {
           in.fail("Expected a " + kind + ", got EOF");
         } else {
-          in.fail(cplib::format("Expected a {}, got whitespace `{}`", kind,
-                                cplib::detail::hex_encode(in.inner().seek())));
+          in.fail(std::format("Expected a {}, got whitespace `{}`", kind,
+                              cplib::detail::hex_encode(in.inner().seek())));
         }
       }
       break;
@@ -6534,8 +6523,8 @@ inline auto String::read_from(Reader &in) const -> std::string {
         if (in.inner().eof()) {
           in.fail("Expected a " + kind + ", got EOF");
         } else {
-          in.fail(cplib::format("Expected a {}, got whitespace `{}`", kind,
-                                cplib::detail::hex_encode(in.inner().seek())));
+          in.fail(std::format("Expected a {}, got whitespace `{}`", kind,
+                              cplib::detail::hex_encode(in.inner().seek())));
         }
       }
       break;
@@ -6555,8 +6544,8 @@ inline auto String::read_from(Reader &in) const -> std::string {
   }
 
   if (pat.has_value() && !pat->match(result)) {
-    in.fail(cplib::format("Expected a {} matching `{}`, got `{}`", kind, compress(pat->src()),
-                          compress(result)));
+    in.fail(std::format("Expected a {} matching `{}`, got `{}`", kind, compress(pat->src()),
+                        compress(result)));
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -6585,27 +6574,27 @@ inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
   unsigned char s = *sep;
 
   if (in.inner().eof()) {
-    in.fail(cplib::format("Expected a separator `{}`, got EOF", cplib::detail::hex_encode(s)));
+    in.fail(std::format("Expected a separator `{}`, got EOF", cplib::detail::hex_encode(s)));
   }
 
   if (in.inner().is_strict()) {
     auto got = in.inner().read();
     if (std::cmp_not_equal(got, s)) {
-      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
-                            cplib::detail::hex_encode(got)));
+      in.fail(std::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
+                          cplib::detail::hex_encode(got)));
     }
   } else if (std::isspace(static_cast<unsigned char>(s)) != 0) {
     auto got = in.inner().read();
     if (std::isspace(static_cast<unsigned char>(got)) == 0) {
-      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
-                            cplib::detail::hex_encode(got)));
+      in.fail(std::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
+                          cplib::detail::hex_encode(got)));
     }
   } else {
     in.inner().skip_blanks();
     auto got = in.inner().read();
     if (std::cmp_not_equal(got, s)) {
-      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
-                            cplib::detail::hex_encode(got)));
+      in.fail(std::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
+                          cplib::detail::hex_encode(got)));
     }
   }
 
@@ -7275,6 +7264,7 @@ auto run_checker(int argc, char **argv, std::unique_ptr<Initializer> initializer
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -7301,8 +7291,8 @@ inline constexpr Report::Status::Status(evaluate::Result::Status status) {
       value_ = ACCEPTED;
       break;
     default:
-      panic(cplib::format("Construct checker report status failed: unknown evaluate status {}",
-                          static_cast<int>(status)));
+      panic(std::format("Construct checker report status failed: unknown evaluate status {}",
+                        static_cast<int>(status)));
   }
 }
 
@@ -7319,7 +7309,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(cplib::format("Unknown checker report status: {}", static_cast<int>(value_)));
+      panic(std::format("Unknown checker report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -7541,14 +7531,14 @@ constexpr std::string_view ARGS_USAGE =
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
-      cplib::format(CPLIB_STARTUP_TEXT
-                    "\n"
-                    "Usage:\n"
-                    "  {} {}\n"
-                    "\n"
-                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-                    "enable colors",
-                    program_name, ARGS_USAGE);
+      std::format(CPLIB_STARTUP_TEXT
+                  "\n"
+                  "Usage:\n"
+                  "  {} {}\n"
+                  "\n"
+                  "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                  "enable colors",
+                  program_name, ARGS_USAGE);
   panic(msg);
 }
 
@@ -7594,7 +7584,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(cplib::format("Unknown {} option: {}", key, value));
+        panic(std::format("Unknown {} option: {}", key, value));
       }
     } else {
       panic("Unknown command-line argument variable: " + key);
@@ -7636,7 +7626,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(cplib::format("Unknown checker report status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown checker report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -7652,7 +7642,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(cplib::format("Unknown checker report status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown checker report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -8055,6 +8045,7 @@ auto run_interactor(State &state, int argc, char **argv, MainFunc main_func) -> 
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -8082,7 +8073,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(cplib::format("Unknown interactor report status: {}", static_cast<int>(value_)));
+      panic(std::format("Unknown interactor report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -8217,14 +8208,14 @@ constexpr std::string_view ARGS_USAGE = "<input_file> [--report-format={auto|jso
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
-      cplib::format(CPLIB_STARTUP_TEXT
-                    "\n"
-                    "Usage:\n"
-                    "  {} {}\n"
-                    "\n"
-                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-                    "enable colors",
-                    program_name, ARGS_USAGE);
+      std::format(CPLIB_STARTUP_TEXT
+                  "\n"
+                  "Usage:\n"
+                  "  {} {}\n"
+                  "\n"
+                  "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                  "enable colors",
+                  program_name, ARGS_USAGE);
   panic(msg);
 }
 
@@ -8286,7 +8277,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(cplib::format("Unknown {} option: {}", key, value));
+        panic(std::format("Unknown {} option: {}", key, value));
       }
     } else {
       panic("Unknown command-line argument variable: " + key);
@@ -8328,7 +8319,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(cplib::format("Unknown interactor report status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown interactor report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -8344,7 +8335,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(cplib::format("Unknown interactor report status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown interactor report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -8749,6 +8740,7 @@ auto run_validator(int argc, char **argv, std::unique_ptr<Initializer> initializ
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
 #include <functional>
 #include <iostream>
 #include <iterator>
@@ -8777,7 +8769,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case INVALID:
       return "invalid";
     default:
-      panic(cplib::format("Unknown validator report status: {}", static_cast<int>(value_)));
+      panic(std::format("Unknown validator report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -9026,15 +9018,15 @@ constexpr std::string_view ARGS_USAGE =
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
-      cplib::format(CPLIB_STARTUP_TEXT
-                    "Usage:\n"
-                    "  {} {}\n"
-                    "\n"
-                    "If <input_file> does not exist, stdin will be used as input\n"
-                    "\n"
-                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-                    "enable colors",
-                    program_name, ARGS_USAGE);
+      std::format(CPLIB_STARTUP_TEXT
+                  "Usage:\n"
+                  "  {} {}\n"
+                  "\n"
+                  "If <input_file> does not exist, stdin will be used as input\n"
+                  "\n"
+                  "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                  "enable colors",
+                  program_name, ARGS_USAGE);
   panic(msg);
 }
 
@@ -9081,7 +9073,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(cplib::format("Unknown {} option: {}", key, value));
+        panic(std::format("Unknown {} option: {}", key, value));
       }
     } else if (key == "reader-trace-level") {
       auto level = var::u8("reader-trace-level", static_cast<std::uint8_t>(trace::Level::NONE),
@@ -9125,7 +9117,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::INVALID:
       return "Invalid";
     default:
-      panic(cplib::format("Unknown validator report status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown validator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -9139,7 +9131,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::INVALID:
       return "\x1b[0;31mInvalid\x1b[0m";
     default:
-      panic(cplib::format("Unknown validator report status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown validator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -9702,6 +9694,7 @@ auto run_generator(State &state, int argc, char **argv, MainFunc main_func) -> i
 #include <any>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -9726,7 +9719,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case OK:
       return "ok";
     default:
-      panic(cplib::format("Unknown generator report status: {}", static_cast<int>(value_)));
+      panic(std::format("Unknown generator report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -9859,14 +9852,14 @@ inline auto parse_arg(std::string_view arg) -> std::pair<std::string, std::optio
 
 inline auto print_help_message(std::string_view program_name, std::string_view args_usage) -> void {
   std::string msg =
-      cplib::format(CPLIB_STARTUP_TEXT
-                    "\n"
-                    "Usage:\n"
-                    "  {} {}\n"
-                    "\n"
-                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-                    "enable colors",
-                    program_name, args_usage);
+      std::format(CPLIB_STARTUP_TEXT
+                  "\n"
+                  "Usage:\n"
+                  "  {} {}\n"
+                  "\n"
+                  "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                  "enable colors",
+                  program_name, args_usage);
   panic(msg);
 }
 
@@ -9947,7 +9940,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(cplib::format("Unknown {} option: {}", key, value));
+        panic(std::format("Unknown {} option: {}", key, value));
       }
     } else {
       if (!std::ranges::binary_search(state.required_var_args, key)) {
@@ -9996,7 +9989,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::OK:
       return "OK";
     default:
-      panic(cplib::format("Unknown generator report status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown generator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -10008,7 +10001,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::OK:
       return "\x1b[0;32mOK\x1b[0m";
     default:
-      panic(cplib::format("Unknown generator report status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown generator report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
