@@ -292,7 +292,7 @@ struct FlatMap {
   // Element Access
   /** @brief Access specified element with bounds checking. */
   auto at(const key_type &key) -> mapped_type &;
-  auto at(const key_type &key) const -> const mapped_type &;
+  [[nodiscard]] auto at(const key_type &key) const -> const mapped_type &;
 
   /** @brief Access or insert specified element. */
   auto operator[](const key_type &key) -> mapped_type &;
@@ -353,18 +353,18 @@ struct FlatMap {
 
   /** @brief Finds an element with a specific key. */
   auto find(const key_type &key) -> iterator;
-  auto find(const key_type &key) const -> const_iterator;
+  [[nodiscard]] auto find(const key_type &key) const -> const_iterator;
 
   /** @brief Checks if the container contains an element with a specific key. */
-  auto contains(const key_type &key) const -> bool;
+  [[nodiscard]] auto contains(const key_type &key) const -> bool;
 
   /** @brief Returns an iterator to the first element not less than the given key. */
   auto lower_bound(const key_type &key) -> iterator;
-  auto lower_bound(const key_type &key) const -> const_iterator;
+  [[nodiscard]] auto lower_bound(const key_type &key) const -> const_iterator;
 
   /** @brief Returns an iterator to the first element greater than the given key. */
   auto upper_bound(const key_type &key) -> iterator;
-  auto upper_bound(const key_type &key) const -> const_iterator;
+  [[nodiscard]] auto upper_bound(const key_type &key) const -> const_iterator;
 
  private:
   /**

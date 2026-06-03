@@ -24,7 +24,20 @@
 #endif
 /* cplib_embed_ignore end */
 
+/* cplib_embed_ignore start */
+#include "macros.hpp"
+/* cplib_embed_ignore end */
+
+#include <fcntl.h>
+#include <unistd.h>
+
+#if defined(CPLIB_ON_WINDOWS)
+#include <io.h>
+#endif
+
 #include <algorithm>
+#include <any>
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <map>
@@ -40,7 +53,6 @@
 /* cplib_embed_ignore start */
 #include "cmd_args.hpp"
 #include "json.hpp"
-#include "macros.hpp"
 #include "utils.hpp"
 /* cplib_embed_ignore end */
 
@@ -253,7 +265,7 @@ inline auto set_binary_mode() {
     We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
     Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
   */
-#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+#if defined(CPLIB_ON_WINDOWS) && !defined(ONLINE_JUDGE)
   _setmode(fileno(stdout), _O_BINARY);
 #endif
 }

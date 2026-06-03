@@ -24,6 +24,8 @@
 #endif
 /* cplib_embed_ignore end */
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -38,10 +40,6 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-
-/* cplib_embed_ignore start */
-#include "macros.hpp"
-/* cplib_embed_ignore end */
 
 namespace cplib {
 namespace detail {
@@ -153,18 +151,16 @@ inline auto compress(std::string_view s) -> std::string {
 inline auto trim(std::string_view s) -> std::string {
   if (s.empty()) return std::string(s);
 
-  std::ptrdiff_t left = 0;
-  while (left < static_cast<std::ptrdiff_t>(s.size()) &&
-         std::isspace(static_cast<unsigned char>(s[left])) != 0) {
+  std::size_t left = 0;
+  while (left < s.size() && std::isspace(static_cast<unsigned char>(s[left])) != 0) {
     ++left;
   }
-  if (left >= static_cast<std::ptrdiff_t>(s.size())) return "";
+  if (left == s.size()) return "";
 
-  std::ptrdiff_t right = static_cast<std::ptrdiff_t>(s.size()) - 1;
-  while (right >= 0 && std::isspace(static_cast<unsigned char>(s[right])) != 0) --right;
-  if (right < 0) return "";
+  std::size_t right = s.size();
+  while (right > left && std::isspace(static_cast<unsigned char>(s[right - 1])) != 0) --right;
 
-  return std::string(s.substr(left, right - left + 1));
+  return std::string(s.substr(left, right - left));
 }
 
 template <class It>
@@ -566,15 +562,16 @@ inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type &key) const ->
 template <typename Key, typename T, typename Compare>
 inline auto FlatMap<Key, T, Compare>::sort_and_unique() -> void {
   // Sort by key
-  std::sort(data_.begin(), data_.end(),
-            [this](const value_type &a, const value_type &b) { return comp_(a.first, b.first); });
+  std::sort(data_.begin(), data_.end(), [this](const value_type &a, const value_type &b) -> bool {
+    return comp_(a.first, b.first);
+  });
 
   // Remove duplicate keys. std::unique keeps the first element in a group of duplicates.
-  auto last =
-      std::unique(data_.begin(), data_.end(), [this](const value_type &a, const value_type &b) {
-        // Two keys are equivalent if !(a < b) && !(b < a)
-        return !comp_(a.first, b.first) && !comp_(b.first, a.first);
-      });
+  auto last = std::unique(data_.begin(), data_.end(),
+                          [this](const value_type &a, const value_type &b) -> bool {
+                            // Two keys are equivalent if !(a < b) && !(b < a)
+                            return !comp_(a.first, b.first) && !comp_(b.first, a.first);
+                          });
 
   data_.erase(last, data_.end());
 }

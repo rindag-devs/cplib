@@ -24,7 +24,18 @@
 #endif
 /* cplib_embed_ignore end */
 
+/* cplib_embed_ignore start */
+#include "macros.hpp"
+/* cplib_embed_ignore end */
+
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
+
+#if defined(CPLIB_ON_WINDOWS)
+#include <io.h>
+#endif
 
 #include <array>
 #include <cassert>
@@ -35,6 +46,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ios>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -45,7 +57,6 @@
 
 /* cplib_embed_ignore start */
 #include "json.hpp"
-#include "macros.hpp"
 #include "utils.hpp"
 /* cplib_embed_ignore end */
 
@@ -54,6 +65,26 @@ namespace cplib::io {
 namespace detail {
 using ReadFunc = ssize_t (*)(int, void *, std::size_t);
 using WriteFunc = ssize_t (*)(int, const void *, std::size_t);
+
+inline auto system_read(int fd, void *data, std::size_t len) -> ssize_t {
+#if defined(CPLIB_ON_WINDOWS)
+  const auto count = static_cast<unsigned int>(
+      std::min<std::size_t>(len, (std::numeric_limits<unsigned int>::max)()));
+  return static_cast<ssize_t>(read(fd, data, count));
+#else
+  return read(fd, data, len);
+#endif
+}
+
+inline auto system_write(int fd, const void *data, std::size_t len) -> ssize_t {
+#if defined(CPLIB_ON_WINDOWS)
+  const auto count = static_cast<unsigned int>(
+      std::min<std::size_t>(len, (std::numeric_limits<unsigned int>::max)()));
+  return static_cast<ssize_t>(write(fd, data, count));
+#else
+  return write(fd, data, len);
+#endif
+}
 
 [[noreturn]] inline auto panic_io_error(std::string_view operation) -> void {
   panic(cplib::format("{} failed: {}", operation, std::strerror(errno)));
@@ -74,7 +105,7 @@ inline auto read_available(int fd, char *data, std::size_t len, ReadFunc read_fu
 }
 
 inline auto read_available(int fd, char *data, std::size_t len) -> std::streamsize {
-  return read_available(fd, data, len, read);
+  return read_available(fd, data, len, system_read);
 }
 
 inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write_func)
@@ -102,7 +133,7 @@ inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write
 }
 
 inline auto write_all(int fd, const char *data, std::size_t len) -> std::streamsize {
-  return write_all(fd, data, len, write);
+  return write_all(fd, data, len, system_write);
 }
 }  // namespace detail
 
@@ -124,7 +155,7 @@ inline InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {
     We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
     Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
   */
-#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+#if defined(CPLIB_ON_WINDOWS) && !defined(ONLINE_JUDGE)
   _setmode(fd_, _O_BINARY);
 #endif
   setg(buf_.data() + PB_SIZE,   // Beginning of putback area
@@ -134,7 +165,7 @@ inline InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {
 
 inline InBuf::InBuf(std::string_view path) : need_close_(true) {
   int flags = 0;
-#ifdef ON_WINDOWS
+#if defined(CPLIB_ON_WINDOWS)
   flags |= _O_RDONLY;
 #ifndef ONLINE_JUDGE
   flags |= _O_BINARY;
@@ -177,7 +208,8 @@ inline auto InBuf::underflow() -> int_type {
   std::memmove(buf_.data() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
 
   // Read at most bufSize new characters
-  const auto num = detail::read_available(fd_, buf_.data() + PB_SIZE, BUF_SIZE, read);
+  const auto num =
+      detail::read_available(fd_, buf_.data() + PB_SIZE, BUF_SIZE, detail::system_read);
   if (num == 0) {
     return EOF;
   }
@@ -311,14 +343,14 @@ inline OutBuf::OutBuf(int fd) : fd_(fd), need_close_(false) {
     doesn’t think so. Since the only Online Judge that uses Windows seems to
     be Codeforces, make it happy.
   */
-#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+#if defined(CPLIB_ON_WINDOWS) && !defined(ONLINE_JUDGE)
   _setmode(fd_, _O_BINARY);
 #endif
 }
 
 inline OutBuf::OutBuf(std::string_view path) : need_close_(true) {
   int flags = 0;
-#ifdef ON_WINDOWS
+#if defined(CPLIB_ON_WINDOWS)
   flags |= _O_WRONLY | _O_CREAT | _O_TRUNC;
 #ifndef ONLINE_JUDGE
   flags |= _O_BINARY;
@@ -341,7 +373,7 @@ inline OutBuf::~OutBuf() {
 inline auto OutBuf::overflow(int_type c) -> int_type {
   if (c != EOF) {
     auto z = static_cast<char>(c);
-    if (detail::write_all(fd_, &z, 1, write) != 1) {
+    if (detail::write_all(fd_, &z, 1, detail::system_write) != 1) {
       return EOF;
     }
   }
@@ -350,7 +382,7 @@ inline auto OutBuf::overflow(int_type c) -> int_type {
 
 inline auto OutBuf::xsputn(const char *s, std::streamsize num) -> std::streamsize {
   if (num <= 0) return 0;
-  return detail::write_all(fd_, s, static_cast<std::size_t>(num), write);
+  return detail::write_all(fd_, s, static_cast<std::size_t>(num), detail::system_write);
 }
 
 namespace detail {

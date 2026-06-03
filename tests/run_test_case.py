@@ -78,7 +78,7 @@ def run_simple_test(command, stdin_path, expected_stdout_path, expected_stderr_p
     stdin_content = None
     if stdin_path:
         try:
-            with open(stdin_path, "r", encoding="utf-8") as f:
+            with open(stdin_path, "rb") as f:
                 stdin_content = f.read()
         except FileNotFoundError:
             print(f"Error: Stdin file not found: {stdin_path}", file=sys.stderr)
@@ -89,8 +89,6 @@ def run_simple_test(command, stdin_path, expected_stdout_path, expected_stderr_p
             command,
             input=stdin_content,
             capture_output=True,
-            text=True,
-            encoding="utf-8",
             timeout=timeout,
         )
     except FileNotFoundError:
@@ -99,6 +97,9 @@ def run_simple_test(command, stdin_path, expected_stdout_path, expected_stderr_p
     except subprocess.TimeoutExpired:
         print(f"FAILED: Command timed out after {timeout} seconds.", file=sys.stderr)
         sys.exit(1)
+
+    stdout_text = result.stdout.decode("utf-8")
+    stderr_text = result.stderr.decode("utf-8")
 
     # Check stdout if required
     if expected_stdout_path:
@@ -112,12 +113,12 @@ def run_simple_test(command, stdin_path, expected_stdout_path, expected_stderr_p
             )
             sys.exit(1)
 
-        if result.stdout != expected_stdout:
+        if stdout_text != expected_stdout:
             print("FAILED: Stdout did not match expected stdout.")
             print("--- Expected Stdout ---")
             print(expected_stdout)
             print("--- Actual Stdout ---")
-            print(result.stdout)
+            print(stdout_text)
             sys.exit(1)
 
     # Check stderr if required
@@ -133,13 +134,13 @@ def run_simple_test(command, stdin_path, expected_stdout_path, expected_stderr_p
             sys.exit(1)
 
         try:
-            actual_stderr_json = json.loads(result.stderr)
+            actual_stderr_json = json.loads(stderr_text)
         except json.JSONDecodeError:
             print("FAILED: Stderr was not valid JSON.", file=sys.stderr)
             print("--- Expected Stderr (from file) ---", file=sys.stderr)
             print(json.dumps(expected_stderr_json, indent=2), file=sys.stderr)
             print("--- Actual Stderr ---", file=sys.stderr)
-            print(result.stderr, file=sys.stderr)
+            print(stderr_text, file=sys.stderr)
             sys.exit(1)
 
         match, reason = compare_json(expected_stderr_json, actual_stderr_json)
@@ -158,15 +159,15 @@ def run_simple_test(command, stdin_path, expected_stdout_path, expected_stderr_p
             result.returncode,
             actual_stderr_json["status"],
             "Command",
-            result.stdout,
-            result.stderr,
+            stdout_text,
+            stderr_text,
         )
     elif result.returncode != 0:
         print(f"FAILED: Command exited with code {result.returncode}.", file=sys.stderr)
         print("--- Stdout ---", file=sys.stderr)
-        print(result.stdout, file=sys.stderr)
+        print(stdout_text, file=sys.stderr)
         print("--- Stderr ---", file=sys.stderr)
-        print(result.stderr, file=sys.stderr)
+        print(stderr_text, file=sys.stderr)
         sys.exit(1)
 
     print("PASSED")

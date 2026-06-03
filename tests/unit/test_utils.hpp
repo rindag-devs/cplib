@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CPLIB_TESTS_UNIT_TEST_UTILS_HPP_
+#define CPLIB_TESTS_UNIT_TEST_UTILS_HPP_
 
 #include <memory>
 #include <sstream>
@@ -22,9 +23,11 @@ inline auto make_test_reader(std::string content, bool strict = false) -> cplib:
   auto stream = std::make_unique<cplib::io::InStream>(std::move(buf), "test_stream", strict);
 
   return cplib::var::Reader(std::move(stream), cplib::trace::Level::NONE,
-                            [](const cplib::var::Reader &, std::string_view msg) {
+                            [](const cplib::var::Reader &, std::string_view msg) -> void {
                               throw TestExitException(std::string(msg));
                             });
 }
 
 }  // namespace cplib_test
+
+#endif

@@ -138,7 +138,7 @@ struct Reader : trace::Traced<ReaderTrace> {
    * @return A tuple containing the values read from the input stream.
    */
   template <class... T>
-  auto operator()(T... vars) -> std::tuple<typename T::Var::Target...>;
+  auto operator()(const T &...vars) -> std::tuple<typename T::Var::Target...>;
 
  private:
   std::unique_ptr<io::InStream> inner_;
@@ -227,6 +227,7 @@ struct Var {
    * @param in The `Reader` object to read from.
    * @return The value of the variable.
    */
+  // NOLINTNEXTLINE(portability-template-virtual-member-function)
   virtual auto read_from(Reader &in) const -> T = 0;
 
  private:
@@ -762,7 +763,7 @@ struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
    * parameters of `f`.
    */
   template <class... Args>
-  FnVar(std::string name, std::function<F> f, Args &&...args);
+  FnVar(std::string name, const std::function<F> &f, Args &&...args);
 
   /**
    * Read from reader.

@@ -127,7 +127,7 @@ inline auto Reader::read(const Var<T, D> &v) -> T {
 }
 
 template <class... T>
-inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::Target...> {
+inline auto Reader::operator()(const T &...vars) -> std::tuple<typename T::Var::Target...> {
   return {read(vars)...};
 }
 
@@ -582,7 +582,7 @@ inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
 
   if (in.inner().is_strict()) {
     auto got = in.inner().read();
-    if (got != s) {
+    if (std::cmp_not_equal(got, s)) {
       in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
@@ -595,7 +595,7 @@ inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
   } else {
     in.inner().skip_blanks();
     auto got = in.inner().read();
-    if (got != s) {
+    if (std::cmp_not_equal(got, s)) {
       in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
@@ -606,7 +606,7 @@ inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
 // /Impl Separator }}}
 
 template <class T>
-inline Vec<T>::Vec(T element, size_t len) : Vec<T>(element, len, var::space) {}
+inline Vec<T>::Vec(T element, size_t len) : Vec<T>(std::move(element), len, var::space) {}
 
 template <class T>
 inline Vec<T>::Vec(T element, size_t len, Separator sep)
@@ -627,7 +627,7 @@ inline auto Vec<T>::read_from(Reader &in) const -> std::vector<typename T::Var::
 
 template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1)
-    : Mat<T>(element, len0, len1, var::eoln, var::space) {}
+    : Mat<T>(std::move(element), len0, len1, var::eoln, var::space) {}
 
 template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1, Separator sep0, Separator sep1)
@@ -704,11 +704,11 @@ inline auto Tuple<T...>::read_from_impl(Reader &in, std::index_sequence<Is...>) 
   // Create the result tuple that will be populated.
   std::tuple<typename T::Var::Target...> result;
   std::size_t cnt = 0;
-  auto renamed_inc = [&cnt](auto var) -> decltype(var) { return var.renamed(cnt++); };
+  auto renamed_inc = [&cnt](const auto &var) -> auto { return var.renamed(cnt++); };
 
   // Use a C++17 fold expression over the comma operator to process each element sequentially.
   // This is a concise way to apply an operation to each element of a parameter pack.
-  ((void)([&] {
+  ((void)([&]() -> void {
      // For every element after the first one (where index Is > 0), read the separator.
      // `if constexpr` ensures this check is done at compile-time, so there is no
      // runtime overhead for the first element.
@@ -726,7 +726,7 @@ inline auto Tuple<T...>::read_from_impl(Reader &in, std::index_sequence<Is...>) 
 
 template <class F>
 template <class... Args>
-inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args &&...args)
+inline FnVar<F>::FnVar(std::string name, const std::function<F> &f, Args &&...args)
     : Var<typename std::function<F>::result_type, FnVar<F>>(std::move(name)),
       inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...),
                        f](Reader &in) -> typename std::function<F>::result_type {
@@ -783,7 +783,7 @@ template <std::ranges::range Range, class... Args>
 inline ExtVec<T>::ExtVec(std::string name, Range &&range, Separator sep, Args &&...args)
   requires Readable<T, Args..., std::ranges::range_value_t<Range>>
     : Var<std::vector<T>, ExtVec<T>>(std::move(name)),
-      inner_function_([range = std::forward<Range>(range), sep,
+      inner_function_([range = std::forward<Range>(range), sep = std::move(sep),
                        captured_args = std::make_tuple(std::forward<Args>(args)...)](
                           Reader &in) -> std::vector<T> {
         std::vector<T> result;
@@ -802,7 +802,7 @@ inline ExtVec<T>::ExtVec(std::string name, Range &&range, Separator sep, Args &&
           // current range_element, to the ExtVar constructor. This correctly sets up
           // the call to T::read with all necessary arguments and handles tracing.
           auto element = std::apply(
-              [&](auto &&...fixed_args) {
+              [&](auto &&...fixed_args) -> T {
                 return in.read(
                     ExtVar<T>(i, std::forward<decltype(fixed_args)>(fixed_args)..., range_element));
               },

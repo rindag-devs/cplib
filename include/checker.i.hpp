@@ -25,6 +25,8 @@
 #endif
 /* cplib_embed_ignore end */
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>

@@ -18,16 +18,19 @@ endif()
 # easy for other targets (like tests) to consume it.
 add_library(cplib INTERFACE)
 target_include_directories(cplib INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+if(MINGW)
+  target_link_libraries(cplib INTERFACE gnurx)
+endif()
 
-enable_testing()
-add_subdirectory(tests)
-
-# This part is for the 'single_header' build target.
 find_package(
   Python3
   COMPONENTS Interpreter
   REQUIRED)
 
+enable_testing()
+add_subdirectory(tests)
+
+# This part is for the 'single_header' build target.
 # Find all source header files to set them as dependencies.
 file(GLOB_RECURSE CPLIB_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
      "${CMAKE_CURRENT_SOURCE_DIR}/include/*.i.hpp")

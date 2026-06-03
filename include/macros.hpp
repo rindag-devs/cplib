@@ -23,28 +23,10 @@
   "\n"                           \
   "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023-2026\n"
 
-#if (_WIN32 || __WIN32__ || __WIN32 || _WIN64 || __WIN64__ || __WIN64 || WINNT || __WINNT || \
-     __WINNT__ || __CYGWIN__)
-#if !defined(_MSC_VER) || _MSC_VER > 1400
-#define NOMINMAX 1
-#include <windows.h>  // IWYU pragma: export
-#else
-#include <unistd.h>  // IWYU pragma: export
-#endif
-#include <fcntl.h>     // IWYU pragma: export
-#include <io.h>        // IWYU pragma: export
-#include <sys/stat.h>  // IWYU pragma: export
-#define ON_WINDOWS
-#if defined(_MSC_VER) && _MSC_VER > 1400
-#pragma warning(disable : 4127)
-#pragma warning(disable : 4146)
-#pragma warning(disable : 4458)
-#endif
-#else
-#include <fcntl.h>      // IWYU pragma: export
-#include <sys/ioctl.h>  // IWYU pragma: export
-#include <sys/stat.h>   // IWYU pragma: export
-#include <unistd.h>     // IWYU pragma: export
+#if defined(_WIN32) || defined(__WIN32__) || defined(__WIN32) || defined(_WIN64) || \
+    defined(__WIN64__) || defined(__WIN64) || defined(WINNT) || defined(__WINNT) || \
+    defined(__WINNT__) || defined(__CYGWIN__)
+#define CPLIB_ON_WINDOWS
 #endif
 
 #endif

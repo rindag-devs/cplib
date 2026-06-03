@@ -26,8 +26,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cctype>
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <ios>
@@ -192,8 +190,8 @@ inline auto TraceTreeNode<T>::write_json(std::streambuf &buf) const -> void {
     json::Value::encode_map(buf, tags);
   }
 
-  if (const auto &children = get_children();
-      std::ranges::any_of(children, [](const auto &c) { return !c->tags.contains("#hidden"); })) {
+  if (const auto &children = get_children(); std::ranges::any_of(
+          children, [](const auto &c) -> bool { return !c->tags.contains("#hidden"); })) {
     constexpr std::string_view CHILDREN_HEADER = ",\"children\":[";
     buf.sputn(CHILDREN_HEADER.data(), CHILDREN_HEADER.size());
     bool first = true;

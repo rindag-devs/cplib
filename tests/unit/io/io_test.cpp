@@ -1,6 +1,17 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <stdexcept>
+#include <string_view>
+#include <utility>
+
+#include "macros.hpp"
+
+#if defined(CPLIB_ON_WINDOWS)
+#include <fcntl.h>
+#include <io.h>
+#endif
+
 #include <array>
 #include <cerrno>
 #include <cstddef>
@@ -82,6 +93,14 @@ inline auto always_fail_read(int, void *, std::size_t) -> ssize_t {
   ++failing_read_call_count;
   errno = EIO;
   return -1;
+}
+
+inline auto make_pipe(std::array<int, 2> &pipe_fds) -> int {
+#if defined(CPLIB_ON_WINDOWS)
+  return _pipe(pipe_fds.data(), 4096, _O_BINARY);
+#else
+  return pipe(pipe_fds.data());
+#endif
 }
 }  // namespace
 
@@ -207,7 +226,7 @@ TEST(IoTest, ReadAvailablePanicsOnHardFailure) {
 
 TEST(IoTest, OutBufWritesCompletePayload) {
   std::array<int, 2> pipe_fds{};
-  ASSERT_EQ(pipe(pipe_fds.data()), 0);
+  ASSERT_EQ(make_pipe(pipe_fds), 0);
 
   {
     cplib::io::OutBuf out(pipe_fds[1]);

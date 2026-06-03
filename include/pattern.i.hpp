@@ -33,6 +33,7 @@
 #include "regex.h"
 
 /* cplib_embed_ignore start */
+#include "macros.hpp"
 #include "utils.hpp"
 /* cplib_embed_ignore end */
 
@@ -94,13 +95,14 @@ inline auto Pattern::operator=(const Pattern &other) -> Pattern & {
 }
 
 inline auto Pattern::match(std::string_view s) const -> bool {
-#ifdef REG_STARTEND
+#if defined(REG_STARTEND) && !defined(CPLIB_ON_WINDOWS)
   regmatch_t match_range{};
   match_range.rm_so = 0;
   match_range.rm_eo = static_cast<regoff_t>(s.size());
   const char *input = s.empty() ? "" : std::addressof(s.front());
   int result = regexec(&re_.regex, input, 1, &match_range, REG_STARTEND);
 #else
+  if (s.find('\0') != std::string_view::npos) return false;
   const std::string buffer(s);
   int result = regexec(&re_.regex, buffer.c_str(), 0, nullptr, 0);
 #endif
