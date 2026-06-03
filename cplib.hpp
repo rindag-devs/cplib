@@ -44,28 +44,10 @@
   "\n"                           \
   "https://github.com/rindag-devs/cplib/ by Rindag Devs, copyright(c) 2023-2026\n"
 
-#if (_WIN32 || __WIN32__ || __WIN32 || _WIN64 || __WIN64__ || __WIN64 || WINNT || __WINNT || \
-     __WINNT__ || __CYGWIN__)
-#if !defined(_MSC_VER) || _MSC_VER > 1400
-#define NOMINMAX 1
-#include <windows.h>  
-#else
-#include <unistd.h>  
-#endif
-#include <fcntl.h>     
-#include <io.h>        
-#include <sys/stat.h>  
-#define ON_WINDOWS
-#if defined(_MSC_VER) && _MSC_VER > 1400
-#pragma warning(disable : 4127)
-#pragma warning(disable : 4146)
-#pragma warning(disable : 4458)
-#endif
-#else
-#include <fcntl.h>      
-#include <sys/ioctl.h>  
-#include <sys/stat.h>   
-#include <unistd.h>     
+#if defined(_WIN32) || defined(__WIN32__) || defined(__WIN32) || defined(_WIN64) || \
+    defined(__WIN64__) || defined(__WIN64) || defined(WINNT) || defined(__WINNT) || \
+    defined(__WINNT__) || defined(__CYGWIN__)
+#define CPLIB_ON_WINDOWS
 #endif
 
 #endif
@@ -365,7 +347,7 @@ struct FlatMap {
   // Element Access
   /** @brief Access specified element with bounds checking. */
   auto at(const key_type &key) -> mapped_type &;
-  auto at(const key_type &key) const -> const mapped_type &;
+  [[nodiscard]] auto at(const key_type &key) const -> const mapped_type &;
 
   /** @brief Access or insert specified element. */
   auto operator[](const key_type &key) -> mapped_type &;
@@ -426,18 +408,18 @@ struct FlatMap {
 
   /** @brief Finds an element with a specific key. */
   auto find(const key_type &key) -> iterator;
-  auto find(const key_type &key) const -> const_iterator;
+  [[nodiscard]] auto find(const key_type &key) const -> const_iterator;
 
   /** @brief Checks if the container contains an element with a specific key. */
-  auto contains(const key_type &key) const -> bool;
+  [[nodiscard]] auto contains(const key_type &key) const -> bool;
 
   /** @brief Returns an iterator to the first element not less than the given key. */
   auto lower_bound(const key_type &key) -> iterator;
-  auto lower_bound(const key_type &key) const -> const_iterator;
+  [[nodiscard]] auto lower_bound(const key_type &key) const -> const_iterator;
 
   /** @brief Returns an iterator to the first element greater than the given key. */
   auto upper_bound(const key_type &key) -> iterator;
-  auto upper_bound(const key_type &key) const -> const_iterator;
+  [[nodiscard]] auto upper_bound(const key_type &key) const -> const_iterator;
 
  private:
   /**
@@ -485,6 +467,8 @@ auto get_work_mode() -> WorkMode;
  */
 
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -499,7 +483,6 @@ auto get_work_mode() -> WorkMode;
 #include <string_view>
 #include <utility>
 #include <vector>
-
 
 namespace cplib {
 namespace detail {
@@ -611,18 +594,16 @@ inline auto compress(std::string_view s) -> std::string {
 inline auto trim(std::string_view s) -> std::string {
   if (s.empty()) return std::string(s);
 
-  std::ptrdiff_t left = 0;
-  while (left < static_cast<std::ptrdiff_t>(s.size()) &&
-         std::isspace(static_cast<unsigned char>(s[left])) != 0) {
+  std::size_t left = 0;
+  while (left < s.size() && std::isspace(static_cast<unsigned char>(s[left])) != 0) {
     ++left;
   }
-  if (left >= static_cast<std::ptrdiff_t>(s.size())) return "";
+  if (left == s.size()) return "";
 
-  std::ptrdiff_t right = static_cast<std::ptrdiff_t>(s.size()) - 1;
-  while (right >= 0 && std::isspace(static_cast<unsigned char>(s[right])) != 0) --right;
-  if (right < 0) return "";
+  std::size_t right = s.size();
+  while (right > left && std::isspace(static_cast<unsigned char>(s[right - 1])) != 0) --right;
 
-  return std::string(s.substr(left, right - left + 1));
+  return std::string(s.substr(left, right - left));
 }
 
 template <class It>
@@ -1024,15 +1005,16 @@ inline auto FlatMap<Key, T, Compare>::upper_bound(const key_type &key) const ->
 template <typename Key, typename T, typename Compare>
 inline auto FlatMap<Key, T, Compare>::sort_and_unique() -> void {
   // Sort by key
-  std::sort(data_.begin(), data_.end(),
-            [this](const value_type &a, const value_type &b) { return comp_(a.first, b.first); });
+  std::sort(data_.begin(), data_.end(), [this](const value_type &a, const value_type &b) -> bool {
+    return comp_(a.first, b.first);
+  });
 
   // Remove duplicate keys. std::unique keeps the first element in a group of duplicates.
-  auto last =
-      std::unique(data_.begin(), data_.end(), [this](const value_type &a, const value_type &b) {
-        // Two keys are equivalent if !(a < b) && !(b < a)
-        return !comp_(a.first, b.first) && !comp_(b.first, a.first);
-      });
+  auto last = std::unique(data_.begin(), data_.end(),
+                          [this](const value_type &a, const value_type &b) -> bool {
+                            // Two keys are equivalent if !(a < b) && !(b < a)
+                            return !comp_(a.first, b.first) && !comp_(b.first, a.first);
+                          });
 
   data_.erase(last, data_.end());
 }
@@ -1580,13 +1562,14 @@ inline auto Pattern::operator=(const Pattern &other) -> Pattern & {
 }
 
 inline auto Pattern::match(std::string_view s) const -> bool {
-#ifdef REG_STARTEND
+#if defined(REG_STARTEND) && !defined(CPLIB_ON_WINDOWS)
   regmatch_t match_range{};
   match_range.rm_so = 0;
   match_range.rm_eo = static_cast<regoff_t>(s.size());
   const char *input = s.empty() ? "" : std::addressof(s.front());
   int result = regexec(&re_.regex, input, 1, &match_range, REG_STARTEND);
 #else
+  if (s.find('\0') != std::string_view::npos) return false;
   const std::string buffer(s);
   int result = regexec(&re_.regex, buffer.c_str(), 0, nullptr, 0);
 #endif
@@ -2455,7 +2438,15 @@ struct OutBuf : std::streambuf {
  */
 
 
+
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
+
+#if defined(CPLIB_ON_WINDOWS)
+#include <io.h>
+#endif
 
 #include <array>
 #include <cassert>
@@ -2466,6 +2457,7 @@ struct OutBuf : std::streambuf {
 #include <cstdlib>
 #include <cstring>
 #include <ios>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <ostream>
@@ -2480,6 +2472,26 @@ namespace cplib::io {
 namespace detail {
 using ReadFunc = ssize_t (*)(int, void *, std::size_t);
 using WriteFunc = ssize_t (*)(int, const void *, std::size_t);
+
+inline auto system_read(int fd, void *data, std::size_t len) -> ssize_t {
+#if defined(CPLIB_ON_WINDOWS)
+  const auto count = static_cast<unsigned int>(
+      std::min<std::size_t>(len, (std::numeric_limits<unsigned int>::max)()));
+  return static_cast<ssize_t>(read(fd, data, count));
+#else
+  return read(fd, data, len);
+#endif
+}
+
+inline auto system_write(int fd, const void *data, std::size_t len) -> ssize_t {
+#if defined(CPLIB_ON_WINDOWS)
+  const auto count = static_cast<unsigned int>(
+      std::min<std::size_t>(len, (std::numeric_limits<unsigned int>::max)()));
+  return static_cast<ssize_t>(write(fd, data, count));
+#else
+  return write(fd, data, len);
+#endif
+}
 
 [[noreturn]] inline auto panic_io_error(std::string_view operation) -> void {
   panic(cplib::format("{} failed: {}", operation, std::strerror(errno)));
@@ -2500,7 +2512,7 @@ inline auto read_available(int fd, char *data, std::size_t len, ReadFunc read_fu
 }
 
 inline auto read_available(int fd, char *data, std::size_t len) -> std::streamsize {
-  return read_available(fd, data, len, read);
+  return read_available(fd, data, len, system_read);
 }
 
 inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write_func)
@@ -2528,7 +2540,7 @@ inline auto write_all(int fd, const char *data, std::size_t len, WriteFunc write
 }
 
 inline auto write_all(int fd, const char *data, std::size_t len) -> std::streamsize {
-  return write_all(fd, data, len, write);
+  return write_all(fd, data, len, system_write);
 }
 }  // namespace detail
 
@@ -2550,7 +2562,7 @@ inline InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {
     We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
     Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
   */
-#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+#if defined(CPLIB_ON_WINDOWS) && !defined(ONLINE_JUDGE)
   _setmode(fd_, _O_BINARY);
 #endif
   setg(buf_.data() + PB_SIZE,   // Beginning of putback area
@@ -2560,7 +2572,7 @@ inline InBuf::InBuf(int fd) : fd_(fd), need_close_(false) {
 
 inline InBuf::InBuf(std::string_view path) : need_close_(true) {
   int flags = 0;
-#ifdef ON_WINDOWS
+#if defined(CPLIB_ON_WINDOWS)
   flags |= _O_RDONLY;
 #ifndef ONLINE_JUDGE
   flags |= _O_BINARY;
@@ -2603,7 +2615,8 @@ inline auto InBuf::underflow() -> int_type {
   std::memmove(buf_.data() + (PB_SIZE - num_putback), gptr() - num_putback, num_putback);
 
   // Read at most bufSize new characters
-  const auto num = detail::read_available(fd_, buf_.data() + PB_SIZE, BUF_SIZE, read);
+  const auto num =
+      detail::read_available(fd_, buf_.data() + PB_SIZE, BUF_SIZE, detail::system_read);
   if (num == 0) {
     return EOF;
   }
@@ -2737,14 +2750,14 @@ inline OutBuf::OutBuf(int fd) : fd_(fd), need_close_(false) {
     doesn’t think so. Since the only Online Judge that uses Windows seems to
     be Codeforces, make it happy.
   */
-#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+#if defined(CPLIB_ON_WINDOWS) && !defined(ONLINE_JUDGE)
   _setmode(fd_, _O_BINARY);
 #endif
 }
 
 inline OutBuf::OutBuf(std::string_view path) : need_close_(true) {
   int flags = 0;
-#ifdef ON_WINDOWS
+#if defined(CPLIB_ON_WINDOWS)
   flags |= _O_WRONLY | _O_CREAT | _O_TRUNC;
 #ifndef ONLINE_JUDGE
   flags |= _O_BINARY;
@@ -2767,7 +2780,7 @@ inline OutBuf::~OutBuf() {
 inline auto OutBuf::overflow(int_type c) -> int_type {
   if (c != EOF) {
     auto z = static_cast<char>(c);
-    if (detail::write_all(fd_, &z, 1, write) != 1) {
+    if (detail::write_all(fd_, &z, 1, detail::system_write) != 1) {
       return EOF;
     }
   }
@@ -2776,7 +2789,7 @@ inline auto OutBuf::overflow(int_type c) -> int_type {
 
 inline auto OutBuf::xsputn(const char *s, std::streamsize num) -> std::streamsize {
   if (num <= 0) return 0;
-  return detail::write_all(fd_, s, static_cast<std::size_t>(num), write);
+  return detail::write_all(fd_, s, static_cast<std::size_t>(num), detail::system_write);
 }
 
 namespace detail {
@@ -3043,8 +3056,6 @@ struct Traced {
 
 #include <algorithm>
 #include <cassert>
-#include <cctype>
-#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <ios>
@@ -3205,8 +3216,8 @@ inline auto TraceTreeNode<T>::write_json(std::streambuf &buf) const -> void {
     json::Value::encode_map(buf, tags);
   }
 
-  if (const auto &children = get_children();
-      std::ranges::any_of(children, [](const auto &c) { return !c->tags.contains("#hidden"); })) {
+  if (const auto &children = get_children(); std::ranges::any_of(
+          children, [](const auto &c) -> bool { return !c->tags.contains("#hidden"); })) {
     constexpr std::string_view CHILDREN_HEADER = ",\"children\":[";
     buf.sputn(CHILDREN_HEADER.data(), CHILDREN_HEADER.size());
     bool first = true;
@@ -4103,7 +4114,7 @@ struct Reader : trace::Traced<ReaderTrace> {
    * @return A tuple containing the values read from the input stream.
    */
   template <class... T>
-  auto operator()(T... vars) -> std::tuple<typename T::Var::Target...>;
+  auto operator()(const T &...vars) -> std::tuple<typename T::Var::Target...>;
 
  private:
   std::unique_ptr<io::InStream> inner_;
@@ -4192,6 +4203,7 @@ struct Var {
    * @param in The `Reader` object to read from.
    * @return The value of the variable.
    */
+  // NOLINTNEXTLINE(portability-template-virtual-member-function)
   virtual auto read_from(Reader &in) const -> T = 0;
 
  private:
@@ -4727,7 +4739,7 @@ struct FnVar : Var<typename std::function<F>::result_type, FnVar<F>> {
    * parameters of `f`.
    */
   template <class... Args>
-  FnVar(std::string name, std::function<F> f, Args &&...args);
+  FnVar(std::string name, const std::function<F> &f, Args &&...args);
 
   /**
    * Read from reader.
@@ -6123,7 +6135,7 @@ inline auto Reader::read(const Var<T, D> &v) -> T {
 }
 
 template <class... T>
-inline auto Reader::operator()(T... vars) -> std::tuple<typename T::Var::Target...> {
+inline auto Reader::operator()(const T &...vars) -> std::tuple<typename T::Var::Target...> {
   return {read(vars)...};
 }
 
@@ -6578,7 +6590,7 @@ inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
 
   if (in.inner().is_strict()) {
     auto got = in.inner().read();
-    if (got != s) {
+    if (std::cmp_not_equal(got, s)) {
       in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
@@ -6591,7 +6603,7 @@ inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
   } else {
     in.inner().skip_blanks();
     auto got = in.inner().read();
-    if (got != s) {
+    if (std::cmp_not_equal(got, s)) {
       in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
                             cplib::detail::hex_encode(got)));
     }
@@ -6602,7 +6614,7 @@ inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
 // /Impl Separator }}}
 
 template <class T>
-inline Vec<T>::Vec(T element, size_t len) : Vec<T>(element, len, var::space) {}
+inline Vec<T>::Vec(T element, size_t len) : Vec<T>(std::move(element), len, var::space) {}
 
 template <class T>
 inline Vec<T>::Vec(T element, size_t len, Separator sep)
@@ -6623,7 +6635,7 @@ inline auto Vec<T>::read_from(Reader &in) const -> std::vector<typename T::Var::
 
 template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1)
-    : Mat<T>(element, len0, len1, var::eoln, var::space) {}
+    : Mat<T>(std::move(element), len0, len1, var::eoln, var::space) {}
 
 template <class T>
 inline Mat<T>::Mat(T element, size_t len0, size_t len1, Separator sep0, Separator sep1)
@@ -6700,11 +6712,11 @@ inline auto Tuple<T...>::read_from_impl(Reader &in, std::index_sequence<Is...>) 
   // Create the result tuple that will be populated.
   std::tuple<typename T::Var::Target...> result;
   std::size_t cnt = 0;
-  auto renamed_inc = [&cnt](auto var) -> decltype(var) { return var.renamed(cnt++); };
+  auto renamed_inc = [&cnt](const auto &var) -> auto { return var.renamed(cnt++); };
 
   // Use a C++17 fold expression over the comma operator to process each element sequentially.
   // This is a concise way to apply an operation to each element of a parameter pack.
-  ((void)([&] {
+  ((void)([&]() -> void {
      // For every element after the first one (where index Is > 0), read the separator.
      // `if constexpr` ensures this check is done at compile-time, so there is no
      // runtime overhead for the first element.
@@ -6722,7 +6734,7 @@ inline auto Tuple<T...>::read_from_impl(Reader &in, std::index_sequence<Is...>) 
 
 template <class F>
 template <class... Args>
-inline FnVar<F>::FnVar(std::string name, std::function<F> f, Args &&...args)
+inline FnVar<F>::FnVar(std::string name, const std::function<F> &f, Args &&...args)
     : Var<typename std::function<F>::result_type, FnVar<F>>(std::move(name)),
       inner_function_([captured_args = std::make_tuple(std::forward<Args>(args)...),
                        f](Reader &in) -> typename std::function<F>::result_type {
@@ -6779,7 +6791,7 @@ template <std::ranges::range Range, class... Args>
 inline ExtVec<T>::ExtVec(std::string name, Range &&range, Separator sep, Args &&...args)
   requires Readable<T, Args..., std::ranges::range_value_t<Range>>
     : Var<std::vector<T>, ExtVec<T>>(std::move(name)),
-      inner_function_([range = std::forward<Range>(range), sep,
+      inner_function_([range = std::forward<Range>(range), sep = std::move(sep),
                        captured_args = std::make_tuple(std::forward<Args>(args)...)](
                           Reader &in) -> std::vector<T> {
         std::vector<T> result;
@@ -6798,7 +6810,7 @@ inline ExtVec<T>::ExtVec(std::string name, Range &&range, Separator sep, Args &&
           // current range_element, to the ExtVar constructor. This correctly sets up
           // the call to T::read with all necessary arguments and handles tracing.
           auto element = std::apply(
-              [&](auto &&...fixed_args) {
+              [&](auto &&...fixed_args) -> T {
                 return in.read(
                     ExtVar<T>(i, std::forward<decltype(fixed_args)>(fixed_args)..., range_element));
               },
@@ -7257,6 +7269,8 @@ auto run_checker(int argc, char **argv, std::unique_ptr<Initializer> initializer
  * not, see <https://www.gnu.org/licenses/>.
  */
 
+
+#include <unistd.h>
 
 #include <algorithm>
 #include <cstdio>
@@ -8036,6 +8050,8 @@ auto run_interactor(State &state, int argc, char **argv, MainFunc main_func) -> 
  */
 
 
+#include <unistd.h>
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -8083,7 +8099,7 @@ inline auto Initializer::state() -> State & { return *state_; };
 inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_fileno(
       fileno, "inf", false, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -8094,7 +8110,7 @@ inline auto Initializer::set_inf_fileno(int fileno, trace::Level trace_level) ->
 inline auto Initializer::set_from_user_fileno(int fileno, trace::Level trace_level) -> void {
   state_->from_user = var::detail::make_reader_by_fileno(
       fileno, "from_user", false, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -8109,7 +8125,7 @@ inline auto Initializer::set_to_user_fileno(int fileno) -> void {
 inline auto Initializer::set_inf_path(std::string_view path, trace::Level trace_level) -> void {
   state_->inf = var::detail::make_reader_by_path(
       path, "inf", false, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -8121,7 +8137,7 @@ inline auto Initializer::set_from_user_path(std::string_view path, trace::Level 
     -> void {
   state_->from_user = var::detail::make_reader_by_path(
       path, "from_user", false, trace_level,
-      [this, trace_level](const var::Reader &reader, std::string_view msg) {
+      [this, trace_level](const var::Reader &reader, std::string_view msg) -> void {
         if (trace_level >= trace::Level::STACK_ONLY) {
           state_->reporter->attach_trace_stack(reader.make_trace_stack(true));
         }
@@ -8149,7 +8165,7 @@ inline State::State(std::unique_ptr<Initializer> initializer)
       initializer(std::move(initializer)),
       reporter(std::make_unique<JsonReporter>()) {
   this->initializer->set_state(*this);
-  cplib::detail::panic_impl = [this](std::string_view msg) {
+  cplib::detail::panic_impl = [this](std::string_view msg) -> void {
     quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
   };
   cplib::detail::work_mode = WorkMode::INTERACTOR;
@@ -8345,7 +8361,7 @@ inline auto JsonReporter::report(const Report &report) -> int {
     json::List trace_stacks;
     trace_stacks.reserve(trace_stacks_.size());
     std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
-                           [](auto &s) { return json::Value(s.to_json()); });
+                           [](auto &s) -> json::Value { return json::Value(s.to_json()); });
     map.emplace("reader_trace_stacks", trace_stacks);
   }
 
@@ -8726,6 +8742,8 @@ auto run_validator(int argc, char **argv, std::unique_ptr<Initializer> initializ
  * not, see <https://www.gnu.org/licenses/>.
  */
 
+
+#include <unistd.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -9672,7 +9690,17 @@ auto run_generator(State &state, int argc, char **argv, MainFunc main_func) -> i
  */
 
 
+
+#include <fcntl.h>
+#include <unistd.h>
+
+#if defined(CPLIB_ON_WINDOWS)
+#include <io.h>
+#endif
+
 #include <algorithm>
+#include <any>
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <map>
@@ -9895,7 +9923,7 @@ inline auto set_binary_mode() {
     We recommend using binary mode on Windows. However, Codeforces Polygon doesn’t think so.
     Since the only Online Judge that uses Windows seems to be Codeforces, make it happy.
   */
-#if defined(ON_WINDOWS) && !defined(ONLINE_JUDGE)
+#if defined(CPLIB_ON_WINDOWS) && !defined(ONLINE_JUDGE)
   _setmode(fileno(stdout), _O_BINARY);
 #endif
 }
