@@ -41,9 +41,8 @@ jobs:
         shell: bash
 
       - name: Commit single-header-snapshot
-        uses: nicholasgriffintn/github-branch-deployment-action@1.0.0
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          BRANCH: single-header-snapshot
-          FOLDER: ./dist
-          MESSAGE: "build: ({sha}) {msg}"
+        uses: EndBug/add-and-commit@v10
+        with:
+          add: dist --force
+          message: "build: (${{ github.sha }}) ${{ github.event.head_commit.message }}"
+          new_branch: single-header-snapshot
