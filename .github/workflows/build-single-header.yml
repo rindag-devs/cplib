@@ -25,6 +25,17 @@ jobs:
           mkdir -p dist
           cp build-default/cplib.hpp dist/
 
+      - name: Compile single-header consumer
+        run: |
+          printf '%s\n' \
+            '#include "cplib.hpp"' \
+            'auto main() -> int {' \
+            '  cplib::Random rnd(1);' \
+            '  return rnd.next(0, 10) < 0 ? 1 : 0;' \
+            '}' \
+            > build-default/single_header_consumer.cpp
+          c++ -std=c++20 -Ibuild-default build-default/single_header_consumer.cpp -o build-default/single_header_consumer
+
       - name: Dump git commit SHA
         run: echo "${GITHUB_SHA}" > dist/git_commit_sha.txt
         shell: bash

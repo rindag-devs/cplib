@@ -279,30 +279,21 @@ struct ColoredTextReporter : Reporter {
   [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
+template <class Input, class TraitsFunc>
+auto run_validator(int argc, char **argv, std::unique_ptr<Initializer> initializer,
+                   TraitsFunc traits_func) -> int;
+
 /**
  * Macro to register validator with custom initializer.
  *
  * @param initializer_ The initializer function.
  * @param traits_func_ The function returns a list of traits.
  */
-#define CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_, initializer_)                    \
-  static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
-  auto main(int argc, char **argv) -> int {                                                        \
-    ::std::vector<::std::string> args;                                                             \
-    args.reserve(argc);                                                                            \
-    for (int i = 1; i < argc; ++i) {                                                               \
-      args.emplace_back(argv[i]);                                                                  \
-    }                                                                                              \
-    /* std::exit only destroys static objects */                                                   \
-    static auto state =                                                                            \
-        ::cplib::validator::State(std::unique_ptr<decltype(initializer_)>(new initializer_));      \
-    state.initializer->init(argv[0], args);                                                        \
-    input_struct_ input{state.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};             \
-    std::function<auto(const input_struct_ &)->::std::vector<::cplib::validator::Trait>>           \
-        traits_func = traits_func_;                                                                \
-    state.traits(traits_func(input));                                                              \
-    state.quit_valid();                                                                            \
-    return 0;                                                                                      \
+#define CPLIB_REGISTER_VALIDATOR_OPT(input_struct_, traits_func_, initializer_)           \
+  auto main(int argc, char **argv) -> int {                                               \
+    return ::cplib::validator::run_validator<input_struct_>(                              \
+        argc, argv, ::std::unique_ptr<::cplib::validator::Initializer>(new initializer_), \
+        traits_func_);                                                                    \
   }
 
 #ifndef CPLIB_VALIDATOR_DEFAULT_INITIALIZER

@@ -39,3 +39,24 @@ jobs:
 
       - name: Run tests with CTest
         run: ctest --test-dir build --output-on-failure --parallel
+
+  sanitizer-test:
+    name: Test clang++-18 ASan UBSan
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+          cmake -B build-sanitizer \
+            -DCMAKE_C_COMPILER=clang-18 \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build project
+        run: cmake --build build-sanitizer --parallel
+
+      - name: Run tests with CTest
+        run: ctest --test-dir build-sanitizer --output-on-failure --parallel

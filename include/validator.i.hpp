@@ -279,6 +279,34 @@ inline auto State::quit_invalid(std::string_view message) -> void {
 }
 // /Impl State }}}
 
+namespace detail {
+inline auto collect_args(int argc, char **argv) -> std::vector<std::string> {
+  std::vector<std::string> args;
+  args.reserve(argc);
+  for (int i = 1; i < argc; ++i) {
+    args.emplace_back(argv[i]);
+  }
+  return args;
+}
+}  // namespace detail
+
+template <class Input, class TraitsFunc>
+auto run_validator(int argc, char **argv, std::unique_ptr<Initializer> initializer,
+                   TraitsFunc traits_func) -> int {
+  static_assert(var::Readable<Input>, "Input should be Readable");
+
+  auto args = detail::collect_args(argc, argv);
+
+  /* std::exit only destroys static objects */
+  static auto state = State(std::move(initializer));
+  state.initializer->init(argv[0], args);
+
+  Input input{state.inf.read(var::ExtVar<Input>("input"))};
+  state.traits(traits_func(input));
+  state.quit_valid();
+  return 0;
+}
+
 // Impl DefaultInitializer {{{
 namespace detail {
 constexpr std::string_view ARGS_USAGE =

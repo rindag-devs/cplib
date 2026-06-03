@@ -272,52 +272,18 @@ struct ColoredTextReporter : Reporter {
   [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
+template <class Input, class Output>
+auto run_checker(int argc, char **argv, std::unique_ptr<Initializer> initializer) -> int;
+
 /**
  * Macro to register checker with custom initializer.
  *
  * @param initializer_ The initializer function.
  */
-#define CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, initializer_)                    \
-  static_assert(::cplib::var::Readable<input_struct_>, "`" #input_struct_ "` should be Readable"); \
-  static_assert(::cplib::var::Readable<output_struct_, const input_struct_ &>,                     \
-                "`" #output_struct_ "` should be Readable");                                       \
-  static_assert(::cplib::evaluate::Evaluatable<output_struct_, const input_struct_ &>,             \
-                "`" #output_struct_ "` should be Evaluatable");                                    \
-  auto main(int argc, char **argv) -> int {                                                        \
-    ::std::vector<::std::string> args;                                                             \
-    args.reserve(argc);                                                                            \
-    for (int i = 1; i < argc; ++i) {                                                               \
-      args.emplace_back(argv[i]);                                                                  \
-    }                                                                                              \
-    /* std::exit only destroys static objects */                                                   \
-    static auto state =                                                                            \
-        ::cplib::checker::State(::std::unique_ptr<decltype(initializer_)>(new initializer_));      \
-    state.initializer->init(argv[0], args);                                                        \
-    input_struct_ input{state.inf.read(::cplib::var::ExtVar<input_struct_>("input"))};             \
-    output_struct_ output{state.ouf.read(::cplib::var::ExtVar<output_struct_>("output", input))};  \
-    output_struct_ answer{state.ans.read(::cplib::var::ExtVar<output_struct_>("answer", input))};  \
-    ::cplib::evaluate::Result result = state.evaluator("output", output, answer, input);           \
-    ::std::string report_message;                                                                  \
-    auto evaluator_trace_stacks = state.reporter->get_evaluator_trace_stacks();                    \
-    for (const auto &trace_stack : evaluator_trace_stacks) {                                       \
-      if (trace_stack.stack.empty()) {                                                             \
-        continue;                                                                                  \
-      }                                                                                            \
-      const auto &trace_result = trace_stack.stack.back().result;                                  \
-      if (!trace_result.has_value()) {                                                             \
-        continue;                                                                                  \
-      }                                                                                            \
-      const auto &trace_message = trace_result->message;                                           \
-      if (trace_message.empty()) {                                                                 \
-        continue;                                                                                  \
-      }                                                                                            \
-      report_message = trace_message;                                                              \
-      break;                                                                                       \
-    }                                                                                              \
-    ::cplib::checker::Report report{::cplib::checker::Report::Status(result.status), result.score, \
-                                    report_message};                                               \
-    state.quit(report);                                                                            \
-    return 0;                                                                                      \
+#define CPLIB_REGISTER_CHECKER_OPT(input_struct_, output_struct_, initializer_)          \
+  auto main(int argc, char **argv) -> int {                                              \
+    return ::cplib::checker::run_checker<input_struct_, output_struct_>(                 \
+        argc, argv, ::std::unique_ptr<::cplib::checker::Initializer>(new initializer_)); \
   }
 
 #ifndef CPLIB_CHECKER_DEFAULT_INITIALIZER

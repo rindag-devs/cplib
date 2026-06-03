@@ -174,6 +174,24 @@ inline auto State::quit_pc(double points, std::string_view message) -> void {
 }
 // /Impl State }}}
 
+namespace detail {
+inline auto collect_args(int argc, char **argv) -> std::vector<std::string> {
+  std::vector<std::string> args;
+  args.reserve(argc);
+  for (int i = 1; i < argc; ++i) {
+    args.emplace_back(argv[i]);
+  }
+  return args;
+}
+}  // namespace detail
+
+inline auto run_interactor(State &state, int argc, char **argv, MainFunc main_func) -> int {
+  auto args = detail::collect_args(argc, argv);
+  state.initializer->init(argv[0], args);
+  main_func();
+  return 0;
+}
+
 // Impl DefaultInitializer {{{
 namespace detail {
 constexpr std::string_view ARGS_USAGE = "<input_file> [--report-format={auto|json|text}]";

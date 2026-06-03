@@ -253,25 +253,22 @@ struct ColoredTextReporter : Reporter {
   [[nodiscard]] auto report(const Report &report) -> int override;
 };
 
+using MainFunc = auto (*)() -> void;
+
+auto run_interactor(State &state, int argc, char **argv, MainFunc main_func) -> int;
+
 /**
  * Macro to register interactor with custom initializer.
  *
  * @param var_ The variable name of state object to be initialized.
  * @param initializer_ The initializer function.
  */
-#define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_)                                    \
-  auto var_ =                                                                                \
-      ::cplib::interactor::State(std::unique_ptr<decltype(initializer_)>(new initializer_)); \
-  auto main(int argc, char **argv) -> int {                                                  \
-    ::std::vector<::std::string> args;                                                       \
-    args.reserve(argc);                                                                      \
-    for (int i = 1; i < argc; ++i) {                                                         \
-      args.emplace_back(argv[i]);                                                            \
-    }                                                                                        \
-    var_.initializer->init(argv[0], args);                                                   \
-    auto interactor_main(void) -> void;                                                      \
-    interactor_main();                                                                       \
-    return 0;                                                                                \
+#define CPLIB_REGISTER_INTERACTOR_OPT(var_, initializer_)                          \
+  auto interactor_main() -> void;                                                  \
+  auto var_ = ::cplib::interactor::State(                                          \
+      ::std::unique_ptr<::cplib::interactor::Initializer>(new initializer_));      \
+  auto main(int argc, char **argv) -> int {                                        \
+    return ::cplib::interactor::run_interactor(var_, argc, argv, interactor_main); \
   }
 
 #ifndef CPLIB_INTERACTOR_DEFAULT_INITIALIZER

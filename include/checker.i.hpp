@@ -244,6 +244,59 @@ inline auto State::quit_pc(double points, std::string_view message) -> void {
 }
 // /Impl State }}}
 
+namespace detail {
+inline auto collect_args(int argc, char **argv) -> std::vector<std::string> {
+  std::vector<std::string> args;
+  args.reserve(argc);
+  for (int i = 1; i < argc; ++i) {
+    args.emplace_back(argv[i]);
+  }
+  return args;
+}
+
+inline auto first_evaluator_trace_message(
+    const std::vector<trace::TraceStack<evaluate::EvaluatorTrace>> &trace_stacks) -> std::string {
+  for (const auto &trace_stack : trace_stacks) {
+    if (trace_stack.stack.empty()) {
+      continue;
+    }
+    const auto &trace_result = trace_stack.stack.back().result;
+    if (!trace_result.has_value()) {
+      continue;
+    }
+    const auto &trace_message = trace_result->message;
+    if (trace_message.empty()) {
+      continue;
+    }
+    return trace_message;
+  }
+  return "";
+}
+}  // namespace detail
+
+template <class Input, class Output>
+auto run_checker(int argc, char **argv, std::unique_ptr<Initializer> initializer) -> int {
+  static_assert(var::Readable<Input>, "Input should be Readable");
+  static_assert(var::Readable<Output, const Input &>, "Output should be Readable");
+  static_assert(evaluate::Evaluatable<Output, const Input &>, "Output should be Evaluatable");
+
+  auto args = detail::collect_args(argc, argv);
+
+  /* std::exit only destroys static objects */
+  static auto state = State(std::move(initializer));
+  state.initializer->init(argv[0], args);
+
+  Input input{state.inf.read(var::ExtVar<Input>("input"))};
+  Output output{state.ouf.read(var::ExtVar<Output>("output", input))};
+  Output answer{state.ans.read(var::ExtVar<Output>("answer", input))};
+  evaluate::Result result = state.evaluator("output", output, answer, input);
+  std::string report_message =
+      detail::first_evaluator_trace_message(state.reporter->get_evaluator_trace_stacks());
+  Report report{Report::Status(result.status), result.score, report_message};
+  state.quit(report);
+  return 0;
+}
+
 // Impl DefaultInitializer {{{
 namespace detail {
 constexpr std::string_view ARGS_USAGE =

@@ -102,6 +102,79 @@ inline auto State::quit(const Report &report) -> void {
 inline auto State::quit_ok() -> void { quit(Report(Report::Status::OK, "")); }
 // /Impl State }}}
 
+inline ArgumentsContext::ArgumentsContext(State &state) : state(&state), value_map() {
+  set_active_arguments_context(*this);
+}
+
+namespace detail {
+inline ArgumentsContext *active_arguments_context_{};
+}
+
+inline auto set_active_arguments_context(ArgumentsContext &context) -> void {
+  detail::active_arguments_context_ = &context;
+}
+
+inline auto active_arguments_context() -> ArgumentsContext & {
+  if (!detail::active_arguments_context_) {
+    panic("Generator arguments context is not initialized");
+  }
+  return *detail::active_arguments_context_;
+}
+
+inline FlagArg::FlagArg(std::string name)
+    : name(std::move(name)), context(&active_arguments_context()) {
+  context->state->required_flag_args.emplace_back(this->name);
+  auto arg_name = this->name;
+  auto *arg_context = context;
+  context->state->flag_parsers.emplace_back(
+      [arg_name, arg_context](const std::set<std::string> &flag_args) -> void {
+        *std::any_cast<ResultType>(&arg_context->value_map[arg_name]) =
+            static_cast<ResultType>(flag_args.count(arg_name));
+      });
+}
+
+inline auto FlagArg::operator|(ArgValueTag) const -> const ResultType & {
+  return *std::any_cast<ResultType>(&(context->value_map[name] = ResultType{}));
+}
+
+template <class T>
+template <class... Args>
+VarArg<T>::VarArg(Args &&...args)
+    : var(std::forward<Args>(args)...), context(&active_arguments_context()) {
+  context->state->required_var_args.emplace_back(var.name());
+  auto arg_var = this->var;
+  auto *arg_context = context;
+  context->state->var_parsers.emplace_back(
+      [arg_var, arg_context](const std::map<std::string, std::string> &var_args) -> void {
+        auto arg_name = std::string(arg_var.name());
+        *std::any_cast<ResultType>(&arg_context->value_map[arg_name]) =
+            arg_var.parse(var_args.at(arg_name));
+      });
+}
+
+template <class T>
+auto VarArg<T>::operator|(ArgValueTag) const -> const ResultType & {
+  return *std::any_cast<ResultType>(&(context->value_map[std::string(var.name())] = ResultType{}));
+}
+
+namespace detail {
+inline auto collect_args(int argc, char **argv) -> std::vector<std::string> {
+  std::vector<std::string> args;
+  args.reserve(argc);
+  for (int i = 1; i < argc; ++i) {
+    args.emplace_back(argv[i]);
+  }
+  return args;
+}
+}  // namespace detail
+
+inline auto run_generator(State &state, int argc, char **argv, MainFunc main_func) -> int {
+  auto args = detail::collect_args(argc, argv);
+  state.initializer->init(argv[0], args);
+  main_func();
+  return 0;
+}
+
 // Impl DefaultInitializer {{{
 namespace detail {
 inline auto parse_arg(std::string_view arg) -> std::pair<std::string, std::optional<std::string>> {
