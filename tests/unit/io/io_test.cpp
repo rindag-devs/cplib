@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <array>
 #include <cerrno>
 #include <cstddef>
 #include <ios>
@@ -125,52 +126,54 @@ TEST(IoTest, EofCheck) {
   EXPECT_TRUE(stream.seek_eof());
 }
 
-TEST(IoTest, WriteAllRetriesAfterPartialWrites) {
+TEST(IoTest, WriteAllRetriesAfterPartial) {
   partial_write_call_count = 0;
-  constexpr char data[] = "abcdef";
-  const auto written = cplib::io::detail::write_all(-1, data, 6, partial_write_once);
+  constexpr auto data = std::to_array("abcdef");
+  const auto written = cplib::io::detail::write_all(-1, data.data(), 6, partial_write_once);
   EXPECT_EQ(written, 6);
 }
 
 TEST(IoTest, WriteAllRetriesAfterEintr) {
   interrupted_write_call_count = 0;
-  constexpr char data[] = "abcdef";
-  const auto written = cplib::io::detail::write_all(-1, data, 6, interrupted_then_partial_write);
+  constexpr auto data = std::to_array("abcdef");
+  const auto written =
+      cplib::io::detail::write_all(-1, data.data(), 6, interrupted_then_partial_write);
   EXPECT_EQ(written, 6);
 }
 
-TEST(IoTest, WriteAllReturnsPartialCountOnWouldBlock) {
+TEST(IoTest, WriteAllStopsOnWouldBlock) {
   would_block_write_call_count = 0;
-  constexpr char data[] = "abcdef";
-  const auto written = cplib::io::detail::write_all(-1, data, 6, partial_then_would_block);
+  constexpr auto data = std::to_array("abcdef");
+  const auto written = cplib::io::detail::write_all(-1, data.data(), 6, partial_then_would_block);
   EXPECT_EQ(written, 3);
 }
 
-TEST(IoTest, WriteAllPanicsOnHardFailureBeforeAnyByteIsWritten) {
+TEST(IoTest, WriteAllPanicsBeforeWrite) {
   failing_write_call_count = 0;
   auto old_handler = std::move(cplib::detail::panic_impl);
   cplib::detail::panic_impl = [](std::string_view message) -> void {
     throw std::runtime_error(std::string(message));
   };
 
-  constexpr char data[] = "abcdef";
-  EXPECT_THROW(static_cast<void>(cplib::io::detail::write_all(-1, data, 6, always_fail_write)),
-               std::runtime_error);
+  constexpr auto data = std::to_array("abcdef");
+  EXPECT_THROW(
+      static_cast<void>(cplib::io::detail::write_all(-1, data.data(), 6, always_fail_write)),
+      std::runtime_error);
   EXPECT_EQ(failing_write_call_count, 1);
 
   cplib::detail::panic_impl = std::move(old_handler);
 }
 
-TEST(IoTest, WriteAllPanicsOnHardFailureAfterPartialWrite) {
+TEST(IoTest, WriteAllPanicsAfterPartial) {
   failing_write_call_count = 0;
   auto old_handler = std::move(cplib::detail::panic_impl);
   cplib::detail::panic_impl = [](std::string_view message) -> void {
     throw std::runtime_error(std::string(message));
   };
 
-  constexpr char data[] = "abcdef";
+  constexpr auto data = std::to_array("abcdef");
   EXPECT_THROW(
-      static_cast<void>(cplib::io::detail::write_all(-1, data, 6, partial_then_fail_write)),
+      static_cast<void>(cplib::io::detail::write_all(-1, data.data(), 6, partial_then_fail_write)),
       std::runtime_error);
   EXPECT_EQ(failing_write_call_count, 2);
 
@@ -179,8 +182,9 @@ TEST(IoTest, WriteAllPanicsOnHardFailureAfterPartialWrite) {
 
 TEST(IoTest, ReadAvailableRetriesAfterEintr) {
   interrupted_read_call_count = 0;
-  char buffer[1] = {'\0'};
-  const auto num_read = cplib::io::detail::read_available(-1, buffer, 1, interrupted_then_read);
+  std::array<char, 1> buffer{0};
+  const auto num_read =
+      cplib::io::detail::read_available(-1, buffer.data(), 1, interrupted_then_read);
   EXPECT_EQ(num_read, 1);
   EXPECT_EQ(buffer[0], 'x');
 }
@@ -192,9 +196,9 @@ TEST(IoTest, ReadAvailablePanicsOnHardFailure) {
     throw std::runtime_error(std::string(message));
   };
 
-  char buffer[1] = {'\0'};
+  std::array<char, 1> buffer{0};
   EXPECT_THROW(
-      static_cast<void>(cplib::io::detail::read_available(-1, buffer, 1, always_fail_read)),
+      static_cast<void>(cplib::io::detail::read_available(-1, buffer.data(), 1, always_fail_read)),
       std::runtime_error);
   EXPECT_EQ(failing_read_call_count, 1);
 
@@ -202,8 +206,8 @@ TEST(IoTest, ReadAvailablePanicsOnHardFailure) {
 }
 
 TEST(IoTest, OutBufWritesCompletePayload) {
-  int pipe_fds[2];
-  ASSERT_EQ(pipe(pipe_fds), 0);
+  std::array<int, 2> pipe_fds{};
+  ASSERT_EQ(pipe(pipe_fds.data()), 0);
 
   {
     cplib::io::OutBuf out(pipe_fds[1]);

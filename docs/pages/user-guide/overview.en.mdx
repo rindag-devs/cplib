@@ -16,18 +16,16 @@ Here is a basic example of an A+B problem checker using CPLib:
 ```cpp filename="chk.cpp" copy showLineNumbers
 #include "cplib.hpp"
 
-using namespace cplib;
-
 // Define the Input struct to read problem-specific inputs (A and B for A+B problem)
 struct Input {
   int a, b;
 
-  static Input read(var::Reader& in) {
+  static auto read(cplib::var::Reader &in) -> Input {
     // Read integer 'a' within range [-1000, 1000]
-    auto a = in.read(var::i32("a", -1000, 1000));
+    auto a = in.read(cplib::var::i32("a", -1000, 1000));
     // Read integer 'b' within range [-1000, 1000]
-    auto b = in.read(var::i32("b", -1000, 1000));
-    return {a, b};
+    auto b = in.read(cplib::var::i32("b", -1000, 1000));
+    return {.a = a, .b = b};
   }
 };
 
@@ -37,20 +35,20 @@ struct Output {
 
   // Static read method to parse participant/jury output
   // It receives a var::Reader and the Input struct for context if needed.
-  static Output read(var::Reader& in, const Input&) {
+  static auto read(cplib::var::Reader &in, const Input &) -> Output {
     // Read integer 'ans' within range [-2000, 2000]
-    auto ans = in.read(var::i32("ans", -2000, 2000));
-    return {ans};
+    auto ans = in.read(cplib::var::i32("ans", -2000, 2000));
+    return {.ans = ans};
   }
 
   // Static evaluate method to compare participant's output with jury's output
   // It receives an evaluate::Evaluator, participant's output (pans),
   // jury's output (jans), and the original Input.
-  static evaluate::Result evaluate(evaluate::Evaluator& ev, const Output& pans, const Output& jans,
-                                   const Input&) {
+  static auto evaluate(cplib::evaluate::Evaluator &ev, const Output &pans, const Output &jans,
+                       const Input &) -> cplib::evaluate::Result {
     // Use ev.eq to compare the 'ans' field.
     // If pans.ans == jans.ans, it contributes to AC. Otherwise, it marks WA.
-    auto res = evaluate::Result::ac();
+    auto res = cplib::evaluate::Result::ac();
     res &= ev.eq("ans", pans.ans, jans.ans);
     return res;
   }
@@ -87,23 +85,25 @@ Here is a simple example that shows how to read a directed graph by combining an
 
 ```cpp
 struct Edge {
-  int32_t from, to;
+  std::int32_t from, to;
 
-  static auto read(var::Reader &in, int32_t n) -> Edge {
-    auto [from, to] = in(var::i32("from", 1, n), var::i32("to", 1, n));
-    if (from == to) in.fail("Self-loops are not allowed");
-    return {from, to};
+  static auto read(cplib::var::Reader &in, std::int32_t n) -> Edge {
+    auto [from, to] = in(cplib::var::i32("from", 1, n), cplib::var::i32("to", 1, n));
+    if (from == to) {
+      in.fail("Self-loops are not allowed");
+    }
+    return {.from = from, .to = to};
   }
 };
 
 struct Graph {
-  int32_t n, m;
+  std::int32_t n, m;
   std::vector<Edge> edges;
 
-  static auto read(var::Reader &in) -> Graph {
-    auto [n, m] = in(var::i32("n"), var::i32("m"));
-    auto edges = in.read(var::ExtVar<Edge>("edge", n) * m);
-    return {n, m, edges};
+  static auto read(cplib::var::Reader &in) -> Graph {
+    auto [n, m] = in(cplib::var::i32("n"), cplib::var::i32("m"));
+    auto edges = in.read(cplib::var::ExtVar<Edge>("edge", n) * m);
+    return {.n = n, .m = m, .edges = std::move(edges)};
   }
 };
 ```

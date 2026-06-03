@@ -71,7 +71,7 @@ TEST(RandomTest, WeightedChoiceMap) {
   EXPECT_GT(common_cnt, 90);
 }
 
-TEST(RandomTest, WeightedNextHandlesExtremeIntegralBounds) {
+TEST(RandomTest, WeightedNextExtremeBounds) {
   Random rnd(42);
   for (int i = 0; i < 32; ++i) {
     const auto value =
@@ -81,7 +81,7 @@ TEST(RandomTest, WeightedNextHandlesExtremeIntegralBounds) {
   }
 }
 
-TEST(RandomTest, WeightedNextHandlesFullUnsignedRange) {
+TEST(RandomTest, WeightedNextFullUnsignedRange) {
   Random rnd(42);
   bool saw_non_zero = false;
   for (int i = 0; i < 32; ++i) {

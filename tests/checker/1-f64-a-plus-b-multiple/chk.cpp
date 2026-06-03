@@ -17,30 +17,28 @@
 
 #include "cplib.hpp"
 
-using namespace cplib;
-
 constexpr double MAX_ERR = 1e-6;
 
 struct Input {
   int n;
 
-  static Input read(var::Reader &in) {
-    int n = in.read(var::i32("n"));
-    return {n};
+  static auto read(cplib::var::Reader &in) -> Input {
+    int n = in.read(cplib::var::i32("n"));
+    return {.n = n};
   }
 };
 
 struct Output {
   std::vector<double> ans;
 
-  static Output read(var::Reader &in, Input inp) {
-    auto ans = in.read(var::f64("ans") * inp.n);
-    return {ans};
+  static auto read(cplib::var::Reader &in, Input inp) -> Output {
+    auto ans = in.read(cplib::var::f64("ans") * inp.n);
+    return {.ans = ans};
   }
 
-  static evaluate::Result evaluate(evaluate::Evaluator &ev, const Output &pans, const Output &jans,
-                                   Input inp) {
-    auto res = evaluate::Result::ac();
+  static auto evaluate(cplib::evaluate::Evaluator &ev, const Output &pans, const Output &jans,
+                       Input inp) -> cplib::evaluate::Result {
+    auto res = cplib::evaluate::Result::ac();
     for (int i = 0; i < inp.n; ++i) {
       res &= ev.approx(std::to_string(i), pans.ans[i], jans.ans[i], MAX_ERR);
     }

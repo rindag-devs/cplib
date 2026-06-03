@@ -299,12 +299,20 @@ struct ColoredTextReporter : Reporter {
     ::cplib::evaluate::Result result = state.evaluator("output", output, answer, input);           \
     ::std::string report_message;                                                                  \
     auto evaluator_trace_stacks = state.reporter->get_evaluator_trace_stacks();                    \
-    auto it = ::std::ranges::find_if(evaluator_trace_stacks, [](const auto &x) -> bool {           \
-      return !x.stack.empty() && x.stack.back().result.has_value() &&                              \
-             !x.stack.back().result->message.empty();                                              \
-    });                                                                                            \
-    if (it != evaluator_trace_stacks.end()) {                                                      \
-      report_message = it->stack.back().result->message;                                           \
+    for (const auto &trace_stack : evaluator_trace_stacks) {                                       \
+      if (trace_stack.stack.empty()) {                                                             \
+        continue;                                                                                  \
+      }                                                                                            \
+      const auto &trace_result = trace_stack.stack.back().result;                                  \
+      if (!trace_result.has_value()) {                                                             \
+        continue;                                                                                  \
+      }                                                                                            \
+      const auto &trace_message = trace_result->message;                                           \
+      if (trace_message.empty()) {                                                                 \
+        continue;                                                                                  \
+      }                                                                                            \
+      report_message = trace_message;                                                              \
+      break;                                                                                       \
     }                                                                                              \
     ::cplib::checker::Report report{::cplib::checker::Report::Status(result.status), result.score, \
                                     report_message};                                               \

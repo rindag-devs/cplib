@@ -41,7 +41,7 @@ TEST(VarExtensionTest, ExtVec) {
 TEST(VarExtensionTest, FnVar) {
   auto reader = make_test_reader("42");
 
-  auto custom_logic = [](cplib::var::Reader &in, int multiplier) {
+  auto custom_logic = [](cplib::var::Reader &in, int multiplier) -> int {
     int val = in.read(cplib::var::i32());
     return val * multiplier;
   };

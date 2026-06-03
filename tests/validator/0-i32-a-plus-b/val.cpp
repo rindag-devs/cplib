@@ -15,23 +15,22 @@
 
 #include "cplib.hpp"
 
-using namespace cplib;
-
 struct Input {
-  int32_t n, m;
+  std::int32_t n, m;
 
-  static Input read(var::Reader &in) {
-    int32_t n, m;
+  static auto read(cplib::var::Reader &in) -> Input {
+    std::int32_t n, m;
     std::tie(n, std::ignore, m, std::ignore) =
-        in(var::i32("n", -1000, 1000), var::space, var::i32("m", -1000, 1000), var::eoln);
-    return {n, m};
+        in(cplib::var::i32("n", -1000, 1000), cplib::var::space, cplib::var::i32("m", -1000, 1000),
+           cplib::var::eoln);
+    return {.n = n, .m = m};
   }
 };
 
-std::vector<validator::Trait> traits(const Input &input) {
+auto traits(const Input &input) -> std::vector<cplib::validator::Trait> {
   return {
-      {"n_positive", [&]() { return input.n > 0; }},
-      {"m_positive", [&]() { return input.m > 0; }},
+      {"n_positive", [&]() -> bool { return input.n > 0; }},
+      {"m_positive", [&]() -> bool { return input.m > 0; }},
   };
 }
 

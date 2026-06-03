@@ -4,6 +4,7 @@ file(GLOB_RECURSE UNIT_TEST_SOURCES
   "io/*.cpp"
   "json/*.cpp"
   "random/*.cpp"
+  "trace/*.cpp"
   "utils/*.cpp"
   "validator/*.cpp"
   "var/*.cpp"

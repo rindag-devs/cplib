@@ -11,18 +11,16 @@
 
 #include "cplib.hpp"
 
-using namespace cplib;
-
 // Define the Input struct to read problem-specific inputs (A and B for A+B problem)
 struct Input {
   int a, b;
 
-  static Input read(var::Reader &in) {
+  static auto read(cplib::var::Reader &in) -> Input {
     // Read integer 'a' within range [-1000, 1000]
-    auto a = in.read(var::i32("a", -1000, 1000));
+    auto a = in.read(cplib::var::i32("a", -1000, 1000));
     // Read integer 'b' within range [-1000, 1000]
-    auto b = in.read(var::i32("b", -1000, 1000));
-    return {a, b};
+    auto b = in.read(cplib::var::i32("b", -1000, 1000));
+    return {.a = a, .b = b};
   }
 };
 
@@ -32,20 +30,20 @@ struct Output {
 
   // Static read method to parse participant/jury output
   // It receives a var::Reader and the Input struct for context if needed.
-  static Output read(var::Reader &in, const Input &) {
+  static auto read(cplib::var::Reader &in, const Input &) -> Output {
     // Read integer 'ans' within range [-2000, 2000]
-    auto ans = in.read(var::i32("ans", -2000, 2000));
-    return {ans};
+    auto ans = in.read(cplib::var::i32("ans", -2000, 2000));
+    return {.ans = ans};
   }
 
   // Static evaluate method to compare participant's output with jury's output
   // It receives an evaluate::Evaluator, participant's output (pans),
   // jury's output (jans), and the original Input.
-  static evaluate::Result evaluate(evaluate::Evaluator &ev, const Output &pans, const Output &jans,
-                                   const Input &) {
+  static auto evaluate(cplib::evaluate::Evaluator &ev, const Output &pans, const Output &jans,
+                       const Input &) -> cplib::evaluate::Result {
     // Use ev.eq to compare the 'ans' field.
     // If pans.ans == jans.ans, it contributes to AC. Otherwise, it marks WA.
-    auto res = evaluate::Result::ac();
+    auto res = cplib::evaluate::Result::ac();
     res &= ev.eq("ans", pans.ans, jans.ans);
     return res;
   }

@@ -16,7 +16,7 @@ struct PanicRestorer {
 };
 }  // namespace
 
-TEST(PatternTest, MatchesBoundedStringViewWithoutAllocationFallbackPath) {
+TEST(PatternTest, MatchesBoundedStringView) {
   cplib::Pattern pattern("abc");
   const std::string source = std::string("abc\0suffix", 10);
   const std::string_view prefix(source.data(), 3);
@@ -34,13 +34,14 @@ TEST(PatternTest, InvalidPatternPanics) {
   EXPECT_THROW(static_cast<void>(cplib::Pattern("(")), std::runtime_error);
 }
 
-TEST(PatternTest, CopyConstructedPatternKeepsValueSemantics) {
+TEST(PatternTest, CopyConstructedPattern) {
   cplib::Pattern original("[a-z]+");
   cplib::Pattern copy = original;
+  copy = cplib::Pattern("[0-9]+");
 
   EXPECT_TRUE(original.match("abc"));
-  EXPECT_TRUE(copy.match("xyz"));
-  EXPECT_EQ(copy.src(), original.src());
+  EXPECT_TRUE(copy.match("123"));
+  EXPECT_FALSE(copy.match("xyz"));
 }
 
 TEST(PatternTest, CopyAssignedPatternRecompilesRegex) {

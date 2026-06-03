@@ -1,6 +1,6 @@
 #include <iostream>
 
-signed main() {
+auto main() -> signed {
   int n;
   std::cin >> n;
   int l = 1, r = n;
@@ -10,12 +10,13 @@ signed main() {
     std::cout.flush();
     char res;
     std::cin >> res;
-    if (res == '>')
+    if (res == '>') {
       r = mid - 1;
-    else if (res == '=')
+    } else if (res == '=') {
       l = r = mid;
-    else
+    } else {
       l = mid + 1;
+    }
   }
   std::cout << "A " << l << '\n';
   std::cout.flush();

@@ -11,23 +11,22 @@
 
 #include <map>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "cplib.hpp"
 
-using namespace cplib;
-
 // Define an Edge struct for reading graph edges
 struct Edge {
   int u, v, w;
 
   // Edge::read takes a Reader and the graph size 'n' as context
-  static Edge read(var::Reader &in) {
+  static auto read(cplib::var::Reader &in) -> Edge {
     // Using in() operator for reading multiple variables conveniently
-    auto [u, v, w] = in(var::i32("u"), var::i32("v"), var::i32("w"));
-    return {u, v, w};
+    auto [u, v, w] = in(cplib::var::i32("u"), cplib::var::i32("v"), cplib::var::i32("w"));
+    return {.u = u, .v = v, .w = w};
   }
 };
 
@@ -36,10 +35,10 @@ struct Input {
   int n, m;
   std::map<std::pair<int, int>, int> graph;  // Adjacency map for quick edge lookup
 
-  static Input read(var::Reader &in) {
-    auto [n, m] = in(var::i32("n"), var::i32("m"));
+  static auto read(cplib::var::Reader &in) -> Input {
+    auto [n, m] = in(cplib::var::i32("n"), cplib::var::i32("m"));
     // Read 'm' edges, passing 'n' as context to Edge::read via var::ExtVar
-    auto edges = in.read(var::ExtVar<Edge>("edges") * m);
+    auto edges = in.read(cplib::var::ExtVar<Edge>("edges") * m);
 
     std::map<std::pair<int, int>, int> graph;
     for (auto [u, v, w] : edges) {
@@ -47,7 +46,7 @@ struct Input {
       graph[{v, u}] = w;  // Undirected graph
     }
 
-    return {n, m, std::move(graph)};
+    return {.n = n, .m = m, .graph = std::move(graph)};
   }
 };
 
@@ -57,45 +56,53 @@ struct Output {
   std::vector<int> plan;
 
   // Output::read takes Reader and the Input struct as context
-  static Output read(var::Reader &in, const Input &input) {
+  static auto read(cplib::var::Reader &in, const Input &input) -> Output {
     // Read sum and length, with appropriate ranges
-    auto sum = in.read(var::i32("sum", 0, std::nullopt));
-    auto len = in.read(var::i32("len", 1, input.n * input.n));  // Max path length for N nodes
+    auto sum = in.read(cplib::var::i32("sum", 0, std::nullopt));
+    auto len = in.read(cplib::var::i32("len", 1, input.n * input.n));
 
     // Read the path plan, ensuring nodes are within [1, input.n]
-    auto plan = in.read(var::i32("plan", 1, input.n) * len);
+    auto plan = in.read(cplib::var::i32("plan", 1, input.n) * len);
 
     // Perform validity checks on the path
-    if (plan.empty()) in.fail("Path cannot be empty");
-    if (plan.front() != 1) in.fail("Path should begin with 1");
-    if (plan.back() != input.n) in.fail("Path should end with n");
+    if (plan.empty()) {
+      in.fail("Path cannot be empty");
+    }
+    if (plan.front() != 1) {
+      in.fail("Path should begin with 1");
+    }
+    if (plan.back() != input.n) {
+      in.fail("Path should end with n");
+    }
 
     int result_sum = 0;
-    for (int i = 1; i < (int)plan.size(); ++i) {
-      if (!input.graph.count({plan[i - 1], plan[i]}))
-        in.fail(format("Edge {} <-> {} does not exist", plan[i - 1], plan[i]));
+    for (std::size_t i = 1; i < plan.size(); ++i) {
+      if (!input.graph.count({plan[i - 1], plan[i]})) {
+        in.fail(cplib::format("Edge {} <-> {} does not exist", plan[i - 1], plan[i]));
+      }
       result_sum += input.graph.at({plan[i - 1], plan[i]});
     }
 
-    if (result_sum != sum)
-      in.fail(format("Calculated path sum ({}) from plan does not match reported sum ({})",
-                     result_sum, sum));
+    if (result_sum != sum) {
+      in.fail(cplib::format("Calculated path sum ({}) from plan does not match reported sum ({})",
+                            result_sum, sum));
+    }
 
-    return {sum, len, std::move(plan)};
+    return {.sum = sum, .len = len, .plan = std::move(plan)};
   }
 
   // Output::evaluate compares participant's output with jury's output
-  static evaluate::Result evaluate(evaluate::Evaluator &ev, const Output &pans, const Output &jans,
-                                   const Input &) {
-    auto res = evaluate::Result::ac();
+  static auto evaluate(cplib::evaluate::Evaluator &ev, const Output &pans, const Output &jans,
+                       const Input &) -> cplib::evaluate::Result {
+    auto res = cplib::evaluate::Result::ac();
 
     // If participant's sum is strictly less than jury's sum,
     // it implies the jury's answer is not optimal. This is an internal error.
     if (pans.sum < jans.sum) {
       ev.fail(
-          format("Participant's path sum ({}) is less than jury's path sum ({})! This indicates a "
-                 "judge error.",
-                 pans.sum, jans.sum));
+          cplib::format("Participant's path sum ({}) is less than jury's path sum ({})! This "
+                        "indicates a judge error.",
+                        pans.sum, jans.sum));
     }
 
     // The problem asks for the shortest path sum.

@@ -4,7 +4,7 @@
 #include "cplib.hpp"
 #include "gtest/gtest.h"
 
-TEST(ValidatorReporterTest, JsonReporterSkipsHiddenRootTraceTree) {
+TEST(ValidatorReporterTest, JsonSkipsHiddenRootTree) {
   cplib::trace::TraceTreeNode<cplib::var::ReaderTrace> root(
       cplib::var::ReaderTrace("root", cplib::io::Position(0, 0, 0)));
   root.tags.emplace("#hidden", cplib::json::Value(true));

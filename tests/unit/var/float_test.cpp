@@ -69,7 +69,7 @@ TEST(VarStrictFloatTest, LongDoubleFixed) {
   EXPECT_LT(std::abs(value - 1.25L), 1e-18L);
 }
 
-TEST(VarStrictFloatTest, LongDoubleRejectsScientificNotation) {
+TEST(VarStrictFloatTest, LongDoubleRejectsExponent) {
   auto reader = make_test_reader("1e2");
   EXPECT_THROW(reader.read(cplib::var::fexts("v", 0.0L, 200.0L, 0, 10)), TestExitException);
 }
