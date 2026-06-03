@@ -9,6 +9,7 @@
  * ```
  */
 
+#include <format>
 #include <map>
 #include <optional>
 #include <ranges>
@@ -78,14 +79,14 @@ struct Output {
     int result_sum = 0;
     for (std::size_t i = 1; i < plan.size(); ++i) {
       if (!input.graph.count({plan[i - 1], plan[i]})) {
-        in.fail(cplib::format("Edge {} <-> {} does not exist", plan[i - 1], plan[i]));
+        in.fail(std::format("Edge {} <-> {} does not exist", plan[i - 1], plan[i]));
       }
       result_sum += input.graph.at({plan[i - 1], plan[i]});
     }
 
     if (result_sum != sum) {
-      in.fail(cplib::format("Calculated path sum ({}) from plan does not match reported sum ({})",
-                            result_sum, sum));
+      in.fail(std::format("Calculated path sum ({}) from plan does not match reported sum ({})",
+                          result_sum, sum));
     }
 
     return {.sum = sum, .len = len, .plan = std::move(plan)};
@@ -100,9 +101,9 @@ struct Output {
     // it implies the jury's answer is not optimal. This is an internal error.
     if (pans.sum < jans.sum) {
       ev.fail(
-          cplib::format("Participant's path sum ({}) is less than jury's path sum ({})! This "
-                        "indicates a judge error.",
-                        pans.sum, jans.sum));
+          std::format("Participant's path sum ({}) is less than jury's path sum ({})! This "
+                      "indicates a judge error.",
+                      pans.sum, jans.sum));
     }
 
     // The problem asks for the shortest path sum.

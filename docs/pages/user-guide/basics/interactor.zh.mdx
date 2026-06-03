@@ -38,6 +38,7 @@ CPLib interactor 的交互流程大体如下：
 首先我们从一个空工作目录开始，将 `cplib.hpp` 复制到工作目录下．然后新建文件 `intr.cpp`，并输入以下代码：
 
 ```cpp filename="intr.cpp" copy showLineNumbers
+#include <format>
 #include <variant>
 
 #include "cplib.hpp"
@@ -104,7 +105,7 @@ auto interactor_main() -> void {
       if (answer->x == input.m) {
         intr.quit_ac();
       } else {
-        intr.quit_wa(cplib::format("Expected {}, got {}", input.m, answer->x));
+        intr.quit_wa(std::format("Expected {}, got {}", input.m, answer->x));
       }
     }
   }

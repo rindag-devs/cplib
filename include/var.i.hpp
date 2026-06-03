@@ -30,6 +30,7 @@
 #include <concepts>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
 #include <functional>
 #include <ios>
 #include <iostream>
@@ -62,12 +63,12 @@ inline ReaderTrace::ReaderTrace(std::string var_name, io::Position pos)
 [[nodiscard]] inline auto ReaderTrace::node_name() const -> std::string { return var_name; }
 
 [[nodiscard]] inline auto ReaderTrace::to_plain_text() const -> std::string {
-  return cplib::format("{} @ line {}, col {}, byte {}", var_name, pos.line + 1, pos.col + 1,
-                       pos.byte + 1);
+  return std::format("{} @ line {}, col {}, byte {}", var_name, pos.line + 1, pos.col + 1,
+                     pos.byte + 1);
 }
 
 [[nodiscard]] inline auto ReaderTrace::to_colored_text() const -> std::string {
-  return cplib::format(
+  return std::format(
       "\x1b[0;33m{}\x1b[0m @ line \x1b[0;33m{}\x1b[0m, col \x1b[0;33m{}\x1b[0m, byte "
       "\x1b[0;33m{}\x1b[0m",
       var_name, pos.line + 1, pos.col + 1, pos.byte + 1);
@@ -93,7 +94,7 @@ inline Reader::Reader(std::unique_ptr<io::InStream> inner, trace::Level trace_le
     : trace::Traced<ReaderTrace>(
           static_cast<trace::Level>(
               std::min(static_cast<int>(trace_level), CPLIB_READER_TRACE_LEVEL_MAX)),
-          ReaderTrace(cplib::format("<{}>", inner ? inner->name() : "dummy"), io::Position())),
+          ReaderTrace(std::format("<{}>", inner ? inner->name() : "dummy"), io::Position())),
       inner_(std::move(inner)),
       fail_func_(std::move(fail_func)) {}
 
@@ -255,8 +256,8 @@ inline auto Int<T>::read_from(Reader &in) const -> T {
     if (in.inner().eof()) {
       in.fail("Expected an integer, got EOF");
     } else {
-      in.fail(cplib::format("Expected an integer, got whitespace `{}`",
-                            cplib::detail::hex_encode(in.inner().seek())));
+      in.fail(std::format("Expected an integer, got whitespace `{}`",
+                          cplib::detail::hex_encode(in.inner().seek())));
     }
   }
 
@@ -269,21 +270,21 @@ inline auto Int<T>::read_from(Reader &in) const -> T {
     // * ec == std::errc::invalid_argument: String is not a valid integer format (e.g. "abc",
     //   "NaN", "Inf")
     // * ptr != last: The string is not fully parsed (for example "123abc")
-    in.fail(cplib::format("Expected an integer, got `{}`", compress(token)));
+    in.fail(std::format("Expected an integer, got `{}`", compress(token)));
   } else if (ec == std::errc::result_out_of_range) {
     // The parsing is successful, but the value exceeds the range of T
-    in.fail(cplib::format("Integer value `{}` is out of range for type `{}`", compress(token),
-                          typeid(T).name()));
+    in.fail(std::format("Integer value `{}` is out of range for type `{}`", compress(token),
+                        typeid(T).name()));
   }
 
   if (min.has_value() && result < *min) {
-    in.fail(cplib::format("Expected an integer >= {}, got `{}`", std::to_string(*min),
-                          compress(token)));
+    in.fail(
+        std::format("Expected an integer >= {}, got `{}`", std::to_string(*min), compress(token)));
   }
 
   if (max.has_value() && result > *max) {
-    in.fail(cplib::format("Expected an integer <= {}, got `{}`", std::to_string(*max),
-                          compress(token)));
+    in.fail(
+        std::format("Expected an integer <= {}, got `{}`", std::to_string(*max), compress(token)));
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -316,8 +317,8 @@ inline auto Float<T>::read_from(Reader &in) const -> T {
     if (in.inner().eof()) {
       in.fail("Expected a float, got EOF");
     } else {
-      in.fail(cplib::format("Expected a float, got whitespace `{}`",
-                            cplib::detail::hex_encode(in.inner().seek())));
+      in.fail(std::format("Expected a float, got whitespace `{}`",
+                          cplib::detail::hex_encode(in.inner().seek())));
     }
   }
 
@@ -331,17 +332,15 @@ inline auto Float<T>::read_from(Reader &in) const -> T {
       first, last, cplib::detail::float_parse::Mode::General, result);
 
   if (!parsed) {
-    in.fail(cplib::format("Expected a float, got `{}`", compress(token)));
+    in.fail(std::format("Expected a float, got `{}`", compress(token)));
   }
 
   if (min.has_value() && result < *min) {
-    in.fail(
-        cplib::format("Expected a float >= {}, got `{}`", std::to_string(*min), compress(token)));
+    in.fail(std::format("Expected a float >= {}, got `{}`", std::to_string(*min), compress(token)));
   }
 
   if (max.has_value() && result > *max) {
-    in.fail(
-        cplib::format("Expected a float <= {}, got `{}`", std::to_string(*max), compress(token)));
+    in.fail(std::format("Expected a float <= {}, got `{}`", std::to_string(*max), compress(token)));
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -395,8 +394,8 @@ inline auto StrictFloat<T>::read_from(Reader &in) const -> T {
     if (in.inner().eof()) {
       in.fail("Expected a strict float, got EOF");
     } else {
-      in.fail(cplib::format("Expected a strict float, got whitespace `{}`",
-                            cplib::detail::hex_encode(in.inner().seek())));
+      in.fail(std::format("Expected a strict float, got whitespace `{}`",
+                          cplib::detail::hex_encode(in.inner().seek())));
     }
   }
 
@@ -409,33 +408,33 @@ inline auto StrictFloat<T>::read_from(Reader &in) const -> T {
                                                   cplib::detail::float_parse::Mode::Fixed, result);
 
   if (!parsed) {
-    in.fail(cplib::format("Expected a strict float, got `{}`", compress(token)));
+    in.fail(std::format("Expected a strict float, got `{}`", compress(token)));
   }
 
   std::size_t n_after_point = detail::get_decimal_places(token);
 
   if (n_after_point < min_n_digit) {
-    in.fail(cplib::format(
+    in.fail(std::format(
         "Expected a strict float with >= {} digits after point, got `{}` with {} digits "
         "after point",
         min_n_digit, compress(token), n_after_point));
   }
 
   if (n_after_point > max_n_digit) {
-    in.fail(cplib::format(
+    in.fail(std::format(
         "Expected a strict float with <= {} digits after point, got `{}` with {} digits "
         "after point",
         max_n_digit, compress(token), n_after_point));
   }
 
   if (result < min) {
-    in.fail(cplib::format("Expected a strict float >= {}, got `{}`", std::to_string(min),
-                          compress(token)));
+    in.fail(std::format("Expected a strict float >= {}, got `{}`", std::to_string(min),
+                        compress(token)));
   }
 
   if (result > max) {
-    in.fail(cplib::format("Expected a strict float <= {}, got `{}`", std::to_string(max),
-                          compress(token)));
+    in.fail(std::format("Expected a strict float <= {}, got `{}`", std::to_string(max),
+                        compress(token)));
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -513,8 +512,8 @@ inline auto String::read_from(Reader &in) const -> std::string {
         if (in.inner().eof()) {
           in.fail("Expected a " + kind + ", got EOF");
         } else {
-          in.fail(cplib::format("Expected a {}, got whitespace `{}`", kind,
-                                cplib::detail::hex_encode(in.inner().seek())));
+          in.fail(std::format("Expected a {}, got whitespace `{}`", kind,
+                              cplib::detail::hex_encode(in.inner().seek())));
         }
       }
       break;
@@ -526,8 +525,8 @@ inline auto String::read_from(Reader &in) const -> std::string {
         if (in.inner().eof()) {
           in.fail("Expected a " + kind + ", got EOF");
         } else {
-          in.fail(cplib::format("Expected a {}, got whitespace `{}`", kind,
-                                cplib::detail::hex_encode(in.inner().seek())));
+          in.fail(std::format("Expected a {}, got whitespace `{}`", kind,
+                              cplib::detail::hex_encode(in.inner().seek())));
         }
       }
       break;
@@ -547,8 +546,8 @@ inline auto String::read_from(Reader &in) const -> std::string {
   }
 
   if (pat.has_value() && !pat->match(result)) {
-    in.fail(cplib::format("Expected a {} matching `{}`, got `{}`", kind, compress(pat->src()),
-                          compress(result)));
+    in.fail(std::format("Expected a {} matching `{}`, got `{}`", kind, compress(pat->src()),
+                        compress(result)));
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
@@ -577,27 +576,27 @@ inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
   unsigned char s = *sep;
 
   if (in.inner().eof()) {
-    in.fail(cplib::format("Expected a separator `{}`, got EOF", cplib::detail::hex_encode(s)));
+    in.fail(std::format("Expected a separator `{}`, got EOF", cplib::detail::hex_encode(s)));
   }
 
   if (in.inner().is_strict()) {
     auto got = in.inner().read();
     if (std::cmp_not_equal(got, s)) {
-      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
-                            cplib::detail::hex_encode(got)));
+      in.fail(std::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
+                          cplib::detail::hex_encode(got)));
     }
   } else if (std::isspace(static_cast<unsigned char>(s)) != 0) {
     auto got = in.inner().read();
     if (std::isspace(static_cast<unsigned char>(got)) == 0) {
-      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
-                            cplib::detail::hex_encode(got)));
+      in.fail(std::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
+                          cplib::detail::hex_encode(got)));
     }
   } else {
     in.inner().skip_blanks();
     auto got = in.inner().read();
     if (std::cmp_not_equal(got, s)) {
-      in.fail(cplib::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
-                            cplib::detail::hex_encode(got)));
+      in.fail(std::format("Expected a separator `{}`, got `{}`", cplib::detail::hex_encode(s),
+                          cplib::detail::hex_encode(got)));
     }
   }
 

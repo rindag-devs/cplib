@@ -64,7 +64,7 @@ inline auto hex_encode(int c) -> std::string {
   } else if (c == '\t') {
     return "\\t";
   } else if (std::isprint(static_cast<unsigned char>(c)) == 0) {
-    return cplib::format("\\x{:02x}", static_cast<int>(c));
+    return std::format("\\x{:02x}", static_cast<int>(c));
   } else {
     return {static_cast<char>(c)};
   }
@@ -94,11 +94,6 @@ inline auto panic(std::string_view message) -> void {
   exit(EXIT_FAILURE);  // Usually unnecessary, but in special cases to prevent problems.
 }
 // /Impl panic }}}
-
-template <class... Args>
-[[nodiscard]] inline auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string {
-  return std::vformat(fmt.get(), std::make_format_args(args...));
-}
 
 template <class T>
 inline auto float_equals(T result, T expected, T max_err) -> bool {
@@ -305,7 +300,7 @@ inline auto FlatMap<Key, T, Compare>::at(const key_type &key) ->
     typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = find(key);
   if (it == end()) {
-    cplib::panic(cplib::format("FlatMap::at: key not found"));
+    cplib::panic(std::format("FlatMap::at: key not found"));
   }
   return it->second;
 }
@@ -315,7 +310,7 @@ inline auto FlatMap<Key, T, Compare>::at(const key_type &key) const -> const
     typename FlatMap<Key, T, Compare>::mapped_type & {
   auto it = find(key);
   if (it == end()) {
-    cplib::panic(cplib::format("FlatMap::at: key not found"));
+    cplib::panic(std::format("FlatMap::at: key not found"));
   }
   return it->second;
 }

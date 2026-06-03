@@ -25,7 +25,6 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -39,22 +38,6 @@ namespace cplib {
  * @param message The message to print.
  */
 [[noreturn]] auto panic(std::string_view message) -> void;
-
-/**
- * Format string using std::format syntax.
-template <class... Args>
- *
- * @param fmt The format string.
- * @param args The variadic arguments to be formatted.
- * @return The formatted string.
- */
-template <class... Args>
-[[nodiscard]] auto format(std::format_string<Args...> fmt, Args &&...args) -> std::string;
-
-template <typename T>
-concept formattable = requires(T &v, std::format_context ctx) {
-  std::formatter<std::remove_cvref_t<T>>().format(v, ctx);
-};
 
 /**
  * Determine whether the two floating-point values are equals within the accuracy range.

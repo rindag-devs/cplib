@@ -9,6 +9,7 @@
  * ```
  */
 
+#include <format>
 #include <variant>
 
 #include "cplib.hpp"
@@ -75,7 +76,7 @@ auto interactor_main() -> void {
       if (answer->x == input.m) {
         intr.quit_ac();
       } else {
-        intr.quit_wa(cplib::format("Expected {}, got {}", input.m, answer->x));
+        intr.quit_wa(std::format("Expected {}, got {}", input.m, answer->x));
       }
     }
   }

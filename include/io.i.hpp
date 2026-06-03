@@ -45,6 +45,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <format>
 #include <ios>
 #include <limits>
 #include <memory>
@@ -87,7 +88,7 @@ inline auto system_write(int fd, const void *data, std::size_t len) -> ssize_t {
 }
 
 [[noreturn]] inline auto panic_io_error(std::string_view operation) -> void {
-  panic(cplib::format("{} failed: {}", operation, std::strerror(errno)));
+  panic(std::format("{} failed: {}", operation, std::strerror(errno)));
 }
 
 inline auto read_available(int fd, char *data, std::size_t len, ReadFunc read_func)
@@ -263,7 +264,7 @@ inline auto InStream::is_strict() const -> bool { return strict_; }
 
 inline auto InStream::set_strict(bool b) -> void {
   if (pos().byte > 0) {
-    panic(cplib::format(
+    panic(std::format(
         "Can't set strict mode of input stream `{}` when not at the beginning of the file",
         name()));
   }

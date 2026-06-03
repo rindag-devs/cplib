@@ -28,6 +28,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
 #include <ios>
 #include <memory>
 #include <optional>
@@ -71,7 +72,7 @@ template <Trace T>
 
   std::size_t id = 0;
   for (const auto &trace : stack) {
-    auto line = cplib::format("#{}: {}", id, trace.to_plain_text());
+    auto line = std::format("#{}: {}", id, trace.to_plain_text());
     ++id;
     lines.emplace_back(std::move(line));
   }
@@ -90,7 +91,7 @@ template <Trace T>
 
   std::size_t id = 0;
   for (const auto &trace : stack) {
-    auto line = cplib::format("#{}: {}", id, trace.to_colored_text());
+    auto line = std::format("#{}: {}", id, trace.to_colored_text());
     ++id;
     lines.emplace_back(std::move(line));
   }

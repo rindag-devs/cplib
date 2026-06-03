@@ -38,6 +38,7 @@ Let's start with a simple problem to explain how to write and use the interactor
 First, start with an empty working directory, copy `cplib.hpp` into the working directory, and then create a file named `intr.cpp` with the following code:
 
 ```cpp filename="intr.cpp" copy showLineNumbers
+#include <format>
 #include <variant>
 
 #include "cplib.hpp"
@@ -104,7 +105,7 @@ auto interactor_main() -> void {
       if (answer->x == input.m) {
         intr.quit_ac();
       } else {
-        intr.quit_wa(cplib::format("Expected {}, got {}", input.m, answer->x));
+        intr.quit_wa(std::format("Expected {}, got {}", input.m, answer->x));
       }
     }
   }

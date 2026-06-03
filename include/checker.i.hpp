@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -66,8 +67,8 @@ inline constexpr Report::Status::Status(evaluate::Result::Status status) {
       value_ = ACCEPTED;
       break;
     default:
-      panic(cplib::format("Construct checker report status failed: unknown evaluate status {}",
-                          static_cast<int>(status)));
+      panic(std::format("Construct checker report status failed: unknown evaluate status {}",
+                        static_cast<int>(status)));
   }
 }
 
@@ -84,7 +85,7 @@ inline constexpr auto Report::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(cplib::format("Unknown checker report status: {}", static_cast<int>(value_)));
+      panic(std::format("Unknown checker report status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
@@ -306,14 +307,14 @@ constexpr std::string_view ARGS_USAGE =
 
 inline auto print_help_message(std::string_view program_name) -> void {
   std::string msg =
-      cplib::format(CPLIB_STARTUP_TEXT
-                    "\n"
-                    "Usage:\n"
-                    "  {} {}\n"
-                    "\n"
-                    "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
-                    "enable colors",
-                    program_name, ARGS_USAGE);
+      std::format(CPLIB_STARTUP_TEXT
+                  "\n"
+                  "Usage:\n"
+                  "  {} {}\n"
+                  "\n"
+                  "Set environment variable `NO_COLOR=1` / `CLICOLOR_FORCE=1` to force disable / "
+                  "enable colors",
+                  program_name, ARGS_USAGE);
   panic(msg);
 }
 
@@ -359,7 +360,7 @@ inline auto DefaultInitializer::init(std::string_view arg0, const std::vector<st
   for (const auto &[key, value] : parsed_args.vars) {
     if (key == "report-format") {
       if (!detail::set_report_format(state, value)) {
-        panic(cplib::format("Unknown {} option: {}", key, value));
+        panic(std::format("Unknown {} option: {}", key, value));
       }
     } else {
       panic("Unknown command-line argument variable: " + key);
@@ -401,7 +402,7 @@ inline auto status_to_title_string(Report::Status status) -> std::string {
     case Report::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(cplib::format("Unknown checker report status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown checker report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -417,7 +418,7 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
     case Report::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(cplib::format("Unknown checker report status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown checker report status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }

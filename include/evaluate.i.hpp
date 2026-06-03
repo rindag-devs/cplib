@@ -29,9 +29,11 @@
 #include <compare>
 #include <concepts>
 #include <cstdlib>
+#include <format>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 /* cplib_embed_ignore start */
@@ -55,13 +57,21 @@ inline constexpr auto Result::Status::to_string() const -> std::string_view {
     case PARTIALLY_CORRECT:
       return "partially_correct";
     default:
-      panic(cplib::format("Unknown result status: {}", static_cast<int>(value_)));
+      panic(std::format("Unknown result status: {}", static_cast<int>(value_)));
       return "unknown";
   }
 }
 
 // Impl Result {{{
 namespace detail {
+template <typename T>
+concept Formattable = requires(std::formatter<std::remove_cvref_t<T>, char> formatter,
+                               std::format_parse_context parse_context,
+                               std::format_context format_context, const T &value) {
+  formatter.parse(parse_context);
+  formatter.format(value, format_context);
+};
+
 inline auto merge_message(const std::string &a, const std::string &b) -> std::string {
   if (a.empty()) {
     return b;
@@ -194,7 +204,7 @@ inline auto status_to_title_string(Result::Status status) -> std::string {
     case Result::Status::PARTIALLY_CORRECT:
       return "Partially Correct";
     default:
-      panic(cplib::format("Unknown result status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown result status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -208,7 +218,7 @@ inline auto status_to_colored_title_string(Result::Status status) -> std::string
     case Result::Status::PARTIALLY_CORRECT:
       return "\x1b[0;36mPartially Correct\x1b[0m";
     default:
-      panic(cplib::format("Unknown result status: {}", static_cast<int>(status)));
+      panic(std::format("Unknown result status: {}", static_cast<int>(status)));
       return "Unknown";
   }
 }
@@ -221,20 +231,20 @@ inline EvaluatorTrace::EvaluatorTrace(std::string var_name)
 
 [[nodiscard]] inline auto EvaluatorTrace::to_plain_text() const -> std::string {
   if (result.has_value()) {
-    return cplib::format("{}: {} {:.2f}%, {}", var_name, result->status.to_string(),
-                         result->score * 100.0, result->message);
+    return std::format("{}: {} {:.2f}%, {}", var_name, result->status.to_string(),
+                       result->score * 100.0, result->message);
   } else {
-    return cplib::format("{}: Unfinished", var_name);
+    return std::format("{}: Unfinished", var_name);
   }
 }
 
 [[nodiscard]] inline auto EvaluatorTrace::to_colored_text() const -> std::string {
   if (result.has_value()) {
-    return cplib::format("\x1b[0;33m{}\x1b[0m: {} \x1b[0;33m{:.2f}%\x1b[0m, {}", var_name,
-                         detail::status_to_colored_title_string(result->status),
-                         result->score * 100.0, result->message);
+    return std::format("\x1b[0;33m{}\x1b[0m: {} \x1b[0;33m{:.2f}%\x1b[0m, {}", var_name,
+                       detail::status_to_colored_title_string(result->status),
+                       result->score * 100.0, result->message);
   } else {
-    return cplib::format("\x1b[0;33m{}\x1b[0m: \x1b[0;33mUnfinished\x1b[0m", var_name);
+    return std::format("\x1b[0;33m{}\x1b[0m: \x1b[0;33mUnfinished\x1b[0m", var_name);
   }
 }
 
@@ -310,16 +320,16 @@ inline auto Evaluator::eq(std::string_view var_name, const T &pans, const T &jan
   Result result = Result::ac();
   if (pans != jans) {
     if constexpr (std::convertible_to<T, std::string_view>) {
-      result = Result::wa(cplib::format("`{}` is not equal: expected `{}`, got `{}`", var_name,
-                                        compress(cplib::detail::hex_encode(jans)),
-                                        compress(cplib::detail::hex_encode(pans))));
-    } else if constexpr (cplib::formattable<T>) {
-      auto jans_str = cplib::format("{}", jans);
-      auto pans_str = cplib::format("{}", pans);
-      result = Result::wa(cplib::format("`{}` is not equal: expected {}, got {}", var_name,
-                                        compress(jans_str), compress(pans_str)));
+      result = Result::wa(std::format("`{}` is not equal: expected `{}`, got `{}`", var_name,
+                                      compress(cplib::detail::hex_encode(jans)),
+                                      compress(cplib::detail::hex_encode(pans))));
+    } else if constexpr (detail::Formattable<T>) {
+      auto jans_str = std::format("{}", jans);
+      auto pans_str = std::format("{}", pans);
+      result = Result::wa(std::format("`{}` is not equal: expected {}, got {}", var_name,
+                                      compress(jans_str), compress(pans_str)));
     } else {
-      result = Result::wa(cplib::format("`{}` is not equal", var_name));
+      result = Result::wa(std::format("`{}` is not equal", var_name));
     }
   }
   post_evaluate(result);
@@ -333,9 +343,9 @@ inline auto Evaluator::approx(std::string_view var_name, const T &pans, const T 
   Result result = Result::ac();
   if (!float_equals(pans, jans, max_err)) {
     T delta = float_delta(jans, pans);
-    result = Result::wa(cplib::format(
-        "`{}` is not approximately equal: expected {:.10g}, got {:.10g}, delta {:.10g}", var_name,
-        jans, pans, delta));
+    result = Result::wa(
+        std::format("`{}` is not approximately equal: expected {:.10g}, got {:.10g}, delta {:.10g}",
+                    var_name, jans, pans, delta));
   }
   post_evaluate(result);
   return result;
@@ -353,7 +363,7 @@ inline auto Evaluator::approx_abs(std::string_view var_name, const T &pans, cons
     if (delta < 0) {
       delta = -delta;
     }
-    result = Result::wa(cplib::format(
+    result = Result::wa(std::format(
         "`{}` is not approximately equal in absolute error: expected {}, got {}, delta {}",
         var_name, jans, pans, delta));
   }
