@@ -40,9 +40,20 @@ jobs:
         run: echo "${GITHUB_SHA}" > dist/git_commit_sha.txt
         shell: bash
 
+      - name: Checkout single-header-snapshot
+        uses: actions/checkout@v6
+        with:
+          ref: single-header-snapshot
+          path: single-header-snapshot
+
+      - name: Replace single-header snapshot
+        run: |
+          git -C single-header-snapshot rm -r --ignore-unmatch .
+          cp dist/* single-header-snapshot/
+
       - name: Commit single-header-snapshot
         uses: EndBug/add-and-commit@v10
         with:
-          add: dist --force
+          add: --all --force
+          cwd: single-header-snapshot
           message: "build: (${{ github.sha }}) ${{ github.event.head_commit.message }}"
-          new_branch: single-header-snapshot
