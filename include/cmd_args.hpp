@@ -25,14 +25,15 @@ namespace cplib::cmd_args {
 
 /// Parsed command-line args.
 struct ParsedArgs {
-  /// Command-line parameters that do not start with "--"will be stored in `ordered` in their
+  /// Command-line parameters that do not start with "--" will be stored in `ordered` in their
   /// original relative order.
   std::vector<std::string> ordered;
 
   // `--flag`
   std::vector<std::string> flags;
 
-  // `--var=value` or `--var value`
+  // `--var=value` or `--var value`. For example, `--aaa b c` is equivalent to `--aaa=b c`:
+  // `aaa` maps to `b`, while `c` is stored in `ordered`.
   std::map<std::string, std::string> vars;
 
   ParsedArgs() = default;

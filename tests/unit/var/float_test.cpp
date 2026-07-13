@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cstdint>
 
 #include "../test_utils.hpp"
 #include "cplib.hpp"
@@ -20,6 +21,40 @@ TEST(VarFloatTest, BasicFloat) {
 TEST(VarFloatTest, FloatRange) {
   auto reader = make_test_reader("1.5");
   EXPECT_THROW(reader.read(cplib::var::f64("f", 0.0, 1.0)), TestExitException);
+}
+
+TEST(VarFloatTest, LongSignificand) {
+  auto reader =
+      make_test_reader("3.141592653589793238462643383279502884 123456789012345678901e-20");
+  constexpr std::uint64_t pi_truncated = 3141592653589793238;
+  constexpr std::uint64_t scaled_truncated = 1234567890123456789;
+
+  EXPECT_EQ(reader.read(cplib::var::f64("pi")), static_cast<double>(pi_truncated) / 1e18);
+  EXPECT_EQ(reader.read(cplib::var::f64("scaled")), static_cast<double>(scaled_truncated) / 1e18);
+}
+
+TEST(VarFloatTest, LongSignificandTailIsIgnored) {
+  auto reader = make_test_reader(
+      "1.00000000000000011102230246251565404236316680908203125 "
+      "1.00000000000000011102230246251565404236316680908203126");
+  constexpr std::uint64_t truncated = 1000000000000000111;
+  const double expected = static_cast<double>(truncated) / 1e18;
+
+  EXPECT_EQ(reader.read(cplib::var::f64("first")), expected);
+  EXPECT_EQ(reader.read(cplib::var::f64("second")), expected);
+}
+
+TEST(VarFloatTest, LongSignificandIsTruncated) {
+  auto reader = make_test_reader(
+      "1234567890123456789012345 1.234567890123456789012345 123456789012345678901e-25 "
+      "1.234567890123456789012345");
+  constexpr std::uint64_t truncated = 1234567890123456789;
+
+  EXPECT_EQ(reader.read(cplib::var::f64("integer")), static_cast<double>(truncated) * 1e6);
+  EXPECT_EQ(reader.read(cplib::var::f64("fraction")), static_cast<double>(truncated) / 1e18);
+  EXPECT_EQ(reader.read(cplib::var::f64("scientific")), static_cast<double>(truncated) / 1e23);
+  EXPECT_EQ(reader.read(cplib::var::f32("single")),
+            static_cast<float>(static_cast<double>(truncated) / 1e18));
 }
 
 TEST(VarFloatTest, LongDoubleGeneral) {
@@ -72,4 +107,10 @@ TEST(VarStrictFloatTest, LongDoubleFixed) {
 TEST(VarStrictFloatTest, LongDoubleRejectsExponent) {
   auto reader = make_test_reader("1e2");
   EXPECT_THROW(reader.read(cplib::var::fexts("v", 0.0L, 200.0L, 0, 10)), TestExitException);
+}
+
+TEST(VarStrictFloatTest, LongSignificandIsTruncated) {
+  auto reader = make_test_reader("1.234567890123456789012345");
+  EXPECT_EQ(reader.read(cplib::var::f64s("v", 0.0, 2.0, 24, 24)),
+            static_cast<double>(UINT64_C(1234567890123456789)) / 1e18);
 }
