@@ -36,6 +36,7 @@
 #include <iterator>
 #include <memory>
 #include <ostream>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -426,25 +427,21 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 
 inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
-      {"status", json::Value(json::String(report.status.to_string()))},
-      {"score", json::Value(report.score)},
-      {"message", json::Value(report.message)},
+      {"status", report.status.to_string()},
+      {"score", report.score},
+      {"message", report.message},
   };
 
   if (!reader_trace_stacks_.empty()) {
-    json::List trace_stacks;
-    trace_stacks.reserve(reader_trace_stacks_.size());
-    std::ranges::transform(reader_trace_stacks_, std::back_inserter(trace_stacks),
-                           [](const auto &s) -> json::Value { return json::Value(s.to_json()); });
-    map.emplace("reader_trace_stacks", trace_stacks);
+    map.emplace("reader_trace_stacks",
+                reader_trace_stacks_ |
+                    std::views::transform([](const auto &stack) { return stack.to_json(); }));
   }
 
   if (!evaluator_trace_stacks_.empty()) {
-    json::List trace_stacks;
-    trace_stacks.reserve(evaluator_trace_stacks_.size());
-    std::ranges::transform(evaluator_trace_stacks_, std::back_inserter(trace_stacks),
-                           [](const auto &s) -> json::Value { return json::Value(s.to_json()); });
-    map.emplace("evaluator_trace_stacks", trace_stacks);
+    map.emplace("evaluator_trace_stacks",
+                evaluator_trace_stacks_ |
+                    std::views::transform([](const auto &stack) { return stack.to_json(); }));
   }
 
   std::ostream stream(std::clog.rdbuf());

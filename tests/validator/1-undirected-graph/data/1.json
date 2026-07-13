@@ -1,1 +1,135 @@
-{"message":"","reader_trace_tree":{"trace":{"b":0,"l":0,"n":"<inf>"},"children":[{"trace":{"b":0,"l":12,"n":"input"},"children":[{"trace":{"b":0,"l":1,"n":"n"},"tags":{"#v":3}},{"trace":{"b":2,"l":1,"n":"m"},"tags":{"#v":2}},{"trace":{"b":4,"l":7,"n":"edges"},"children":[{"trace":{"b":4,"l":3,"n":"0"},"children":[{"trace":{"b":4,"l":1,"n":"u"},"tags":{"#v":1}},{"trace":{"b":6,"l":1,"n":"v"},"tags":{"#v":2}}]},{"trace":{"b":8,"l":3,"n":"1"},"children":[{"trace":{"b":8,"l":1,"n":"u"},"tags":{"#v":2}},{"trace":{"b":10,"l":1,"n":"v"},"tags":{"#v":3}}]}]}]}]},"status":"valid","traits":{"g_is_connected":true,"g_is_tree":true}}
+{
+  "message": "",
+  "reader_trace_tree": {
+    "trace": {
+      "b": 0,
+      "l": 0,
+      "n": "<inf>"
+    },
+    "children": [
+      {
+        "trace": {
+          "b": 0,
+          "l": 12,
+          "n": "input"
+        },
+        "children": [
+          {
+            "trace": {
+              "b": 0,
+              "l": 1,
+              "n": "n"
+            },
+            "tags": {
+              "#v": 3
+            }
+          },
+          {
+            "trace": {
+              "b": 2,
+              "l": 1,
+              "n": "m"
+            },
+            "tags": {
+              "#v": 2
+            }
+          },
+          {
+            "trace": {
+              "b": 4,
+              "l": 7,
+              "n": "edges"
+            },
+            "children": [
+              {
+                "trace": {
+                  "b": 4,
+                  "l": 3,
+                  "n": "0"
+                },
+                "children": [
+                  {
+                    "trace": {
+                      "b": 4,
+                      "l": 1,
+                      "n": "u"
+                    },
+                    "tags": {
+                      "#v": 1
+                    }
+                  },
+                  {
+                    "trace": {
+                      "b": 6,
+                      "l": 1,
+                      "n": "v"
+                    },
+                    "tags": {
+                      "#v": 2
+                    }
+                  }
+                ]
+              },
+              {
+                "trace": {
+                  "b": 8,
+                  "l": 3,
+                  "n": "1"
+                },
+                "children": [
+                  {
+                    "trace": {
+                      "b": 8,
+                      "l": 1,
+                      "n": "u"
+                    },
+                    "tags": {
+                      "#v": 2
+                    }
+                  },
+                  {
+                    "trace": {
+                      "b": 10,
+                      "l": 1,
+                      "n": "v"
+                    },
+                    "tags": {
+                      "#v": 3
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "tags": {
+          "hull/graph": {
+            "name": "graph",
+            "nodes": [
+              "1",
+              "2",
+              "3"
+            ],
+            "edges": [
+              {
+                "u": "1",
+                "v": "2",
+                "directed": false
+              },
+              {
+                "u": "2",
+                "v": "3",
+                "directed": false
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "status": "valid",
+  "traits": {
+    "g_is_connected": true,
+    "g_is_tree": true
+  }
+}

@@ -16,6 +16,28 @@ You can add tags to the nodes of the trace tree to describe more detailed inform
 
 When implementing custom types (such as `FnVar` or `ExtVar`), you can call `in.attach_tag(key, value)` to customize a key-value pair of additional information (where `in` is the current Reader being read). The `key` should not be repeated, otherwise the later defined one will overwrite the earlier one.
 
+`value` can be `nullptr`, a boolean, an integer, a floating-point value, a string, `cplib::json::Map`, `cplib::json::List`, `cplib::json::Raw`, or an input range whose elements are recursively convertible to JSON values. Ranges and lazy views are consumed directly; sized ranges reserve their final JSON array capacity before conversion.
+
+```cpp
+using cplib::json::Map;
+
+in.attach_tag("answer", 42);
+in.attach_tag(
+    "hull/graph",
+    Map{
+        {"name", "graph"},
+        {"nodes", std::views::iota(1, n + 1) |
+                      std::views::transform([](int x) { return std::to_string(x); })},
+        {"edges", edges | std::views::transform([](const Edge &edge) {
+           return Map{{"u", std::to_string(edge.u)},
+                      {"v", std::to_string(edge.v)},
+                      {"directed", false}};
+         })},
+    });
+```
+
+JSON null is represented by `nullptr`. Objects use an explicit `Map`; this avoids ambiguous nested initializer-list syntax between JSON objects and arrays.
+
 For the built-in variable read-in templates in CPLib, if the read-in type is a basic type or a string, the `#v` will be added to indicate the value read-in.
 
 `#hidden` is a special key, and if this key (regardless of the value) exists in the tag of a node, the nodes in the subtree of the current node will be ignored when encoded as JSON. The variable read-in template `cplib::var::Separator` will add `#hidden` to the current node when the reading is completed.

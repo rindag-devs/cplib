@@ -10,6 +10,9 @@
  */
 
 #include <algorithm>
+#include <ranges>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "cplib.hpp"
@@ -33,6 +36,23 @@ struct Input {
     auto edges =
         in.read(cplib::var::Vec(cplib::var::ExtVar<Edge>("edges", n), m, cplib::var::eoln));
     in.read(cplib::var::eoln);
+
+    if (in.get_trace_level() >= cplib::trace::Level::FULL) {
+      using cplib::json::Map;
+      in.attach_tag("hull/graph",
+                    Map{
+                        {"name", "graph"},
+                        {"nodes", std::views::iota(1, n + 1) | std::views::transform([](int x) {
+                                    return std::to_string(x);
+                                  })},
+                        {"edges", edges | std::views::transform([](const Edge &edge) {
+                                    return Map{{"u", std::to_string(edge.u)},
+                                               {"v", std::to_string(edge.v)},
+                                               {"directed", false}};
+                                  })},
+                    });
+    }
+
     return {.n = n, .m = m, .edges = std::move(edges)};
   }
 };

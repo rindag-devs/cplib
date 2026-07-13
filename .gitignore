@@ -2,6 +2,8 @@
 .zed/
 /build*/
 compile_commands.json
+.opencode
+.mimocode
 
 benchmark/*/chk_cplib
 benchmark/*/chk_testlib

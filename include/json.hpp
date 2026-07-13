@@ -16,11 +16,14 @@
 #ifndef CPLIB_JSON_HPP_
 #define CPLIB_JSON_HPP_
 
+#include <concepts>
+#include <cstddef>
 #include <cstdint>
-#include <optional>
+#include <ranges>
 #include <streambuf>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -32,7 +35,6 @@ namespace cplib::json {
 
 struct Value;
 
-using Null = std::nullopt_t;
 using String = std::string;
 using Int = std::int64_t;
 using Real = double;
@@ -46,7 +48,31 @@ struct Raw {
 };
 
 struct Value {
-  std::variant<Null, String, Int, Real, Bool, List, Map, Raw> inner;
+  std::variant<std::nullptr_t, String, Int, Real, Bool, List, Map, Raw> inner;
+
+  Value(std::nullptr_t);  // NOLINT(google-explicit-constructor)
+  Value(Bool value);      // NOLINT(google-explicit-constructor)
+
+  template <std::integral T>
+    requires(!std::same_as<std::remove_cv_t<T>, Bool>)
+  Value(T value);  // NOLINT(google-explicit-constructor)
+
+  template <std::floating_point T>
+  Value(T value);  // NOLINT(google-explicit-constructor)
+
+  Value(const char *value);       // NOLINT(google-explicit-constructor)
+  Value(String value);            // NOLINT(google-explicit-constructor)
+  Value(std::string_view value);  // NOLINT(google-explicit-constructor)
+  Value(List value);              // NOLINT(google-explicit-constructor)
+  Value(Map value);               // NOLINT(google-explicit-constructor)
+  Value(Raw value);               // NOLINT(google-explicit-constructor)
+
+  template <std::ranges::input_range R>
+    requires(!std::convertible_to<R, std::string_view> &&
+             !std::same_as<std::remove_cvref_t<R>, List> &&
+             !std::same_as<std::remove_cvref_t<R>, Map> &&
+             std::constructible_from<Value, std::ranges::range_reference_t<R>>)
+  Value(R &&value);  // NOLINT(google-explicit-constructor)
 
   auto write_string(std::streambuf &buf) const -> void;
   [[nodiscard]] auto to_string() const -> std::string;

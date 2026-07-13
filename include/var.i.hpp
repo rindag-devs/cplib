@@ -76,16 +76,16 @@ inline ReaderTrace::ReaderTrace(std::string var_name, io::Position pos)
 
 [[nodiscard]] inline auto ReaderTrace::to_stack_json() const -> json::Value {
   return {json::Map{
-      {"var_name", json::Value(var_name)},
-      {"pos", json::Value(pos.to_json())},
+      {"var_name", var_name},
+      {"pos", pos.to_json()},
   }};
 }
 
 [[nodiscard]] inline auto ReaderTrace::to_tree_json() const -> json::Value {
   return {json::Map{
-      {"n", json::Value(var_name)},
-      {"b", json::Value(static_cast<json::Int>(pos.byte))},
-      {"l", json::Value(static_cast<json::Int>(byte_length))},
+      {"n", var_name},
+      {"b", static_cast<json::Int>(pos.byte)},
+      {"l", static_cast<json::Int>(byte_length)},
   }};
 }
 
@@ -288,7 +288,7 @@ inline auto Int<T>::read_from(Reader &in) const -> T {
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(static_cast<json::Int>(result)));
+    in.attach_tag("#v", static_cast<json::Int>(result));
   }
 
   return result;
@@ -344,7 +344,7 @@ inline auto Float<T>::read_from(Reader &in) const -> T {
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
+    in.attach_tag("#v", static_cast<json::Real>(result));
   }
 
   return result;
@@ -438,7 +438,7 @@ inline auto StrictFloat<T>::read_from(Reader &in) const -> T {
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
+    in.attach_tag("#v", static_cast<json::Real>(result));
   }
 
   return result;
@@ -465,7 +465,7 @@ inline auto YesNo::read_from(Reader &in) const -> bool {
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(result));
+    in.attach_tag("#v", result);
   }
 
   return result;
@@ -551,7 +551,7 @@ inline auto String::read_from(Reader &in) const -> std::string {
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(result));
+    in.attach_tag("#v", result);
   }
 
   return result;
@@ -566,7 +566,7 @@ inline Separator::Separator(std::string name, std::optional<unsigned char> sep)
 
 inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#hidden", json::Value(true));
+    in.attach_tag("#hidden", true);
   }
 
   if (!sep.has_value()) {

@@ -145,9 +145,9 @@ inline Position::Position(std::size_t line, std::size_t col, std::size_t byte)
 
 inline auto Position::to_json() const -> json::Map {
   return {
-      {"line", json::Value(static_cast<json::Int>(line))},
-      {"col", json::Value(static_cast<json::Int>(col))},
-      {"byte", json::Value(static_cast<json::Int>(byte))},
+      {"line", static_cast<json::Int>(line)},
+      {"col", static_cast<json::Int>(col)},
+      {"byte", static_cast<json::Int>(byte)},
   };
 }
 

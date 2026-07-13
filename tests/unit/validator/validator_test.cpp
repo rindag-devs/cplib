@@ -7,7 +7,7 @@
 TEST(ValidatorReporterTest, JsonSkipsHiddenRootTree) {
   cplib::trace::TraceTreeNode<cplib::var::ReaderTrace> root(
       cplib::var::ReaderTrace("root", cplib::io::Position(0, 0, 0)));
-  root.tags.emplace("#hidden", cplib::json::Value(true));
+  root.tags.emplace("#hidden", true);
 
   cplib::validator::JsonReporter reporter;
   reporter.attach_trace_tree(&root);

@@ -32,6 +32,7 @@
 #include <ios>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <sstream>
 #include <streambuf>
 #include <string>
@@ -49,16 +50,10 @@ namespace cplib::trace {
 template <Trace T>
 [[nodiscard]] inline auto TraceStack<T>::to_json() const -> json::Value {
   json::Map map;
-  json::List stack_list;
-
-  stack_list.reserve(stack.size());
-  for (const auto &trace : stack) {
-    stack_list.emplace_back(trace.to_stack_json());
-  }
-
-  map.emplace("stack", std::move(stack_list));
+  map.emplace("stack", stack | std::views::transform(
+                                   [](const auto &trace) { return trace.to_stack_json(); }));
   map.emplace("fatal", fatal);
-  return json::Value(map);
+  return std::move(map);
 }
 
 template <Trace T>

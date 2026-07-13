@@ -37,9 +37,9 @@ struct SampleTrace {
 
   [[nodiscard]] auto to_stack_json() const -> cplib::json::Value {
     cplib::json::Map map;
-    map.emplace("name", cplib::json::Value(name));
-    map.emplace("value", cplib::json::Value(static_cast<cplib::json::Int>(value)));
-    return cplib::json::Value(map);
+    map.emplace("name", name);
+    map.emplace("value", static_cast<cplib::json::Int>(value));
+    return std::move(map);
   }
 
   [[nodiscard]] auto to_tree_json() const -> cplib::json::Value { return to_stack_json(); }
@@ -108,7 +108,7 @@ TEST(TraceStackTest, EmptyStackFormats) {
 
 TEST(TraceTreeNodeTest, ParentLinksAndJson) {
   cplib::trace::TraceTreeNode<SampleTrace> root(SampleTrace{"root", 0});
-  root.tags.emplace("phase", cplib::json::Value("setup"));
+  root.tags.emplace("phase", "setup");
 
   auto &left = root.add_child(
       std::make_unique<cplib::trace::TraceTreeNode<SampleTrace>>(SampleTrace{"left", 1}));
@@ -118,7 +118,7 @@ TEST(TraceTreeNodeTest, ParentLinksAndJson) {
   auto *right_node = right.get();
   left_node->add_child(
       std::make_unique<cplib::trace::TraceTreeNode<SampleTrace>>(SampleTrace{"leaf", 3}));
-  right_node->tags.emplace("#hidden", cplib::json::Value(true));
+  right_node->tags.emplace("#hidden", true);
 
   ASSERT_EQ(root.get_children().size(), 2);
   EXPECT_EQ(left_node->get_parent(), &root);
@@ -136,13 +136,13 @@ TEST(TraceTreeNodeTest, HiddenNodes) {
   cplib::trace::TraceTreeNode<SampleTrace> root(SampleTrace{"root", 0});
   root.add_child(
           std::make_unique<cplib::trace::TraceTreeNode<SampleTrace>>(SampleTrace{"hidden", 1}))
-      ->tags.emplace("#hidden", cplib::json::Value(true));
+      ->tags.emplace("#hidden", true);
 
   const auto visible_raw_json = require_json(root.to_json());
   EXPECT_EQ(cplib::json::Value(visible_raw_json).to_string(),
             R"({"trace":{"name":"root","value":0}})");
 
-  root.tags.emplace("#hidden", cplib::json::Value(true));
+  root.tags.emplace("#hidden", true);
   EXPECT_FALSE(root.to_json().has_value());
 }
 
@@ -163,7 +163,7 @@ TEST(TracedTest, NoneLevelRejectsAccess) {
   EXPECT_THROW(static_cast<void>(traced.get_current_trace()), std::runtime_error);
   EXPECT_THROW(traced.set_current_trace(SampleTrace{"new-root", 9}), std::runtime_error);
   EXPECT_THROW(static_cast<void>(traced.get_trace_tree()), std::runtime_error);
-  EXPECT_THROW(traced.attach_tag("tag", cplib::json::Value(true)), std::runtime_error);
+  EXPECT_THROW(traced.attach_tag("tag", true), std::runtime_error);
 }
 
 TEST(TracedTest, StackOnlyNoTree) {
@@ -192,7 +192,7 @@ TEST(TracedTest, StackOnlyNoTree) {
   EXPECT_EQ(traced.get_current_trace().name, "renamed-root");
   EXPECT_THROW(traced.pop_trace(), std::runtime_error);
   EXPECT_THROW(static_cast<void>(traced.get_trace_tree()), std::runtime_error);
-  EXPECT_THROW(traced.attach_tag("tag", cplib::json::Value(true)), std::runtime_error);
+  EXPECT_THROW(traced.attach_tag("tag", true), std::runtime_error);
 }
 
 TEST(TracedTest, FullLevelTreeAndTags) {
@@ -200,15 +200,15 @@ TEST(TracedTest, FullLevelTreeAndTags) {
   install_throwing_panic_handler();
   TraceHarness traced(cplib::trace::Level::FULL);
 
-  traced.attach_tag("stage", cplib::json::Value("root"));
+  traced.attach_tag("stage", "root");
   traced.push_trace(SampleTrace{"child", 1});
-  traced.attach_tag("stage", cplib::json::Value("child"));
+  traced.attach_tag("stage", "child");
   traced.push_trace(SampleTrace{"grandchild", 2});
   traced.set_current_trace(SampleTrace{"renamed-grandchild", 3});
-  traced.attach_tag("deep", cplib::json::Value(true));
+  traced.attach_tag("deep", true);
   traced.pop_trace();
   traced.push_trace(SampleTrace{"sibling", 4});
-  traced.attach_tag("#hidden", cplib::json::Value(true));
+  traced.attach_tag("#hidden", true);
 
   const auto stack = traced.make_trace_stack(false);
   ASSERT_EQ(stack.stack.size(), 3);

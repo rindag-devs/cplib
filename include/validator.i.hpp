@@ -39,6 +39,7 @@
 #include <optional>
 #include <ostream>
 #include <queue>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -438,9 +439,9 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 inline auto trait_status_to_json(const std::map<std::string, bool> &traits) -> json::Value {
   json::Map map;
   for (const auto &[k, v] : traits) {
-    map.emplace(k, json::Value(v));
+    map.emplace(k, v);
   }
-  return json::Value(map);
+  return std::move(map);
 }
 
 inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace> *node, std::size_t depth,
@@ -501,16 +502,14 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace> *node,
 
 inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
-      {"status", json::Value(json::String(report.status.to_string()))},
-      {"message", json::Value(report.message)},
+      {"status", report.status.to_string()},
+      {"message", report.message},
   };
 
   if (!trace_stacks_.empty()) {
-    json::List trace_stacks;
-    trace_stacks.reserve(trace_stacks_.size());
-    std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
-                           [](auto &s) -> json::Value { return json::Value(s.to_json()); });
-    map.emplace("reader_trace_stacks", trace_stacks);
+    map.emplace("reader_trace_stacks", trace_stacks_ | std::views::transform([](const auto &stack) {
+                                         return stack.to_json();
+                                       }));
   }
 
   if (!trait_status_.empty()) {

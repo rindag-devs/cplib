@@ -26,7 +26,11 @@
 
 #include <array>
 #include <charconv>
+#include <concepts>
+#include <cstddef>
 #include <ios>
+#include <optional>
+#include <ranges>
 #include <sstream>
 #include <streambuf>
 #include <string>
@@ -64,6 +68,38 @@ inline auto write_json_real(std::streambuf &buf, Real value) -> void {
 }  // namespace detail
 
 inline Raw::Raw(std::string inner) : inner(std::move(inner)) {}
+
+inline Value::Value(std::nullptr_t) : inner(nullptr) {}
+inline Value::Value(Bool value) : inner(value) {}
+
+template <std::integral T>
+  requires(!std::same_as<std::remove_cv_t<T>, Bool>)
+inline Value::Value(T value) : inner(static_cast<Int>(value)) {}
+
+template <std::floating_point T>
+inline Value::Value(T value) : inner(static_cast<Real>(value)) {}
+
+inline Value::Value(const char *value) : inner(String(value)) {}
+inline Value::Value(String value) : inner(std::move(value)) {}
+inline Value::Value(std::string_view value) : inner(String(value)) {}
+inline Value::Value(List value) : inner(std::move(value)) {}
+inline Value::Value(Map value) : inner(std::move(value)) {}
+inline Value::Value(Raw value) : inner(std::move(value)) {}
+
+template <std::ranges::input_range R>
+  requires(!std::convertible_to<R, std::string_view> &&
+           !std::same_as<std::remove_cvref_t<R>, List> &&
+           !std::same_as<std::remove_cvref_t<R>, Map> &&
+           std::constructible_from<Value, std::ranges::range_reference_t<R>>)
+inline Value::Value(R &&value) : inner(List{}) {
+  auto &list = std::get<List>(inner);
+  if constexpr (std::ranges::sized_range<R>) {
+    list.reserve(std::ranges::size(value));
+  }
+  for (auto &&item : value) {
+    list.emplace_back(std::forward<decltype(item)>(item));
+  }
+}
 
 inline auto Value::encode_string(std::streambuf &buf, std::string_view inner) -> void {
   buf.sputc('\"');
@@ -150,7 +186,7 @@ inline auto Value::write_string(std::streambuf &buf) const -> void {
       [&buf](const auto &arg) -> void {
         using T = std::decay_t<decltype(arg)>;
 
-        if constexpr (std::is_same_v<T, Null>) {
+        if constexpr (std::is_same_v<T, std::nullptr_t>) {
           constexpr std::string_view NULL_STR = "null";
           buf.sputn(NULL_STR.data(), NULL_STR.size());
         } else if constexpr (std::is_same_v<T, String>) {
@@ -187,7 +223,7 @@ inline auto Value::write_string(std::streambuf &buf) const -> void {
 }
 
 [[nodiscard]] inline auto Value::is_null() const -> bool {
-  return std::holds_alternative<Null>(inner);
+  return std::holds_alternative<std::nullptr_t>(inner);
 }
 [[nodiscard]] inline auto Value::is_string() const -> bool {
   return std::holds_alternative<String>(inner);

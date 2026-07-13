@@ -187,9 +187,9 @@ inline auto Result::operator&=(const Result &other) -> Result & {
 
 [[nodiscard]] inline auto Result::to_json() const -> json::Map {
   return {
-      {"status", json::Value(json::String(status.to_string()))},
-      {"score", json::Value(score)},
-      {"message", json::Value(message)},
+      {"status", status.to_string()},
+      {"score", score},
+      {"message", message},
   };
 }
 // /Impl Result }}}
@@ -250,12 +250,12 @@ inline EvaluatorTrace::EvaluatorTrace(std::string var_name)
 
 [[nodiscard]] inline auto EvaluatorTrace::to_stack_json() const -> json::Value {
   json::Map map{
-      {"var_name", json::Value(var_name)},
+      {"var_name", var_name},
   };
   if (result.has_value()) {
-    map.emplace("result", json::Value(result->to_json()));
+    map.emplace("result", result->to_json());
   }
-  return {map};
+  return std::move(map);
 }
 
 [[nodiscard]] inline auto EvaluatorTrace::to_tree_json() const -> json::Value {

@@ -359,8 +359,8 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 
 inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
-      {"status", json::Value(json::String(report.status.to_string()))},
-      {"message", json::Value(report.message)},
+      {"status", report.status.to_string()},
+      {"message", report.message},
   };
 
   std::ostream stream(std::clog.rdbuf());
