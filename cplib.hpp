@@ -5990,23 +5990,32 @@ inline auto scan_digits(const char *&q, const char *last, int &ndigits, int &fir
       first_sig = ndigits;
       continue;
     }
-    if (kept <= 11) {
-      mantissa = mantissa * 100000000ull + chunk;
-      kept += 8;
-    }
+    if (kept > 11) break;
+    mantissa = mantissa * 100000000ull + chunk;
+    kept += 8;
     q += 8;
     ndigits += 8;
   }
-  while (q != last && is_digit(*q)) {
+  while (q != last && is_digit(*q) && kept < 19) {
     if (*q != '0' && first_sig < 0) {
       first_sig = ndigits;
     }
-    if (first_sig >= 0 && kept < 19) {
+    if (first_sig >= 0) {
       mantissa = mantissa * 10 + static_cast<unsigned>(*q - '0');
       ++kept;
     }
     ++ndigits;
     ++q;
+  }
+  if (kept == 19) {
+    while (last - q >= 8 && eight_digits(read_u64(q))) {
+      q += 8;
+      ndigits += 8;
+    }
+    while (q != last && is_digit(*q)) {
+      ++ndigits;
+      ++q;
+    }
   }
 }
 
@@ -6093,9 +6102,6 @@ inline auto parse(const char *first, const char *last, Mode mode, T &value) noex
     if (first_sig < 0) {
       value = neg ? T(-0.0) : T(0.0);
       return true;
-    }
-    if (first_sig + kept < ndigits) {
-      return false;
     }
     const int exp10 = explicit_exp + decimal_pos - (first_sig + kept);
     return impl::clinger(mantissa, exp10, neg, value) ||
@@ -6905,14 +6911,15 @@ namespace cplib::cmd_args {
 
 /// Parsed command-line args.
 struct ParsedArgs {
-  /// Command-line parameters that do not start with "--"will be stored in `ordered` in their
+  /// Command-line parameters that do not start with "--" will be stored in `ordered` in their
   /// original relative order.
   std::vector<std::string> ordered;
 
   // `--flag`
   std::vector<std::string> flags;
 
-  // `--var=value` or `--var value`
+  // `--var=value` or `--var value`. For example, `--aaa b c` is equivalent to `--aaa=b c`:
+  // `aaa` maps to `b`, while `c` is stored in `ordered`.
   std::map<std::string, std::string> vars;
 
   ParsedArgs() = default;
