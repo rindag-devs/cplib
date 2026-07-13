@@ -1087,11 +1087,14 @@ inline auto srand(unsigned int) CPLIB_RAND_THROW_STATEMENT -> void {
 #ifndef CPLIB_JSON_HPP_
 #define CPLIB_JSON_HPP_
 
+#include <concepts>
+#include <cstddef>
 #include <cstdint>
-#include <optional>
+#include <ranges>
 #include <streambuf>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <variant>
 #include <vector>
 
@@ -1100,7 +1103,6 @@ namespace cplib::json {
 
 struct Value;
 
-using Null = std::nullopt_t;
 using String = std::string;
 using Int = std::int64_t;
 using Real = double;
@@ -1114,7 +1116,31 @@ struct Raw {
 };
 
 struct Value {
-  std::variant<Null, String, Int, Real, Bool, List, Map, Raw> inner;
+  std::variant<std::nullptr_t, String, Int, Real, Bool, List, Map, Raw> inner;
+
+  Value(std::nullptr_t);  // NOLINT(google-explicit-constructor)
+  Value(Bool value);      // NOLINT(google-explicit-constructor)
+
+  template <std::integral T>
+    requires(!std::same_as<std::remove_cv_t<T>, Bool>)
+  Value(T value);  // NOLINT(google-explicit-constructor)
+
+  template <std::floating_point T>
+  Value(T value);  // NOLINT(google-explicit-constructor)
+
+  Value(const char *value);       // NOLINT(google-explicit-constructor)
+  Value(String value);            // NOLINT(google-explicit-constructor)
+  Value(std::string_view value);  // NOLINT(google-explicit-constructor)
+  Value(List value);              // NOLINT(google-explicit-constructor)
+  Value(Map value);               // NOLINT(google-explicit-constructor)
+  Value(Raw value);               // NOLINT(google-explicit-constructor)
+
+  template <std::ranges::input_range R>
+    requires(!std::convertible_to<R, std::string_view> &&
+             !std::same_as<std::remove_cvref_t<R>, List> &&
+             !std::same_as<std::remove_cvref_t<R>, Map> &&
+             std::constructible_from<Value, std::ranges::range_reference_t<R>>)
+  Value(R &&value);  // NOLINT(google-explicit-constructor)
 
   auto write_string(std::streambuf &buf) const -> void;
   [[nodiscard]] auto to_string() const -> std::string;
@@ -1171,7 +1197,11 @@ struct Value {
 
 #include <array>
 #include <charconv>
+#include <concepts>
+#include <cstddef>
 #include <ios>
+#include <optional>
+#include <ranges>
 #include <sstream>
 #include <streambuf>
 #include <string>
@@ -1206,6 +1236,38 @@ inline auto write_json_real(std::streambuf &buf, Real value) -> void {
 }  // namespace detail
 
 inline Raw::Raw(std::string inner) : inner(std::move(inner)) {}
+
+inline Value::Value(std::nullptr_t) : inner(nullptr) {}
+inline Value::Value(Bool value) : inner(value) {}
+
+template <std::integral T>
+  requires(!std::same_as<std::remove_cv_t<T>, Bool>)
+inline Value::Value(T value) : inner(static_cast<Int>(value)) {}
+
+template <std::floating_point T>
+inline Value::Value(T value) : inner(static_cast<Real>(value)) {}
+
+inline Value::Value(const char *value) : inner(String(value)) {}
+inline Value::Value(String value) : inner(std::move(value)) {}
+inline Value::Value(std::string_view value) : inner(String(value)) {}
+inline Value::Value(List value) : inner(std::move(value)) {}
+inline Value::Value(Map value) : inner(std::move(value)) {}
+inline Value::Value(Raw value) : inner(std::move(value)) {}
+
+template <std::ranges::input_range R>
+  requires(!std::convertible_to<R, std::string_view> &&
+           !std::same_as<std::remove_cvref_t<R>, List> &&
+           !std::same_as<std::remove_cvref_t<R>, Map> &&
+           std::constructible_from<Value, std::ranges::range_reference_t<R>>)
+inline Value::Value(R &&value) : inner(List{}) {
+  auto &list = std::get<List>(inner);
+  if constexpr (std::ranges::sized_range<R>) {
+    list.reserve(std::ranges::size(value));
+  }
+  for (auto &&item : value) {
+    list.emplace_back(std::forward<decltype(item)>(item));
+  }
+}
 
 inline auto Value::encode_string(std::streambuf &buf, std::string_view inner) -> void {
   buf.sputc('\"');
@@ -1292,7 +1354,7 @@ inline auto Value::write_string(std::streambuf &buf) const -> void {
       [&buf](const auto &arg) -> void {
         using T = std::decay_t<decltype(arg)>;
 
-        if constexpr (std::is_same_v<T, Null>) {
+        if constexpr (std::is_same_v<T, std::nullptr_t>) {
           constexpr std::string_view NULL_STR = "null";
           buf.sputn(NULL_STR.data(), NULL_STR.size());
         } else if constexpr (std::is_same_v<T, String>) {
@@ -1329,7 +1391,7 @@ inline auto Value::write_string(std::streambuf &buf) const -> void {
 }
 
 [[nodiscard]] inline auto Value::is_null() const -> bool {
-  return std::holds_alternative<Null>(inner);
+  return std::holds_alternative<std::nullptr_t>(inner);
 }
 [[nodiscard]] inline auto Value::is_string() const -> bool {
   return std::holds_alternative<String>(inner);
@@ -2530,9 +2592,9 @@ inline Position::Position(std::size_t line, std::size_t col, std::size_t byte)
 
 inline auto Position::to_json() const -> json::Map {
   return {
-      {"line", json::Value(static_cast<json::Int>(line))},
-      {"col", json::Value(static_cast<json::Int>(col))},
-      {"byte", json::Value(static_cast<json::Int>(byte))},
+      {"line", static_cast<json::Int>(line)},
+      {"col", static_cast<json::Int>(col)},
+      {"byte", static_cast<json::Int>(byte)},
   };
 }
 
@@ -3041,6 +3103,7 @@ struct Traced {
 #include <ios>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <sstream>
 #include <streambuf>
 #include <string>
@@ -3054,16 +3117,10 @@ namespace cplib::trace {
 template <Trace T>
 [[nodiscard]] inline auto TraceStack<T>::to_json() const -> json::Value {
   json::Map map;
-  json::List stack_list;
-
-  stack_list.reserve(stack.size());
-  for (const auto &trace : stack) {
-    stack_list.emplace_back(trace.to_stack_json());
-  }
-
-  map.emplace("stack", std::move(stack_list));
+  map.emplace("stack", stack | std::views::transform(
+                                   [](const auto &trace) { return trace.to_stack_json(); }));
   map.emplace("fatal", fatal);
-  return json::Value(map);
+  return std::move(map);
 }
 
 template <Trace T>
@@ -3781,9 +3838,9 @@ inline auto Result::operator&=(const Result &other) -> Result & {
 
 [[nodiscard]] inline auto Result::to_json() const -> json::Map {
   return {
-      {"status", json::Value(json::String(status.to_string()))},
-      {"score", json::Value(score)},
-      {"message", json::Value(message)},
+      {"status", status.to_string()},
+      {"score", score},
+      {"message", message},
   };
 }
 // /Impl Result }}}
@@ -3844,12 +3901,12 @@ inline EvaluatorTrace::EvaluatorTrace(std::string var_name)
 
 [[nodiscard]] inline auto EvaluatorTrace::to_stack_json() const -> json::Value {
   json::Map map{
-      {"var_name", json::Value(var_name)},
+      {"var_name", var_name},
   };
   if (result.has_value()) {
-    map.emplace("result", json::Value(result->to_json()));
+    map.emplace("result", result->to_json());
   }
-  return {map};
+  return std::move(map);
 }
 
 [[nodiscard]] inline auto EvaluatorTrace::to_tree_json() const -> json::Value {
@@ -6074,16 +6131,16 @@ inline ReaderTrace::ReaderTrace(std::string var_name, io::Position pos)
 
 [[nodiscard]] inline auto ReaderTrace::to_stack_json() const -> json::Value {
   return {json::Map{
-      {"var_name", json::Value(var_name)},
-      {"pos", json::Value(pos.to_json())},
+      {"var_name", var_name},
+      {"pos", pos.to_json()},
   }};
 }
 
 [[nodiscard]] inline auto ReaderTrace::to_tree_json() const -> json::Value {
   return {json::Map{
-      {"n", json::Value(var_name)},
-      {"b", json::Value(static_cast<json::Int>(pos.byte))},
-      {"l", json::Value(static_cast<json::Int>(byte_length))},
+      {"n", var_name},
+      {"b", static_cast<json::Int>(pos.byte)},
+      {"l", static_cast<json::Int>(byte_length)},
   }};
 }
 
@@ -6286,7 +6343,7 @@ inline auto Int<T>::read_from(Reader &in) const -> T {
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(static_cast<json::Int>(result)));
+    in.attach_tag("#v", static_cast<json::Int>(result));
   }
 
   return result;
@@ -6342,7 +6399,7 @@ inline auto Float<T>::read_from(Reader &in) const -> T {
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
+    in.attach_tag("#v", static_cast<json::Real>(result));
   }
 
   return result;
@@ -6436,7 +6493,7 @@ inline auto StrictFloat<T>::read_from(Reader &in) const -> T {
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(static_cast<json::Real>(result)));
+    in.attach_tag("#v", static_cast<json::Real>(result));
   }
 
   return result;
@@ -6463,7 +6520,7 @@ inline auto YesNo::read_from(Reader &in) const -> bool {
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(result));
+    in.attach_tag("#v", result);
   }
 
   return result;
@@ -6549,7 +6606,7 @@ inline auto String::read_from(Reader &in) const -> std::string {
   }
 
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#v", json::Value(result));
+    in.attach_tag("#v", result);
   }
 
   return result;
@@ -6564,7 +6621,7 @@ inline Separator::Separator(std::string name, std::optional<unsigned char> sep)
 
 inline auto Separator::read_from(Reader &in) const -> std::nullopt_t {
   if (in.get_trace_level() >= trace::Level::FULL) {
-    in.attach_tag("#hidden", json::Value(true));
+    in.attach_tag("#hidden", true);
   }
 
   if (!sep.has_value()) {
@@ -7270,6 +7327,7 @@ auto run_checker(int argc, char **argv, std::unique_ptr<Initializer> initializer
 #include <iterator>
 #include <memory>
 #include <ostream>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -7650,25 +7708,21 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 
 inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
-      {"status", json::Value(json::String(report.status.to_string()))},
-      {"score", json::Value(report.score)},
-      {"message", json::Value(report.message)},
+      {"status", report.status.to_string()},
+      {"score", report.score},
+      {"message", report.message},
   };
 
   if (!reader_trace_stacks_.empty()) {
-    json::List trace_stacks;
-    trace_stacks.reserve(reader_trace_stacks_.size());
-    std::ranges::transform(reader_trace_stacks_, std::back_inserter(trace_stacks),
-                           [](const auto &s) -> json::Value { return json::Value(s.to_json()); });
-    map.emplace("reader_trace_stacks", trace_stacks);
+    map.emplace("reader_trace_stacks",
+                reader_trace_stacks_ |
+                    std::views::transform([](const auto &stack) { return stack.to_json(); }));
   }
 
   if (!evaluator_trace_stacks_.empty()) {
-    json::List trace_stacks;
-    trace_stacks.reserve(evaluator_trace_stacks_.size());
-    std::ranges::transform(evaluator_trace_stacks_, std::back_inserter(trace_stacks),
-                           [](const auto &s) -> json::Value { return json::Value(s.to_json()); });
-    map.emplace("evaluator_trace_stacks", trace_stacks);
+    map.emplace("evaluator_trace_stacks",
+                evaluator_trace_stacks_ |
+                    std::views::transform([](const auto &stack) { return stack.to_json(); }));
   }
 
   std::ostream stream(std::clog.rdbuf());
@@ -8051,6 +8105,7 @@ auto run_interactor(State &state, int argc, char **argv, MainFunc main_func) -> 
 #include <iterator>
 #include <memory>
 #include <ostream>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -8343,17 +8398,15 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 
 inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
-      {"status", json::Value(json::String(report.status.to_string()))},
-      {"score", json::Value(report.score)},
-      {"message", json::Value(report.message)},
+      {"status", report.status.to_string()},
+      {"score", report.score},
+      {"message", report.message},
   };
 
   if (!trace_stacks_.empty()) {
-    json::List trace_stacks;
-    trace_stacks.reserve(trace_stacks_.size());
-    std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
-                           [](auto &s) -> json::Value { return json::Value(s.to_json()); });
-    map.emplace("reader_trace_stacks", trace_stacks);
+    map.emplace("reader_trace_stacks", trace_stacks_ | std::views::transform([](const auto &stack) {
+                                         return stack.to_json();
+                                       }));
   }
 
   std::ostream stream(std::clog.rdbuf());
@@ -8749,6 +8802,7 @@ auto run_validator(int argc, char **argv, std::unique_ptr<Initializer> initializ
 #include <optional>
 #include <ostream>
 #include <queue>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -9139,9 +9193,9 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 inline auto trait_status_to_json(const std::map<std::string, bool> &traits) -> json::Value {
   json::Map map;
   for (const auto &[k, v] : traits) {
-    map.emplace(k, json::Value(v));
+    map.emplace(k, v);
   }
-  return json::Value(map);
+  return std::move(map);
 }
 
 inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace> *node, std::size_t depth,
@@ -9202,16 +9256,14 @@ inline auto print_trace_tree(const trace::TraceTreeNode<var::ReaderTrace> *node,
 
 inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
-      {"status", json::Value(json::String(report.status.to_string()))},
-      {"message", json::Value(report.message)},
+      {"status", report.status.to_string()},
+      {"message", report.message},
   };
 
   if (!trace_stacks_.empty()) {
-    json::List trace_stacks;
-    trace_stacks.reserve(trace_stacks_.size());
-    std::ranges::transform(trace_stacks_, std::back_inserter(trace_stacks),
-                           [](auto &s) -> json::Value { return json::Value(s.to_json()); });
-    map.emplace("reader_trace_stacks", trace_stacks);
+    map.emplace("reader_trace_stacks", trace_stacks_ | std::views::transform([](const auto &stack) {
+                                         return stack.to_json();
+                                       }));
   }
 
   if (!trait_status_.empty()) {
@@ -10009,8 +10061,8 @@ inline auto status_to_colored_title_string(Report::Status status) -> std::string
 
 inline auto JsonReporter::report(const Report &report) -> int {
   json::Map map{
-      {"status", json::Value(json::String(report.status.to_string()))},
-      {"message", json::Value(report.message)},
+      {"status", report.status.to_string()},
+      {"message", report.message},
   };
 
   std::ostream stream(std::clog.rdbuf());
