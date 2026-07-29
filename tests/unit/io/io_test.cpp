@@ -1,6 +1,12 @@
 #include <sys/types.h>
+#if !defined(CPLIB_ON_WINDOWS) && !defined(__wasi__)
+#include <sys/wait.h>
+#endif
 #include <unistd.h>
 
+#if !defined(CPLIB_ON_WINDOWS) && !defined(__wasi__)
+#include <csignal>
+#endif
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -243,3 +249,24 @@ TEST(IoTest, OutBufWritesCompletePayload) {
   close(pipe_fds[0]);
   close(pipe_fds[1]);
 }
+
+#if !defined(CPLIB_ON_WINDOWS) && !defined(__wasi__)
+TEST(InteractorTest, IgnoresSigpipe) {
+  const auto child = fork();
+  ASSERT_GE(child, 0);
+  if (child == 0) {
+    std::signal(SIGPIPE, SIG_DFL);
+    static_cast<void>(
+        new cplib::interactor::State(std::make_unique<cplib::interactor::DefaultInitializer>()));
+
+    struct sigaction action{};
+    if (sigaction(SIGPIPE, nullptr, &action) != 0) _exit(2);
+    _exit(action.sa_handler == SIG_IGN ? 0 : 1);
+  }
+
+  int status = 0;
+  ASSERT_EQ(waitpid(child, &status, 0), child);
+  ASSERT_TRUE(WIFEXITED(status));
+  EXPECT_EQ(WEXITSTATUS(status), 0);
+}
+#endif

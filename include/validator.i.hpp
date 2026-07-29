@@ -507,9 +507,10 @@ inline auto JsonReporter::report(const Report &report) -> int {
   };
 
   if (!trace_stacks_.empty()) {
-    map.emplace("reader_trace_stacks", trace_stacks_ | std::views::transform([](const auto &stack) {
-                                         return stack.to_json();
-                                       }));
+    map.emplace("reader_trace_stacks",
+                trace_stacks_ | std::views::transform([](const auto &stack) -> json::Value {
+                  return stack.to_json();
+                }));
   }
 
   if (!trait_status_.empty()) {

@@ -434,14 +434,17 @@ inline auto JsonReporter::report(const Report &report) -> int {
 
   if (!reader_trace_stacks_.empty()) {
     map.emplace("reader_trace_stacks",
-                reader_trace_stacks_ |
-                    std::views::transform([](const auto &stack) { return stack.to_json(); }));
+                reader_trace_stacks_ | std::views::transform([](const auto &stack) -> json::Value {
+                  return stack.to_json();
+                }));
   }
 
   if (!evaluator_trace_stacks_.empty()) {
-    map.emplace("evaluator_trace_stacks",
-                evaluator_trace_stacks_ |
-                    std::views::transform([](const auto &stack) { return stack.to_json(); }));
+    map.emplace(
+        "evaluator_trace_stacks",
+        evaluator_trace_stacks_ | std::views::transform([](const auto &stack) -> json::Value {
+          return stack.to_json();
+        }));
   }
 
   std::ostream stream(std::clog.rdbuf());

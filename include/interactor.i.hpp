@@ -26,13 +26,13 @@
 
 #include <unistd.h>
 
-#include <algorithm>
-#include <cstdio>
+#if !defined(CPLIB_ON_WINDOWS) && !defined(__wasi__)
+#include <csignal>
+#endif
 #include <cstdlib>
 #include <format>
 #include <iomanip>
 #include <iostream>
-#include <iterator>
 #include <memory>
 #include <ostream>
 #include <ranges>
@@ -149,6 +149,9 @@ inline State::State(std::unique_ptr<Initializer> initializer)
       to_user_buf(nullptr),
       initializer(std::move(initializer)),
       reporter(std::make_unique<JsonReporter>()) {
+#if !defined(CPLIB_ON_WINDOWS) && !defined(__wasi__)
+  std::signal(SIGPIPE, SIG_IGN);
+#endif
   this->initializer->set_state(*this);
   cplib::detail::panic_impl = [this](std::string_view msg) -> void {
     quit(Report(Report::Status::INTERNAL_ERROR, 0.0, std::string(msg)));
@@ -343,9 +346,10 @@ inline auto JsonReporter::report(const Report &report) -> int {
   };
 
   if (!trace_stacks_.empty()) {
-    map.emplace("reader_trace_stacks", trace_stacks_ | std::views::transform([](const auto &stack) {
-                                         return stack.to_json();
-                                       }));
+    map.emplace("reader_trace_stacks",
+                trace_stacks_ | std::views::transform([](const auto &stack) -> json::Value {
+                  return stack.to_json();
+                }));
   }
 
   std::ostream stream(std::clog.rdbuf());
